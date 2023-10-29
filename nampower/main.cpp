@@ -39,6 +39,10 @@
 #include <memory>
 #include <atomic>
 
+#include <chrono>
+#include <thread>
+using std::this_thread::sleep_for;
+
 #ifdef _DEBUG
 #include <sstream>
 #endif
@@ -47,10 +51,12 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD, LPVOID);
 
 namespace
 {
-static DWORD gCooldown;
+    static DWORD gCooldown;
+    static DWORD gBufferTime;
 
 #ifdef _DEBUG
 static DWORD gLastCast;
+static DWORD gLastStopCast;
 #endif
 
 // true when we are simulating a server-based spell cancel to reset the cast bar
@@ -78,9 +84,18 @@ std::unique_ptr<hadesmem::PatchDetour<SignalEventT>> gSignalEventDetour;
 std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellDelayedDetour;
 std::unique_ptr<hadesmem::PatchRaw> gCastbarPatch;
 
+
+void TriggerAfterDelay(std::function<void(void)> func, unsigned int interval)
+{
+    std::thread([func, interval]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(interval));
+        func();
+    }).detach();
+}
+
 void BeginCast(DWORD currentTime, std::uint32_t castTime, int spellId)
 {
-    gCooldown = castTime ? currentTime + castTime : 0;
+    gCooldown = castTime ? currentTime + castTime + gBufferTime : 0;
 
 #ifdef _DEBUG
     // don't bother building the string if nobody will see it
@@ -90,7 +105,7 @@ void BeginCast(DWORD currentTime, std::uint32_t castTime, int spellId)
         str << "Casting " << game::GetSpellName(spellId) << " with cast time " << castTime << " at time " << currentTime;
 
         if (gLastCast)
-            str << " elapsed: " << (currentTime - gLastCast);
+            str << " elapsed since last cast: " << (currentTime - gLastCast) << "\n" << std::endl;
 
         ::OutputDebugStringA(str.str().c_str());
     }
@@ -107,16 +122,60 @@ void BeginCast(DWORD currentTime, std::uint32_t castTime, int spellId)
 
 bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, int spellId, void *item, std::uint64_t guid)
 {
-    auto const currentTime = ::GetTickCount();
+    auto currentTime = ::GetTickCount();
+    auto remainingCD = gCooldown - currentTime;
+
+    if (remainingCD < 150) {
+#ifdef _DEBUG
+        std::stringstream str;
+        str << "Sleeping for " << remainingCD + 1 << std::endl;
+        ::OutputDebugStringA(str.str().c_str());
+#endif
+
+        sleep_for(std::chrono::milliseconds(remainingCD + 1));
+#ifdef _DEBUG
+        remainingCD = gCooldown - ::GetTickCount();
+        str << "Remaining cd after sleep " << remainingCD << std::endl;
+        ::OutputDebugStringA(str.str().c_str());
+#endif
+    }
+
+    currentTime = ::GetTickCount();
+
+#ifdef _DEBUG
+    std::stringstream str;
+    str << "Attempt cast spell at time " << currentTime << " elapsed since last cast " << currentTime - gLastCast << std::endl;
+    ::OutputDebugStringA(str.str().c_str());
+#endif
 
     // is there a cooldown?
     if (gCooldown)
     {
         // is it still active?
-        if (gCooldown > currentTime)
+        if (gCooldown > currentTime) {
+#ifdef _DEBUG
+            std::stringstream str;
+            str << "On cooldown, not casting" << std::endl;
+            ::OutputDebugStringA(str.str().c_str());
+#endif
             return false;
+        }
+        else {
+#ifdef _DEBUG
+            std::stringstream str;
+            str << "Cooldown up, beginning cast" << std::endl;
+            ::OutputDebugStringA(str.str().c_str());
+#endif
+        }
 
         gCooldown = 0;
+    }
+    else {
+#ifdef _DEBUG
+        std::stringstream str;
+        str << "No cooldown, beginning cast" << std::endl;
+        ::OutputDebugStringA(str.str().c_str());
+#endif
     }
 
     gCasting = true;
@@ -139,6 +198,12 @@ bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, int spellId, v
     // simulate a cancel to clear the cast bar but only when there should be a cast time
     if (!ret && castTime)
     {
+#ifdef _DEBUG
+        std::stringstream str;
+        str << "Missing spell result, cancelling" << std::endl;
+        ::OutputDebugStringA(str.str().c_str());
+#endif
+
         gCancelling = true;
         //JT: Suggest replacing CancelSpell with InterruptSpell (the API called when moving during casting).
         // The address of InterruptSpell needs to be dug out. It could possibly fix the sometimes broken animations.
@@ -153,8 +218,15 @@ bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, int spellId, v
 
     auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
                                                                         //JT: cursorMode == 2 is for clickcasting
-    if (ret && !!spell && !(spell->Attributes & game::SPELL_ATTR_RANGED)/* && cursorMode != 2*/)
+    if (ret && !!spell && !(spell->Attributes & game::SPELL_ATTR_RANGED)/* && cursorMode != 2*/) {
+        currentTime = ::GetTickCount();
+#ifdef _DEBUG
+        std::stringstream str;
+        str << "Triggering BeginCast at time " << currentTime << " elapsed since last cast " << currentTime - gLastCast << std::endl;
+        ::OutputDebugStringA(str.str().c_str());
+#endif
         BeginCast(currentTime, castTime, spellId);
+    }
 
     gCasting = false;
 
@@ -171,7 +243,7 @@ int CancelSpellHook(hadesmem::PatchDetourBase *detour, bool failed, bool notifyS
     {
         std::stringstream str;
         str << "Cancel spell. " << " failed: " << failed << " notifyServer: " << notifyServer
-            << " reason: " << reason << " cancelling: " << gCancelling << "\n" << std::endl;
+            << " reason: " << reason << " cancelling: " << gCancelling << std::endl;
 
         ::OutputDebugStringA(str.str().c_str());
     }
@@ -211,8 +283,15 @@ void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId)
         {
             std::stringstream str;
 
-            str << "Event " << (eventId == game::Events::SPELLCAST_STOP ? "SPELLCAST_STOP" : "SPELLCAST_FAILED")
-                << " at time " << currentTime << " gLastCast = " << gLastCast << " gCooldown = " << gCooldown << std::endl;
+            if (gNotifyServer) {
+                str << "CLIENT Event " << (eventId == game::Events::SPELLCAST_STOP ? "SPELLCAST_STOP" : "SPELLCAST_FAILED")
+                    << " at time " << currentTime << std::endl;
+            }
+            else {
+                str << "SERVER Event " << (eventId == game::Events::SPELLCAST_STOP ? "SPELLCAST_STOP" : "SPELLCAST_FAILED")
+                    << " at time " << currentTime << " elapsed since last stop cast = " << currentTime - gLastStopCast << std::endl;
+                gLastStopCast = currentTime;
+            }
 
             ::OutputDebugStringA(str.str().c_str());
         }
@@ -282,6 +361,11 @@ int SpellDelayedHook(hadesmem::PatchDetourBase *detour, int opCode, game::CDataS
             gCooldown += delay;
 #ifdef _DEBUG
             gLastCast += delay;
+
+            std::stringstream str;
+            str << "Spell delayed by " << delay << std::endl;
+
+            ::OutputDebugStringA(str.str().c_str());
 #endif
         }
     }
@@ -293,9 +377,11 @@ int SpellDelayedHook(hadesmem::PatchDetourBase *detour, int opCode, game::CDataS
 extern "C" __declspec(dllexport) DWORD Load()
 {
     gCooldown = 0;
+    gBufferTime = 30;
 
 #ifdef _DEBUG
     gLastCast = 0;
+    gLastStopCast = 0;
 #endif
 
     gCancelling = false;
