@@ -278,11 +278,6 @@ void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId)
 {
     auto const currentTime = ::GetTickCount();
 
-
-    std::stringstream str;
-    str << "CLIENT Event " << eventId << " at time " << currentTime << std::endl;
-    ::OutputDebugStringA(str.str().c_str());
-
     if (!gCasting && (eventId == game::Events::SPELLCAST_STOP || eventId == game::Events::SPELLCAST_FAILED))
     {
 #ifdef _DEBUG
