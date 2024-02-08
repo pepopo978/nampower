@@ -219,7 +219,7 @@ bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, int spellId, v
 
     auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
                                                                         //JT: cursorMode == 2 is for clickcasting
-    if (ret && !!spell && !(spell->Attributes & game::SPELL_ATTR_RANGED) && cursorMode != 2) {
+    if (ret && !!spell && !(spell->Attributes & game::SPELL_ATTR_RANGED) /* && cursorMode != 2 */) {
         currentTime = ::GetTickCount();
 #ifdef _DEBUG
         std::stringstream str;
@@ -257,22 +257,22 @@ int CancelSpellHook(hadesmem::PatchDetourBase *detour, bool failed, bool notifyS
 }
 
 //JT: Using this breaks animations. It is only useful for AOE spells. We can live without speeding those up.
-void SendCastHook(hadesmem::PatchDetourBase *detour, game::SpellCast *cast)
-{
-    auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
-
-    // if we were waiting for a target, it means there is no cast bar yet.  make one \o/
-    if (cursorMode == 2)
-    {
-        auto const unit = game::GetObjectPtr(cast->caster);
-        auto const castTime = game::GetCastTime(unit, cast->spellId);
-
-        BeginCast(::GetTickCount(), castTime, cast->spellId);
-    }
-
-    auto const sendCast = detour->GetTrampolineT<SendCastT>();
-    sendCast(cast);
-}
+//void SendCastHook(hadesmem::PatchDetourBase *detour, game::SpellCast *cast)
+//{
+//    auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
+//
+//    // if we were waiting for a target, it means there is no cast bar yet.  make one \o/
+//    if (cursorMode == 2)
+//    {
+//        auto const unit = game::GetObjectPtr(cast->caster);
+//        auto const castTime = game::GetCastTime(unit, cast->spellId);
+//
+//        BeginCast(::GetTickCount(), castTime, cast->spellId);
+//    }
+//
+//    auto const sendCast = detour->GetTrampolineT<SendCastT>();
+//    sendCast(cast);
+//}
 
 void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId)
 {
@@ -332,7 +332,7 @@ void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId)
     // the server perceives too little time as having passed to allow another cast.  i dont
     // think there is anything we can do about this except to honor the servers request to
     // abort the cast.  reset our cooldown and allow 
-    else if ((eventId == game::Events::SPELLCAST_FAILED && !gNotifyServer) || //JT: !gNotifyServer breaks QuickHeal
+    else if (eventId == game::Events::SPELLCAST_FAILED/* && !gNotifyServer*/ || //JT: !gNotifyServer breaks QuickHeal
             eventId == game::Events::SPELLCAST_INTERRUPTED) //JT: moving to cancel the spell sends "SPELLCAST_INTERRUPTED"
         gCooldown = 0;
 
@@ -379,8 +379,14 @@ int SpellDelayedHook(hadesmem::PatchDetourBase *detour, int opCode, game::CDataS
 extern "C" __declspec(dllexport) DWORD Load()
 {
     gCooldown = 0;
-    gBufferTime = 10; // time in ms to buffer cast to minimize server failure
+    gBufferTime = 30; // time in ms to buffer cast to minimize server failure
     gWaitForCastTime = 100; // time in ms before cast is possible to sleep to try to cast at the perfect time
+
+    std::ifstream inputFile("nampower.cfg");
+    if (inputFile.is_open()) {
+        inputFile >> gBufferTime;
+        inputFile >> gWaitForCastTime;
+    }
 
 #ifdef _DEBUG
     gLastCast = 0;
@@ -404,9 +410,9 @@ extern "C" __declspec(dllexport) DWORD Load()
     gCancelSpellDetour->Apply();
     //JT: Disable this. This is only for AOE spells and breaks animations.
     // monitor for spell cast triggered after target (terrain, item, etc.) is selected
-    auto const sendCastOrig = hadesmem::detail::AliasCast<SendCastT>(Offsets::SendCast);
-    gSendCastDetour = std::make_unique<hadesmem::PatchDetour<SendCastT>>(process, sendCastOrig, &SendCastHook);
-    gSendCastDetour->Apply();
+    //auto const sendCastOrig = hadesmem::detail::AliasCast<SendCastT>(Offsets::SendCast);
+    //gSendCastDetour = std::make_unique<hadesmem::PatchDetour<SendCastT>>(process, sendCastOrig, &SendCastHook);
+    //gSendCastDetour->Apply();
 
     // this hook will alter cast bar behavior based on events from the game
     auto const signalEventOrig = hadesmem::detail::AliasCast<SignalEventT>(Offsets::SignalEvent);
@@ -420,9 +426,9 @@ extern "C" __declspec(dllexport) DWORD Load()
     //JT: Disabling SPELLCAST_START from the server breaks HealComm. It needs time to have passed between CastSpell and
     // SPELLCAST_START. Rather have the castbar appear slightly late (only visual mismatch).
     // prevent spellbar re-activation upon successful cast notification from server
-    const std::vector<std::uint8_t> patch(5, 0x90);
-    gCastbarPatch = std::make_unique<hadesmem::PatchRaw>(process, reinterpret_cast<void *>(Offsets::CreateCastbar), patch);
-    gCastbarPatch->Apply();
+    //const std::vector<std::uint8_t> patch(5, 0x90);
+    //gCastbarPatch = std::make_unique<hadesmem::PatchRaw>(process, reinterpret_cast<void *>(Offsets::CreateCastbar), patch);
+    //gCastbarPatch->Apply();
 
     return EXIT_SUCCESS;
 }
