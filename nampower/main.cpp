@@ -85,7 +85,6 @@ std::unique_ptr<hadesmem::PatchDetour<SignalEventT>> gSignalEventDetour;
 std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellDelayedDetour;
 std::unique_ptr<hadesmem::PatchRaw> gCastbarPatch;
 
-
 void BeginCast(DWORD currentTime, std::uint32_t castTime, int spellId)
 {
     gCooldown = castTime ? currentTime + castTime + gBufferTime : 0;
@@ -94,8 +93,8 @@ void BeginCast(DWORD currentTime, std::uint32_t castTime, int spellId)
     std::stringstream str;
     str << "BeginCast1 " << game::GetSpellName(spellId) << " with cast time " << castTime << " at time " << currentTime;
 
-    if (gLastCast)
-        str << " elapsed since last cast: " << (currentTime - gLastCast) << "\n" << std::endl;
+        if (gLastCast)
+            str << " elapsed since last cast: " << (currentTime - gLastCast) << "\n" << std::endl;
 
     ::OutputDebugStringA(str.str().c_str());
 
@@ -207,7 +206,13 @@ bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, int spellId, v
 
     auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
                                                                         //JT: cursorMode == 2 is for clickcasting
-    if (ret && !!spell && !(spell->Attributes & game::SPELL_ATTR_RANGED)/* && cursorMode != 2*/) {
+    if (ret && !!spell && !(spell->Attributes & game::SPELL_ATTR_RANGED) /* && cursorMode != 2 */) {
+        currentTime = ::GetTickCount();
+#ifdef _DEBUG
+        std::stringstream str;
+        str << "Triggering BeginCast at time " << currentTime << " elapsed since last cast " << currentTime - gLastCast << std::endl;
+        ::OutputDebugStringA(str.str().c_str());
+#endif
         BeginCast(currentTime, castTime, spellId);
     }
 
