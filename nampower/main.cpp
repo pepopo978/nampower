@@ -39,6 +39,10 @@
 #include <memory>
 #include <atomic>
 
+#include <chrono>
+#include <thread>
+using std::this_thread::sleep_for;
+
 #ifdef _DEBUG
 #include <sstream>
 #endif
@@ -47,10 +51,13 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD, LPVOID);
 
 namespace
 {
-static DWORD gCooldown;
+    static DWORD gCooldown;
+    static DWORD gBufferTime;
+    static DWORD gWaitForCastTime;
 
 #ifdef _DEBUG
 static DWORD gLastCast;
+static DWORD gLastStopCast;
 #endif
 
 // true when we are simulating a server-based spell cancel to reset the cast bar
@@ -78,22 +85,19 @@ std::unique_ptr<hadesmem::PatchDetour<SignalEventT>> gSignalEventDetour;
 std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellDelayedDetour;
 std::unique_ptr<hadesmem::PatchRaw> gCastbarPatch;
 
+
 void BeginCast(DWORD currentTime, std::uint32_t castTime, int spellId)
 {
-    gCooldown = castTime ? currentTime + castTime : 0;
+    gCooldown = castTime ? currentTime + castTime + gBufferTime : 0;
 
 #ifdef _DEBUG
-    // don't bother building the string if nobody will see it
-    if (::IsDebuggerPresent())
-    {
-        std::stringstream str;
-        str << "Casting " << game::GetSpellName(spellId) << " with cast time " << castTime << " at time " << currentTime;
+    std::stringstream str;
+    str << "BeginCast1 " << game::GetSpellName(spellId) << " with cast time " << castTime << " at time " << currentTime;
 
-        if (gLastCast)
-            str << " elapsed: " << (currentTime - gLastCast);
+    if (gLastCast)
+        str << " elapsed since last cast: " << (currentTime - gLastCast) << "\n" << std::endl;
 
-        ::OutputDebugStringA(str.str().c_str());
-    }
+    ::OutputDebugStringA(str.str().c_str());
 
     gLastCast = currentTime;
 #endif
@@ -107,16 +111,60 @@ void BeginCast(DWORD currentTime, std::uint32_t castTime, int spellId)
 
 bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, int spellId, void *item, std::uint64_t guid)
 {
-    auto const currentTime = ::GetTickCount();
+    auto currentTime = ::GetTickCount();
+    auto remainingCD = gCooldown - currentTime;
+
+    if (remainingCD < gWaitForCastTime) {
+#ifdef _DEBUG
+        std::stringstream str;
+        str << "Sleeping for " << remainingCD + 1 << std::endl;
+        ::OutputDebugStringA(str.str().c_str());
+#endif
+
+        sleep_for(std::chrono::milliseconds(remainingCD + 1));
+#ifdef _DEBUG
+        remainingCD = gCooldown - ::GetTickCount();
+        str << "Remaining cd after sleep " << remainingCD << std::endl;
+        ::OutputDebugStringA(str.str().c_str());
+#endif
+    }
+
+    currentTime = ::GetTickCount();
+
+#ifdef _DEBUG
+    std::stringstream str;
+    str << "Attempt cast spell at time " << currentTime << " elapsed since last cast " << currentTime - gLastCast << std::endl;
+    ::OutputDebugStringA(str.str().c_str());
+#endif
 
     // is there a cooldown?
     if (gCooldown)
     {
         // is it still active?
-        if (gCooldown > currentTime)
+        if (gCooldown > currentTime) {
+#ifdef _DEBUG
+            std::stringstream str;
+            str << "On cooldown, not casting" << std::endl;
+            ::OutputDebugStringA(str.str().c_str());
+#endif
             return false;
+        }
+        else {
+#ifdef _DEBUG
+            std::stringstream str;
+            str << "Cooldown up, beginning cast" << std::endl;
+            ::OutputDebugStringA(str.str().c_str());
+#endif
+        }
 
         gCooldown = 0;
+    }
+    else {
+#ifdef _DEBUG
+        std::stringstream str;
+        str << "No cooldown, beginning cast" << std::endl;
+        ::OutputDebugStringA(str.str().c_str());
+#endif
     }
 
     gCasting = true;
@@ -139,6 +187,12 @@ bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, int spellId, v
     // simulate a cancel to clear the cast bar but only when there should be a cast time
     if (!ret && castTime)
     {
+#ifdef _DEBUG
+        std::stringstream str;
+        str << "Missing spell result, cancelling" << std::endl;
+        ::OutputDebugStringA(str.str().c_str());
+#endif
+
         gCancelling = true;
         //JT: Suggest replacing CancelSpell with InterruptSpell (the API called when moving during casting).
         // The address of InterruptSpell needs to be dug out. It could possibly fix the sometimes broken animations.
@@ -153,8 +207,9 @@ bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, int spellId, v
 
     auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
                                                                         //JT: cursorMode == 2 is for clickcasting
-    if (ret && !!spell && !(spell->Attributes & game::SPELL_ATTR_RANGED)/* && cursorMode != 2*/)
+    if (ret && !!spell && !(spell->Attributes & game::SPELL_ATTR_RANGED)/* && cursorMode != 2*/) {
         BeginCast(currentTime, castTime, spellId);
+    }
 
     gCasting = false;
 
@@ -171,7 +226,7 @@ int CancelSpellHook(hadesmem::PatchDetourBase *detour, bool failed, bool notifyS
     {
         std::stringstream str;
         str << "Cancel spell. " << " failed: " << failed << " notifyServer: " << notifyServer
-            << " reason: " << reason << " cancelling: " << gCancelling << "\n" << std::endl;
+            << " reason: " << reason << " cancelling: " << gCancelling << std::endl;
 
         ::OutputDebugStringA(str.str().c_str());
     }
@@ -182,6 +237,7 @@ int CancelSpellHook(hadesmem::PatchDetourBase *detour, bool failed, bool notifyS
 
     return ret;
 }
+
 //JT: Using this breaks animations. It is only useful for AOE spells. We can live without speeding those up.
 //void SendCastHook(hadesmem::PatchDetourBase *detour, game::SpellCast *cast)
 //{
@@ -211,8 +267,15 @@ void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId)
         {
             std::stringstream str;
 
-            str << "Event " << (eventId == game::Events::SPELLCAST_STOP ? "SPELLCAST_STOP" : "SPELLCAST_FAILED")
-                << " at time " << currentTime << " gLastCast = " << gLastCast << " gCooldown = " << gCooldown << std::endl;
+            if (gNotifyServer) {
+                str << "CLIENT Event " << (eventId == game::Events::SPELLCAST_STOP ? "SPELLCAST_STOP" : "SPELLCAST_FAILED")
+                    << " at time " << currentTime << std::endl;
+            }
+            else {
+                str << "SERVER Event " << (eventId == game::Events::SPELLCAST_STOP ? "SPELLCAST_STOP" : "SPELLCAST_FAILED")
+                    << " at time " << currentTime << " elapsed since last stop cast = " << currentTime - gLastStopCast << std::endl;
+                gLastStopCast = currentTime;
+            }
 
             ::OutputDebugStringA(str.str().c_str());
         }
@@ -282,6 +345,11 @@ int SpellDelayedHook(hadesmem::PatchDetourBase *detour, int opCode, game::CDataS
             gCooldown += delay;
 #ifdef _DEBUG
             gLastCast += delay;
+
+            std::stringstream str;
+            str << "Spell delayed by " << delay << std::endl;
+
+            ::OutputDebugStringA(str.str().c_str());
 #endif
         }
     }
@@ -293,9 +361,18 @@ int SpellDelayedHook(hadesmem::PatchDetourBase *detour, int opCode, game::CDataS
 extern "C" __declspec(dllexport) DWORD Load()
 {
     gCooldown = 0;
+    gBufferTime = 30; // time in ms to buffer cast to minimize server failure
+    gWaitForCastTime = 100; // time in ms before cast is possible to sleep to try to cast at the perfect time
+
+    std::ifstream inputFile("nampower.cfg");
+    if (inputFile.is_open()) {
+        inputFile >> gBufferTime;
+        inputFile >> gWaitForCastTime;
+    }
 
 #ifdef _DEBUG
     gLastCast = 0;
+    gLastStopCast = 0;
 #endif
 
     gCancelling = false;
@@ -313,6 +390,7 @@ extern "C" __declspec(dllexport) DWORD Load()
     auto const cancelSpellOrig = hadesmem::detail::AliasCast<CancelSpellT>(Offsets::CancelSpell);
     gCancelSpellDetour = std::make_unique<hadesmem::PatchDetour<CancelSpellT>>(process, cancelSpellOrig, &CancelSpellHook);
     gCancelSpellDetour->Apply();
+
     //JT: Disable this. This is only for AOE spells and breaks animations.
     // monitor for spell cast triggered after target (terrain, item, etc.) is selected
     //auto const sendCastOrig = hadesmem::detail::AliasCast<SendCastT>(Offsets::SendCast);
@@ -331,9 +409,9 @@ extern "C" __declspec(dllexport) DWORD Load()
     //JT: Disabling SPELLCAST_START from the server breaks HealComm. It needs time to have passed between CastSpell and
     // SPELLCAST_START. Rather have the castbar appear slightly late (only visual mismatch).
     // prevent spellbar re-activation upon successful cast notification from server
-    //const std::vector<std::uint8_t> patch(5, 0x90);
-    //gCastbarPatch = std::make_unique<hadesmem::PatchRaw>(process, reinterpret_cast<void *>(Offsets::CreateCastbar), patch);
-    //gCastbarPatch->Apply();
+//    const std::vector<std::uint8_t> patch(5, 0x90);
+//    gCastbarPatch = std::make_unique<hadesmem::PatchRaw>(process, reinterpret_cast<void *>(Offsets::CreateCastbar), patch);
+//    gCastbarPatch->Apply();
 
     return EXIT_SUCCESS;
 }
