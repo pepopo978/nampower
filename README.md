@@ -2,6 +2,14 @@
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=QFWZUEMC5N3SW)
 
+# Pepo v1.0.0 Changes
+
+Now looks for a nampower.cfg file in the same directory with two lines:
+
+1.  The first line should contain the "buffer" time between each cast.  This is the amount of time to delay casts to ensure you don't try to cast again too early due to server/packet lag and get rejected by the server with a "This ability isn't ready yet" error.  For 150ms I found 30ms to be a reasonable buffer.
+2.  The second line is the window in ms before each cast during which nampower will delay cast attempts to send them to the server at the perfect time.  So 300 would mean if you cast anytime in the 300ms window before your next optimal cast your cast will be sent at the idea time.  This means you don't have to spam cast as aggressively.  This feature will cause a small stutter because it is pausing your UI (I couldn't find a better way to do this but I'm sure one exists now with superwow) so if you don't like that set this to 0.
+  
+  
 # nampower
 
 An auto stop-cast tool for World of Warcraft 1.12.1.5875 (for Windows)
