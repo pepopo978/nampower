@@ -7,4 +7,5 @@
 /.vscode/
 /build/
 /cmake-build-debug-visual-studio-17-32-bit/
+/cmake-build-release-visual-studio-17-32-bit/
 /loader/RCa22240

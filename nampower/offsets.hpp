@@ -46,4 +46,5 @@ enum class Offsets : std::uint32_t
     SignalEventParam = 0x703F50,
     SpellDb = 0xC0D788,
     CursorMode = 0xBE2C4C,
+    ISceneEndPtr = 0x5A17A0,
 };
