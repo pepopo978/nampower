@@ -46,23 +46,32 @@
 
 using std::this_thread::sleep_for;
 
-#ifdef _DEBUG
-    std::ofstream debugLogFile("nampower_debug.log");
-    #define DEBUG_LOG(msg) debugLogFile << "[DEBUG]" << GetTime() << ": " << msg << std::endl
-#else
-    #define DEBUG_LOG(msg) // No-op in release mode
-#endif
+// TODO uncomment once ready for release
+//#ifdef _DEBUG
+//std::ofstream debugLogFile("nampower_debug.log");
+//#define DEBUG_LOG(msg) debugLogFile << "[DEBUG]" << GetTime() << ": " << msg << std::endl
+//#else
+//#define DEBUG_LOG(msg) // No-op in release mode
+//#endif
+std::ofstream debugLogFile("nampower_debug.log");
+#define DEBUG_LOG(msg) debugLogFile << "[DEBUG]" << GetTime() << ": " << msg << std::endl
 
 BOOL WINAPI DllMain(HINSTANCE, DWORD, void *);
 
 namespace {
-    static const DWORD MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE = 10000;
+    static const DWORD MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE = 10000; // time limit in ms after which queued casts are ignored in errors
+    static const DWORD DYNAMIC_BUFFER_INCREMENT = 5; // amount to adjust buffer in ms on errors/lack of errors
+    static const DWORD MAX_BUFFER = 300; // maximum amount of time to buffer a cast in ms
+    static const DWORD TIME_BETWEEN_ERRORS_TO_LOWER_BUFFER = 30000; // time in ms between errors to lower buffer
+    static const DWORD MAX_RETRIES = 2; // maximum number of retries before giving up
+
     static DWORD gStartTime;
-    static DWORD gCooldownMs;
-    static DWORD gGCDCooldownMs;
+    static DWORD gCastEndMs;
+    static DWORD gGCDEndMs;
     static DWORD gBufferTimeMs;   // adjusts dynamically depending on errors
     static DWORD gInstantCastBufferTimeMs;   // adjusts dynamically depending on errors
     static DWORD gMinBufferTimeMs; // set by user
+    static DWORD gMinInstantCastBufferTimeMs; // set by user
     static DWORD gSpellQueueWindowMs;
     static DWORD gLastCast;
 
@@ -128,32 +137,42 @@ namespace {
         return *(address + offset);
     }
 
-    // This crashes needs more work but plan is to use it to queue up instant cast spells
-    DWORD GlobalCooldownEndTime(int spellId) {
-        auto GetSpellCooldownByID = (tGetSpellCooldownByID) 0x00809000; // Spell_C__GetSpellCooldown_Proxy in the info thread
-        auto GetTimer = (tGetTimer) 0x0086AE20; // PerformanceCounter in the info thread
-
-        DWORD cdLength = 0, timeStarted = 0, enabled = 0, RemainingCD = 0;
-        GetSpellCooldownByID(spellId, 0, &cdLength, &timeStarted, &enabled);
-
-        if (cdLength > 0)
-            RemainingCD = (timeStarted + cdLength) - GetTimer();
-
-        return RemainingCD;
+    bool SpellIsOnGCD(const game::SpellRec *spell) {
+        return spell->StartRecoveryCategory == 133;
     }
 
-    void BeginCast(DWORD currentTime, std::uint32_t castTime, int spellId) {
-        gCooldownMs = castTime ? currentTime + castTime + gBufferTimeMs : 0;
-        gGCDCooldownMs = currentTime + 1500;
+    void BeginCast(DWORD currentTime, std::uint32_t castTime, const game::SpellRec *spell) {
+        if (SpellIsOnGCD(spell)) {
+            gCastEndMs = castTime ? currentTime + castTime + gBufferTimeMs : 0;
 
-        // if it has been 1 min since last error, can lower gBufferTimeMs
-        if (gBufferTimeMs > gMinBufferTimeMs && gLastErrorTimeMs && currentTime - gLastErrorTimeMs > 30000) {
-            gBufferTimeMs -= 5;
-            gLastErrorTimeMs = currentTime; // wait another minute before potentially lowering again
+            auto gcd = spell->StartRecoveryTime;
+            if (gcd == 0) {
+                gcd = 1500;
+            }
+            gGCDEndMs = currentTime + spell->StartRecoveryTime;
+            DEBUG_LOG("BeginCast " << game::GetSpellName(spell->Id)
+                                   << " cast time: " << castTime << " buffer: "
+                                   << gBufferTimeMs << " GCD: " << gcd);
+        } else {
+            DEBUG_LOG("BeginCast " << game::GetSpellName(spell->Id)
+                                   << " cast time: " << castTime << " buffer: "
+                                   << gBufferTimeMs << " NO GCD");
+            gGCDEndMs = 0;
         }
 
-        DEBUG_LOG("BeginCast " << game::GetSpellName(spellId) <<
-                               " with cast time " << castTime << " and buffer " << gBufferTimeMs);
+        // if it has been TIME_BETWEEN_ERRORS_TO_LOWER_BUFFER ms since last error, can lower buffers
+        if (gLastErrorTimeMs && currentTime - gLastErrorTimeMs > TIME_BETWEEN_ERRORS_TO_LOWER_BUFFER) {
+            if (gBufferTimeMs > gMinBufferTimeMs) {
+                gBufferTimeMs -= DYNAMIC_BUFFER_INCREMENT;
+            }
+
+            if (gInstantCastBufferTimeMs > gMinInstantCastBufferTimeMs) {
+                gInstantCastBufferTimeMs -= DYNAMIC_BUFFER_INCREMENT;
+            }
+
+            gLastErrorTimeMs = currentTime; // update the last error time to prevent lowering buffer too often
+        }
+
         gLastCast = currentTime;
         //JT: Use the notification from server to activate cast bar - it is needed to have HealComm work.
         //if (castTime)
@@ -165,6 +184,11 @@ namespace {
 
     bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, int spellId, void *item, std::uint64_t guid) {
         auto const castTime = game::GetCastTime(unit, spellId);
+        auto const spell = game::GetSpellInfo(spellId);
+
+        auto spellOnGCD = SpellIsOnGCD(spell);
+
+        auto previousCastTime = lastCastTime;
 
         lastUnit = unit;
         lastSpellId = spellId;
@@ -178,57 +202,52 @@ namespace {
         }
 
         auto currentTime = GetTime();
-        auto remainingCD = gCooldownMs - currentTime;
-        auto remainingGCD = gGCDCooldownMs - currentTime;
+        auto remainingCastTime = gCastEndMs - currentTime;
+        auto remainingGCD = gGCDEndMs - currentTime;
 
-        if (remainingCD > 0 && remainingCD < gSpellQueueWindowMs) {
+        if (remainingCastTime > 0 && remainingCastTime < gSpellQueueWindowMs) {
+            DEBUG_LOG("queuing for after cooldown: " << remainingCastTime << "ms");
             gSpellQueued = true;
 
             // save the detour to trigger the cast again after the cooldown is up
             lastDetour = detour;
-
-            DEBUG_LOG("queuing for after cooldown: " << remainingCD << "ms");
 
             return false;
-        } else if (remainingGCD > 0 && remainingGCD < gSpellQueueWindowMs) {
+        } else if (spellOnGCD && remainingGCD > 0 && remainingGCD < gSpellQueueWindowMs) {
+            DEBUG_LOG("queuing for after gcd: " << remainingGCD << "ms");
             gSpellQueued = true;
 
             // save the detour to trigger the cast again after the cooldown is up
             lastDetour = detour;
-
-            DEBUG_LOG("queuing for after gcd: " << remainingGCD << "ms");
 
             return false;
         }
 
-        DEBUG_LOG(
-                "Attempt cast spell time elapsed since last cast " << currentTime - gLastCast);
+        DEBUG_LOG("Attempt cast spell time elapsed since last cast " << currentTime - gLastCast);
 
         // is there a cooldown?
-        if (gCooldownMs) {
+        if (gCastEndMs) {
             // is it still active?
-            if (gCooldownMs > currentTime) {
-                DEBUG_LOG("cooldown active " << gCooldownMs - currentTime << "ms remaining");
+            if (gCastEndMs > currentTime) {
+                DEBUG_LOG("cooldown active " << gCastEndMs - currentTime << "ms remaining");
                 return false;
             }
 
-            gCooldownMs = 0;
+            gCastEndMs = 0;
         }
         // is there a GCD?
-        if (gGCDCooldownMs) {
+        if (spellOnGCD && gGCDEndMs) {
             // is it still active?
-            if (gGCDCooldownMs > currentTime) {
-                DEBUG_LOG("gcd active " << gGCDCooldownMs - currentTime << "ms remaining");
+            if (gGCDEndMs > currentTime) {
+                DEBUG_LOG("gcd active " << gGCDEndMs - currentTime << "ms remaining");
                 return false;
             }
 
-            gGCDCooldownMs = 0;
+            gGCDEndMs = 0;
         }
 
 
         gCasting = true;
-
-        auto const spell = game::GetSpellInfo(spellId);
 
         auto const castSpell = detour->GetTrampolineT<CastSpellT>();
         auto ret = castSpell(unit, spellId, item, guid);
@@ -242,7 +261,9 @@ namespace {
 
         // haven't gotten spell result from the previous cast yet, probably due to latency.
         // simulate a cancel to clear the cast bar but only when there should be a cast time
-        if (!ret) {
+        if (!ret && previousCastTime > 0) {
+            DEBUG_LOG("Canceling spell cast due to previousCastTime " << ret);
+
             gCancelling = true;
             //JT: Suggest replacing CancelSpell with InterruptSpell (the API called when moving during casting).
             // The address of InterruptSpell needs to be dug out. It could possibly fix the sometimes broken animations.
@@ -259,7 +280,7 @@ namespace {
         //JT: cursorMode == 2 is for clickcasting
         if (ret && !(spell->Attributes & game::SPELL_ATTR_RANGED) /* && cursorMode != 2 */) {
             currentTime = GetTime();
-            BeginCast(currentTime, castTime, spellId);
+            BeginCast(currentTime, castTime, spell);
         } else {
             DEBUG_LOG("Spell cast start failed castSpell returned " << ret << " spell " << spellId << " isRanged " <<
                                                                     !(spell->Attributes & game::SPELL_ATTR_RANGED));
@@ -321,15 +342,15 @@ namespace {
             // the cast bar and reset our internal cooldown.
             if (gNotifyServer) {
                 DEBUG_LOG("Spellcast stop, resetting cooldown");
-                gCooldownMs = 0;
-                gGCDCooldownMs = 0;
+                gCastEndMs = 0;
+                gGCDEndMs = 0;
             }
 
                 // if this is from the server but it is happening too early, it is for one of two reasons.
                 // 1) it is for the last cast, in which case we can ignore it
                 // 2) it is for our current cast and the server decided to cast sooner than we expected
                 //    this can happen from mage 8/8 t2 proc or presence of mind
-            else if (!gCasting && !gCancelling && currentTime <= gCooldownMs) {
+            else if (!gCasting && !gCancelling && currentTime <= gCastEndMs) {
                 DEBUG_LOG("Server triggered spellcast stop");
                 return;
             }
@@ -345,13 +366,13 @@ namespace {
                  eventId ==
                  game::Events::SPELLCAST_INTERRUPTED) //JT: moving to cancel the spell sends "SPELLCAST_INTERRUPTED"
         {
-            gCooldownMs = 0;
-            gGCDCooldownMs = 0;
+            gCastEndMs = 0;
+            gGCDEndMs = 0;
             gCasting = false;
 
             if (eventId == game::Events::SPELLCAST_FAILED) {
-                // don't spam retry if out of mana
-                if (gLastErrorTimeMs - currentTime < 200) {
+                // don't spam retry
+                if (currentTime - gLastErrorTimeMs < 200) {
                     DEBUG_LOG("Spellcast failed, not queuing retry due to recent error at " << gLastErrorTimeMs);
                     return;
                 } else {
@@ -360,8 +381,16 @@ namespace {
                 gSpellQueued = true;
                 gLastErrorTimeMs = currentTime;
 
-                if (gBufferTimeMs < 200) {
-                    gBufferTimeMs += 5;
+                if (lastCastTime == 0) {
+                    if (gInstantCastBufferTimeMs < MAX_BUFFER) {
+                        gInstantCastBufferTimeMs += DYNAMIC_BUFFER_INCREMENT;
+                        DEBUG_LOG("Increasing instant cast buffer to " << gInstantCastBufferTimeMs);
+                    }
+                } else {
+                    if (gBufferTimeMs < MAX_BUFFER) {
+                        gBufferTimeMs += DYNAMIC_BUFFER_INCREMENT;
+                        DEBUG_LOG("Increasing buffer to " << gBufferTimeMs);
+                    }
                 }
             } else {
                 DEBUG_LOG("Spellcast interrupted");
@@ -388,8 +417,8 @@ namespace {
             auto const currentTime = GetTime();
 
             // if we are casting a spell and it was delayed, update our own state so we do not allow a cast too soon
-            if (currentTime < gCooldownMs) {
-                gCooldownMs += delay;
+            if (currentTime < gCastEndMs) {
+                gCastEndMs += delay;
             }
         }
 
@@ -403,7 +432,7 @@ namespace {
             auto currentTime = GetTime();
 
             // get max of cooldown and gcd
-            auto delay = gCooldownMs > gGCDCooldownMs ? gCooldownMs : gGCDCooldownMs;
+            auto delay = gCastEndMs > gGCDEndMs ? gCastEndMs : gGCDEndMs;
 
             if (lastCastTime == 0) {
                 delay += gInstantCastBufferTimeMs;
@@ -438,8 +467,8 @@ namespace {
 extern "C" __declspec(dllexport) DWORD Load() {
     gStartTime = static_cast<DWORD>(std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::high_resolution_clock::now().time_since_epoch()).count());
-    gCooldownMs = 0;
-    gGCDCooldownMs = 0;
+    gCastEndMs = 0;
+    gGCDEndMs = 0;
     gMinBufferTimeMs = 0; // time in ms to buffer cast to minimize server failure
     gInstantCastBufferTimeMs = 30; // time in ms to buffer instant cast to minimize server failure
     gSpellQueueWindowMs = 1000; // time in ms before cast is possible to sleep to try to cast at the perfect time
