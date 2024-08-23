@@ -59,23 +59,27 @@ std::ofstream debugLogFile("nampower_debug.log");
 BOOL WINAPI DllMain(HINSTANCE, DWORD, void *);
 
 namespace {
-    static const DWORD MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE = 10000; // time limit in ms after which queued casts are ignored in errors
+    static const DWORD MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE = 5000; // time limit in ms after which queued casts are ignored in errors
     static const DWORD DYNAMIC_BUFFER_INCREMENT = 5; // amount to adjust buffer in ms on errors/lack of errors
-    static const DWORD MAX_BUFFER = 300; // maximum amount of time to buffer a cast in ms
-    static const DWORD TIME_BETWEEN_ERRORS_TO_LOWER_BUFFER = 30000; // time in ms between errors to lower buffer
-    static const DWORD MAX_RETRIES = 2; // maximum number of retries before giving up
+    static const DWORD BUFFER_INCREASE_FREQUENCY = 5000; // time in ms between changes to raise buffer
+    static const DWORD BUFFER_DECREASE_FREQUENCY = 10000; // time in ms between changes to lower buffer
 
     static DWORD gStartTime;
     static DWORD gCastEndMs;
     static DWORD gGCDEndMs;
+    static DWORD gMaxBufferIncrease;
     static DWORD gBufferTimeMs;   // adjusts dynamically depending on errors
     static DWORD gInstantCastBufferTimeMs;   // adjusts dynamically depending on errors
+    static DWORD gMaxInstantCastBufferIncrease;
     static DWORD gMinBufferTimeMs; // set by user
     static DWORD gMinInstantCastBufferTimeMs; // set by user
     static DWORD gSpellQueueWindowMs;
     static DWORD gLastCast;
+    static DWORD gLastCastTime;
 
     static DWORD gLastErrorTimeMs;
+    static DWORD gLastBufferIncreaseTimeMs;
+    static DWORD gLastBufferDecreaseTimeMs;
 
     // true a spell is queued
     static std::atomic<bool> gSpellQueued;
@@ -104,7 +108,6 @@ namespace {
     using CancelSpellT = int (__fastcall *)(bool, bool, game::SpellFailedReason);
     using SignalEventT = void (__fastcall *)(game::Events);
     using PacketHandlerT = int (__stdcall *)(int, game::CDataStore *);
-    using EndSceneT = int (__stdcall *)(uintptr_t *device);
     using ISceneEndT = int *(__fastcall *)(uintptr_t *unk);
 
     typedef int (__cdecl *tGetSpellCooldownByID)(int, int, DWORD *, DWORD *, DWORD *);
@@ -118,7 +121,6 @@ namespace {
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellDelayedDetour;
     std::unique_ptr<hadesmem::PatchRaw> gCastbarPatch;
     std::unique_ptr<hadesmem::PatchDetour<ISceneEndT>> gIEndSceneDetour;
-    std::unique_ptr<hadesmem::PatchDetour<EndSceneT>> gEndSceneDetour;
 
     // Pointer to EndScene function
     static uintptr_t *gEndScenePtr = nullptr;
@@ -142,6 +144,10 @@ namespace {
     }
 
     void BeginCast(DWORD currentTime, std::uint32_t castTime, const game::SpellRec *spell) {
+        auto bufferTime = castTime == 0 ? 0 : gBufferTimeMs;
+
+        gLastCastTime = castTime;
+
         if (SpellIsOnGCD(spell)) {
             gCastEndMs = castTime ? currentTime + castTime + gBufferTimeMs : 0;
 
@@ -152,25 +158,27 @@ namespace {
             gGCDEndMs = currentTime + spell->StartRecoveryTime;
             DEBUG_LOG("BeginCast " << game::GetSpellName(spell->Id)
                                    << " cast time: " << castTime << " buffer: "
-                                   << gBufferTimeMs << " GCD: " << gcd);
+                                   << bufferTime << " GCD: " << gcd);
         } else {
             DEBUG_LOG("BeginCast " << game::GetSpellName(spell->Id)
                                    << " cast time: " << castTime << " buffer: "
-                                   << gBufferTimeMs << " NO GCD");
+                                   << bufferTime << " NO GCD");
             gGCDEndMs = 0;
         }
 
-        // if it has been TIME_BETWEEN_ERRORS_TO_LOWER_BUFFER ms since last error, can lower buffers
-        if (gLastErrorTimeMs && currentTime - gLastErrorTimeMs > TIME_BETWEEN_ERRORS_TO_LOWER_BUFFER) {
+        // check if we can lower buffers
+        if (currentTime - gLastBufferDecreaseTimeMs > BUFFER_DECREASE_FREQUENCY) {
             if (gBufferTimeMs > gMinBufferTimeMs) {
                 gBufferTimeMs -= DYNAMIC_BUFFER_INCREMENT;
+                DEBUG_LOG("Decreasing buffer to " << gBufferTimeMs);
             }
 
             if (gInstantCastBufferTimeMs > gMinInstantCastBufferTimeMs) {
                 gInstantCastBufferTimeMs -= DYNAMIC_BUFFER_INCREMENT;
+                DEBUG_LOG("Decreasing instant cast buffer to " << gInstantCastBufferTimeMs);
             }
 
-            gLastErrorTimeMs = currentTime; // update the last error time to prevent lowering buffer too often
+            gLastBufferDecreaseTimeMs = currentTime; // update the last error time to prevent lowering buffer too often
         }
 
         gLastCast = currentTime;
@@ -188,18 +196,12 @@ namespace {
 
         auto spellOnGCD = SpellIsOnGCD(spell);
 
-        auto previousCastTime = lastCastTime;
-
         lastUnit = unit;
         lastSpellId = spellId;
         lastItem = item;
         lastGuid = guid;
         lastCastTime = castTime;
         gSpellQueued = false;
-
-        if (spellId != lastSpellId) {
-            lastDetour = nullptr; // reset the last detour if the spell is different
-        }
 
         auto currentTime = GetTime();
         auto remainingCastTime = gCastEndMs - currentTime;
@@ -261,8 +263,8 @@ namespace {
 
         // haven't gotten spell result from the previous cast yet, probably due to latency.
         // simulate a cancel to clear the cast bar but only when there should be a cast time
-        if (!ret && previousCastTime > 0) {
-            DEBUG_LOG("Canceling spell cast due to previousCastTime " << ret);
+        if (!ret && gLastCastTime > 0) {
+            DEBUG_LOG("Canceling spell cast due to gLastCastTime " << gLastCastTime);
 
             gCancelling = true;
             //JT: Suggest replacing CancelSpell with InterruptSpell (the API called when moving during casting).
@@ -319,6 +321,7 @@ namespace {
 //        sendCast(cast);
 //    }
 
+// events without parameters go here
     void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId) {
         auto const currentTime = GetTime();
 
@@ -371,25 +374,35 @@ namespace {
             gCasting = false;
 
             if (eventId == game::Events::SPELLCAST_FAILED) {
-                // don't spam retry
-                if (currentTime - gLastErrorTimeMs < 200) {
-                    DEBUG_LOG("Spellcast failed, not queuing retry due to recent error at " << gLastErrorTimeMs);
-                    return;
-                } else {
-                    DEBUG_LOG("Spellcast failed, queuing a retry");
-                }
-                gSpellQueued = true;
-                gLastErrorTimeMs = currentTime;
-
-                if (lastCastTime == 0) {
-                    if (gInstantCastBufferTimeMs < MAX_BUFFER) {
-                        gInstantCastBufferTimeMs += DYNAMIC_BUFFER_INCREMENT;
-                        DEBUG_LOG("Increasing instant cast buffer to " << gInstantCastBufferTimeMs);
+                if (lastDetour) {
+                    // ignore error spam
+                    if (currentTime - gLastErrorTimeMs < 200) {
+                        lastDetour = nullptr; // reset the last detour
+                        DEBUG_LOG("Spellcast failed, not queuing retry due to recent error at " << gLastErrorTimeMs);
+                        return;
+                    } else {
+                        DEBUG_LOG("Spellcast failed, queuing a retry");
                     }
-                } else {
-                    if (gBufferTimeMs < MAX_BUFFER) {
-                        gBufferTimeMs += DYNAMIC_BUFFER_INCREMENT;
-                        DEBUG_LOG("Increasing buffer to " << gBufferTimeMs);
+                    gLastErrorTimeMs = currentTime;
+                    gSpellQueued = true;
+
+                    // check if we should increase the buffer time
+                    if (currentTime - gLastBufferIncreaseTimeMs > BUFFER_INCREASE_FREQUENCY) {
+                        if (lastCastTime == 0) {
+                            // check if gInstantCastBufferTimeMs is already at max
+                            if (gInstantCastBufferTimeMs - gMinInstantCastBufferTimeMs < gMaxInstantCastBufferIncrease) {
+                                gInstantCastBufferTimeMs += DYNAMIC_BUFFER_INCREMENT;
+                                DEBUG_LOG("Increasing instant cast buffer to " << gInstantCastBufferTimeMs);
+                                gLastBufferIncreaseTimeMs = currentTime;
+                            }
+                        } else {
+                            // check if gBufferTimeMs is already at max
+                            if (gBufferTimeMs - gMinBufferTimeMs < gMaxBufferIncrease) {
+                                gBufferTimeMs += DYNAMIC_BUFFER_INCREMENT;
+                                DEBUG_LOG("Increasing buffer to " << gBufferTimeMs);
+                                gLastBufferIncreaseTimeMs = currentTime;
+                            }
+                        }
                     }
                 }
             } else {
@@ -399,6 +412,25 @@ namespace {
 
         auto const signalEvent = detour->GetTrampolineT<SignalEventT>();
         signalEvent(eventId);
+    }
+
+    using SignalEventParamsT = void (__fastcall *)(game::Events, const char *, uintptr_t *ptr);
+    std::unique_ptr<hadesmem::PatchDetour<SignalEventParamsT>> gSignalEventParamsDetour;
+
+    // events with parameters go here
+    void SignalEventParamsHook(hadesmem::PatchDetourBase *detour,
+                               game::Events eventId,
+                               const char *typesArg,
+                               uintptr_t *ptr) {
+
+        DEBUG_LOG("Event " << eventId);
+        DEBUG_LOG("typesArg " << typesArg);
+        DEBUG_LOG("ptr " << ptr);
+
+
+        auto const signalEventParams = detour->GetTrampolineT<SignalEventParamsT>();
+        // Forward the variable arguments to the trampoline function
+        signalEventParams(eventId, typesArg, ptr);
     }
 
     int SpellDelayedHook(hadesmem::PatchDetourBase *detour, int opCode, game::CDataStore *packet) {
@@ -469,9 +501,11 @@ extern "C" __declspec(dllexport) DWORD Load() {
             std::chrono::high_resolution_clock::now().time_since_epoch()).count());
     gCastEndMs = 0;
     gGCDEndMs = 0;
-    gMinBufferTimeMs = 0; // time in ms to buffer cast to minimize server failure
-    gInstantCastBufferTimeMs = 30; // time in ms to buffer instant cast to minimize server failure
-    gSpellQueueWindowMs = 1000; // time in ms before cast is possible to sleep to try to cast at the perfect time
+    gMaxBufferIncrease = 10;
+    gMaxInstantCastBufferIncrease = 30;
+    gMinBufferTimeMs = 10; // time in ms to buffer cast to minimize server failure
+    gInstantCastBufferTimeMs = 60; // time in ms to buffer instant cast to minimize server failure
+    gSpellQueueWindowMs = 500; // time in ms before cast is possible to sleep to try to cast at the perfect time
 
     std::ifstream inputFile("nampower.cfg");
     if (inputFile.is_open()) {
@@ -486,8 +520,14 @@ extern "C" __declspec(dllexport) DWORD Load() {
                 iss >> gSpellQueueWindowMs;
                 DEBUG_LOG("Spell queuing window: " << gSpellQueueWindowMs << " ms");
             } else if (lineNum == 2) {
-                iss >> gInstantCastBufferTimeMs;
-                DEBUG_LOG("Instant Cast Buffer time: " << gInstantCastBufferTimeMs << " ms");
+                iss >> gMinInstantCastBufferTimeMs;
+                DEBUG_LOG("Instant Cast Buffer time: " << gMinInstantCastBufferTimeMs << " ms");
+            } else if (lineNum == 3) {
+                iss >> gMaxBufferIncrease;
+                DEBUG_LOG("Max buffer increase: " << gMaxBufferIncrease << " ms");
+            } else if (lineNum == 4) {
+                iss >> gMaxInstantCastBufferIncrease;
+                DEBUG_LOG("Max instant cast buffer increase: " << gMaxInstantCastBufferIncrease << " ms");
             }
             lineNum++;
         }
@@ -525,6 +565,14 @@ extern "C" __declspec(dllexport) DWORD Load() {
     gSignalEventDetour = std::make_unique<hadesmem::PatchDetour<SignalEventT>>(process, signalEventOrig,
                                                                                &SignalEventHook);
     gSignalEventDetour->Apply();
+
+    // hook more events
+//    sleep_for(std::chrono::milliseconds(8000));
+//    auto const signalEventParamsOrig = hadesmem::detail::AliasCast<SignalEventParamsT>(Offsets::SignalEventParam);
+//    gSignalEventParamsDetour = std::make_unique<hadesmem::PatchDetour<SignalEventParamsT>>(process,
+//                                                                                           signalEventParamsOrig,
+//                                                                                           &SignalEventParamsHook);
+//    gSignalEventParamsDetour->Apply();
 
     // watch for pushback notifications from the server
     auto const spellDelayedOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::SpellDelayed);

@@ -33,6 +33,10 @@
 
 enum class Offsets : std::uint32_t
 {
+    UnitSpellId = 0xA6C,
+    UnitSpellEnd = 0xA7C,
+    UnitChannelId = 0xA80,
+    UnitChannelEnd = 0xA88,
     GetObjectPtr = 0x464870,
     GetActivePlayer = 0x468550,
     CastSpell = 0x6E4B60,
@@ -41,6 +45,7 @@ enum class Offsets : std::uint32_t
     CreateCastbar = 0x6E7A53,
     SpellDelayed = 0x6E74F0,
     SignalEvent = 0x703E50,
+    SignalEvent2 = 0x703F50,
     GetCastingTimeIndex = 0x2D,
     Language = 0xC0E080,
     SignalEventParam = 0x703F50,
