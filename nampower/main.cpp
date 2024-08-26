@@ -75,7 +75,8 @@ namespace {
     static DWORD gMinInstantCastBufferTimeMs; // set by user
     static DWORD gSpellQueueWindowMs;
     static DWORD gLastCast;
-    static DWORD gLastCastTime;
+    static DWORD gLastCastStartTime;
+    static DWORD gLastChannelStartTime;
 
     static DWORD gLastErrorTimeMs;
     static DWORD gLastBufferIncreaseTimeMs;
@@ -83,6 +84,8 @@ namespace {
 
     // true a spell is queued
     static std::atomic<bool> gSpellQueued;
+    static std::atomic<bool> gChannelQueued;
+    static std::atomic<bool> gOnSwingQueued;
 
     // true when we are simulating a server-based spell cancel to reset the cast bar
     static std::atomic<bool> gCancelling;
@@ -93,12 +96,15 @@ namespace {
 
     // true when we are in the middle of an attempt to cast a spell
     static std::atomic<bool> gCasting;
+    static std::atomic<bool> gChanneling;
+    static int gChannelDuration;
+    static int gChannelCastCount;
 
-    static game::SpellCastResult gCancelReason;
-
+    static hadesmem::PatchDetourBase *onSwingDetour;
     static hadesmem::PatchDetourBase *lastDetour;
     static void *lastUnit;
     static int lastSpellId;
+    static int lastOnSwingSpellId;
     static void *lastItem;
     static std::uint32_t lastCastTime;
     static std::uint64_t lastGuid;
@@ -109,14 +115,14 @@ namespace {
     using SignalEventT = void (__fastcall *)(game::Events);
     using PacketHandlerT = int (__stdcall *)(int, game::CDataStore *);
     using ISceneEndT = int *(__fastcall *)(uintptr_t *unk);
-    using SpellChannelUpdateHandlerT = int (__stdcall *)(int, int);
+    using SpellStartHandlerT = void (__fastcall *)(int, int, int, game::CDataStore *);
+    using SpellChannelStartHandlerT = int (__stdcall *)(int, game::CDataStore *);
+    using SpellChannelUpdateHandlerT = int (__stdcall *)(int, game::CDataStore *);
     using Spell_C_SpellFailedT = void (__fastcall *)(int, game::SpellCastResult, int, int, char unk3);
+    using Spell_C_GetAutoRepeatingSpellT = int (__cdecl *)();
     using SpellFailedHandlerT = void (__fastcall *)(int, game::CDataStore *);
-    using CastResultHandlerT = void (__fastcall *)(int *, game::CDataStore *);
-
-    typedef int (__cdecl *tGetSpellCooldownByID)(int, int, DWORD *, DWORD *, DWORD *);
-
-    typedef int (__cdecl *tGetTimer)();
+    using CastResultHandlerT = bool (__fastcall *)(std::uint64_t, game::CDataStore *);
+    using SpellGoT = void (__fastcall *)(uint64_t *, uint64_t *, uint32_t, game::CDataStore *);
 
     std::unique_ptr<hadesmem::PatchDetour<CastSpellT>> gCastDetour;
     std::unique_ptr<hadesmem::PatchDetour<SendCastT>> gSendCastDetour;
@@ -126,36 +132,43 @@ namespace {
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_SpellFailedT>> gSpellFailedDetour;
     std::unique_ptr<hadesmem::PatchRaw> gCastbarPatch;
     std::unique_ptr<hadesmem::PatchDetour<ISceneEndT>> gIEndSceneDetour;
+    std::unique_ptr<hadesmem::PatchDetour<SpellStartHandlerT>> gSpellStartHandlerDetour;
+    std::unique_ptr<hadesmem::PatchDetour<SpellChannelStartHandlerT>> gSpellChannelStartHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellChannelUpdateHandlerT>> gSpellChannelUpdateHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<CastResultHandlerT>> gCastResultHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellFailedHandlerT>> gSpellFailedHandlerDetour;
-
-
-    // Pointer to EndScene function
-    static uintptr_t *gEndScenePtr = nullptr;
+    std::unique_ptr<hadesmem::PatchDetour<Spell_C_GetAutoRepeatingSpellT>> gSpell_C_GetAutoRepeatingSpellDetour;
+    std::unique_ptr<hadesmem::PatchDetour<SpellGoT>> gSpellGoDetour;
 
     DWORD GetTime() {
         return static_cast<DWORD>(std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::high_resolution_clock::now().time_since_epoch()).count()) - gStartTime;
     }
 
-
-    uintptr_t ReadIntPtr(uintptr_t *address) {
-        return *address;
-    }
-
-    uintptr_t ReadIntPtrOffset(uintptr_t *address, uintptr_t offset) {
-        return *(address + offset);
-    }
-
     bool SpellIsOnGCD(const game::SpellRec *spell) {
         return spell->StartRecoveryCategory == 133;
+    }
+
+    bool SpellIsChanneling(const game::SpellRec *spell) {
+        return spell->AttributesEx & game::SPELL_ATTR_EX_IS_CHANNELED ||
+               spell->AttributesEx & game::SPELL_ATTR_EX_IS_SELF_CHANNELED;
+    }
+
+    bool SpellIsOnSwing(const game::SpellRec *spell) {
+        return spell->Attributes & game::SPELL_ATTR_ON_NEXT_SWING_1;
     }
 
     void BeginCast(DWORD currentTime, std::uint32_t castTime, const game::SpellRec *spell) {
         auto bufferTime = castTime == 0 ? 0 : gBufferTimeMs;
 
-        gLastCastTime = castTime;
+        gLastCastStartTime = castTime;
+        gChanneling = SpellIsChanneling(spell);
+
+        if (gChanneling) {
+            auto const duration = game::GetDurationObject(spell->DurationIndex);
+            gChannelDuration = duration->m_Duration2;
+        }
+
 
         if (SpellIsOnGCD(spell)) {
             gCastEndMs = castTime ? currentTime + castTime + gBufferTimeMs : 0;
@@ -200,24 +213,52 @@ namespace {
     }
 
     bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, int spellId, void *item, std::uint64_t guid) {
-        auto const castTime = game::GetCastTime(unit, spellId);
         auto const spell = game::GetSpellInfo(spellId);
-
-        auto spellOnGCD = SpellIsOnGCD(spell);
+        auto const spellIsOnSwing = SpellIsOnSwing(spell);
 
         lastUnit = unit;
         lastSpellId = spellId;
         lastItem = item;
         lastGuid = guid;
+
+        // on swing spells are independent of cast bar / gcd, handle them separately
+        if (spellIsOnSwing) {
+            lastOnSwingSpellId = spellId;
+
+            // try to cast the spell
+            auto const castSpell = detour->GetTrampolineT<CastSpellT>();
+            auto ret = castSpell(unit, spellId, item, guid);
+
+            if (!ret) {
+                DEBUG_LOG("Queuing on swing spell " << game::GetSpellName(spellId));
+                gOnSwingQueued = true;
+                // save the detour to trigger the cast again after the cooldown is up
+                onSwingDetour = detour;
+            } else {
+                DEBUG_LOG("Successful on swing spell " << game::GetSpellName(spellId));
+                gOnSwingQueued = false;
+                onSwingDetour = nullptr;
+            }
+
+            return ret;
+        }
+
+        auto const castTime = game::GetCastTime(unit, spellId);
+
+        auto const spellOnGCD = SpellIsOnGCD(spell);
+        auto const spellIsChanneling = SpellIsChanneling(spell);
+
         lastCastTime = castTime;
+
         gSpellQueued = false;
+        gChannelQueued = false;
 
         auto currentTime = GetTime();
         auto remainingCastTime = gCastEndMs - currentTime;
         auto remainingGCD = gGCDEndMs - currentTime;
 
         if (remainingCastTime > 0 && remainingCastTime < gSpellQueueWindowMs) {
-            DEBUG_LOG("queuing for after cooldown: " << remainingCastTime << "ms");
+            DEBUG_LOG("Queuing for after cooldown: " << remainingCastTime << "ms " << game::GetSpellName(spellId));
             gSpellQueued = true;
 
             // save the detour to trigger the cast again after the cooldown is up
@@ -225,8 +266,16 @@ namespace {
 
             return false;
         } else if (spellOnGCD && remainingGCD > 0 && remainingGCD < gSpellQueueWindowMs) {
-            DEBUG_LOG("queuing for after gcd: " << remainingGCD << "ms");
+            DEBUG_LOG("Queuing for after gcd: " << remainingGCD << "ms " << game::GetSpellName(spellId));
             gSpellQueued = true;
+
+            // save the detour to trigger the cast again after the cooldown is up
+            lastDetour = detour;
+
+            return false;
+        } else if (spellIsChanneling && gChanneling) {
+            DEBUG_LOG("Queuing for after channeling " << game::GetSpellName(spellId));
+            gChannelQueued = true;
 
             // save the detour to trigger the cast again after the cooldown is up
             lastDetour = detour;
@@ -236,11 +285,11 @@ namespace {
 
         DEBUG_LOG("Attempt cast spell time elapsed since last cast " << currentTime - gLastCast);
 
-        // is there a cooldown?
+        // is there a cooldown? (ignore for on swing spells)
         if (gCastEndMs) {
             // is it still active?
             if (gCastEndMs > currentTime) {
-                DEBUG_LOG("cooldown active " << gCastEndMs - currentTime << "ms remaining");
+                DEBUG_LOG("Cooldown active " << gCastEndMs - currentTime << "ms remaining");
                 return false;
             }
 
@@ -250,7 +299,7 @@ namespace {
         if (spellOnGCD && gGCDEndMs) {
             // is it still active?
             if (gGCDEndMs > currentTime) {
-                DEBUG_LOG("gcd active " << gGCDEndMs - currentTime << "ms remaining");
+                DEBUG_LOG("Gcd active " << gGCDEndMs - currentTime << "ms remaining");
                 return false;
             }
 
@@ -272,8 +321,8 @@ namespace {
 
         // haven't gotten spell result from the previous cast yet, probably due to latency.
         // simulate a cancel to clear the cast bar but only when there should be a cast time
-        if (!ret && gLastCastTime > 0) {
-            DEBUG_LOG("Canceling spell cast due to previous spell having cast time of " << gLastCastTime);
+        if (!ret && gLastCastStartTime > 0) {
+            DEBUG_LOG("Canceling spell cast due to previous spell having cast time of " << gLastCastStartTime);
 
             gCancelling = true;
             //JT: Suggest replacing CancelSpell with InterruptSpell (the API called when moving during casting).
@@ -305,7 +354,6 @@ namespace {
     int
     CancelSpellHook(hadesmem::PatchDetourBase *detour, bool failed, bool notifyServer, game::SpellCastResult reason) {
         gNotifyServer = notifyServer;
-        gCancelReason = reason;
 
         auto const cancelSpell = detour->GetTrampolineT<CancelSpellT>();
         auto const ret = cancelSpell(failed, notifyServer, reason);
@@ -313,25 +361,45 @@ namespace {
         return ret;
     }
 
-    //JT: Using this breaks animations. It is only useful for AOE spells. We can live without speeding those up.
-//    void SendCastHook(hadesmem::PatchDetourBase *detour, game::SpellCast *cast) {
-//        auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
-//        DEBUG_LOG("SendCastHook cursor " << cursorMode);
-//
-//        // if we were waiting for a target, it means there is no cast bar yet.  make one \o/
-//        if (cursorMode == 2) {
-//            auto const unit = game::GetObjectPtr(cast->caster);
-//            auto const castTime = game::GetCastTime(unit, cast->spellId);
-//
-//            BeginCast(std::chrono::high_resolution_clock::now(), castTime, cast->spellId);
-//        }
-//
-//        auto const sendCast = detour->GetTrampolineT<SendCastT>();
-//        sendCast(cast);
-//    }
+    void SpellGoHook(hadesmem::PatchDetourBase *detour, uint64_t *casterGUID, uint64_t *targetGUID, uint32_t spellId,
+                     game::CDataStore *spellData) {
+        // only care about our own casts and lastSpellId(ignore spell procs)
+        if (gChanneling && game::ClntObjMgrGetActivePlayer() == *casterGUID) {
+            gChannelCastCount++;
 
-    void Spell_C_SpellFailed(hadesmem::PatchDetourBase *detour, int spellId,
-                             game::SpellCastResult spellResult, int unk1, int unk2, char unk3) {
+            if (gChannelQueued || gSpellQueued) {
+                // add extra 500ms to account for latency, channel updates every sec
+                auto const elapsed = 500 + GetTime() - gLastChannelStartTime;
+
+                DEBUG_LOG("Channel cast elapsed " << elapsed << " duration " << gChannelDuration);
+
+                // if within 500ms of the end of the channel, trigger the queued cast
+                if (elapsed > gChannelDuration) {
+                    gChannelQueued = false;
+                    gChanneling = false;
+                    gChannelCastCount = 0;
+                    DEBUG_LOG("Channel is complete, triggering queued cast of " << game::GetSpellName(lastSpellId));
+                    CastSpellHook(lastDetour, lastUnit, lastSpellId, lastItem, lastGuid);
+                }
+            }
+        } else if (gOnSwingQueued && game::ClntObjMgrGetActivePlayer() == *casterGUID) {
+            // check if spell is on hit
+            auto const spell = game::GetSpellInfo(spellId);
+            if (spell->Attributes & game::SPELL_ATTR_ON_NEXT_SWING_1) {
+                DEBUG_LOG("On swing spell " << game::GetSpellName(spellId) <<
+                                            " resolved, casting queued on swing spell "
+                                            << game::GetSpellName(lastOnSwingSpellId));
+                gOnSwingQueued = false;
+                CastSpellHook(onSwingDetour, lastUnit, lastOnSwingSpellId, lastItem, lastGuid);
+            }
+        }
+
+        auto const spellGo = detour->GetTrampolineT<SpellGoT>();
+        spellGo(casterGUID, targetGUID, spellId, spellData);
+    }
+
+    void Spell_C_SpellFailedHook(hadesmem::PatchDetourBase *detour, int spellId,
+                                 game::SpellCastResult spellResult, int unk1, int unk2, char unk3) {
         if (lastDetour &&
             (spellResult == game::SpellCastResult::SPELL_FAILED_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_ITEM_NOT_READY ||
@@ -342,7 +410,8 @@ namespace {
             // ignore error spam
             if (currentTime - gLastErrorTimeMs < 200) {
                 lastDetour = nullptr; // reset the last detour
-                DEBUG_LOG("Cast failed code " << int(spellResult) << ", not queuing retry due to recent error at " << gLastErrorTimeMs);
+                DEBUG_LOG("Cast failed code " << int(spellResult) << ", not queuing retry due to recent error at "
+                                              << gLastErrorTimeMs);
                 return;
             } else {
                 DEBUG_LOG("Cast failed code " << int(spellResult) << ", queuing a retry");
@@ -377,16 +446,36 @@ namespace {
         spellFailed(spellId, spellResult, unk1, unk2, unk3);
     }
 
-    int SpellChannelUpdateHandlerHook(hadesmem::PatchDetourBase *detour, int channelUpdate, int channelActive) {
-        auto const spellChannelUpdateHandler = detour->GetTrampolineT<SpellChannelUpdateHandlerT>();
-
-        if (channelActive) {
-            DEBUG_LOG("Channeling spell " << channelUpdate);
-        } else {
-            DEBUG_LOG("Channeling spell stopped " << channelUpdate);
+    int SpellChannelStartHandlerHook(hadesmem::PatchDetourBase *detour, int channelStart, game::CDataStore *dataPtr) {
+        gLastChannelStartTime = GetTime();
+        DEBUG_LOG("Channel start " << channelStart);
+        if (channelStart) {
+            gChanneling = true;
+            gChannelCastCount = 0;
         }
 
-        return spellChannelUpdateHandler(channelUpdate, channelActive);
+        auto const spellChannelStartHandler = detour->GetTrampolineT<SpellChannelStartHandlerT>();
+        return spellChannelStartHandler(channelStart, dataPtr);
+    }
+
+    int SpellChannelUpdateHandlerHook(hadesmem::PatchDetourBase *detour, int channelUpdate, game::CDataStore *dataPtr) {
+        auto const elapsed = 500 + GetTime() - gLastChannelStartTime;
+        DEBUG_LOG("Channel update elapsed " << elapsed << " duration " << gChannelDuration);
+
+        if(elapsed > gChannelDuration) {
+            DEBUG_LOG("Channel done");
+            gChanneling = false;
+            gChannelCastCount = 0;
+
+            if (gChannelQueued) {
+                gChannelQueued = false;
+                DEBUG_LOG("Channeling ended, triggering queued cast");
+                CastSpellHook(lastDetour, lastUnit, lastSpellId, lastItem, lastGuid);
+            }
+        }
+
+        auto const spellChannelUpdateHandler = detour->GetTrampolineT<SpellChannelUpdateHandlerT>();
+        return spellChannelUpdateHandler(channelUpdate, dataPtr);
     }
 
 // events without parameters go here
@@ -415,6 +504,8 @@ namespace {
                 DEBUG_LOG("Spellcast stop, resetting cooldown");
                 gCastEndMs = 0;
                 gGCDEndMs = 0;
+                gChanneling = false;
+                gChannelCastCount = 0;
             }
 
                 // if this is from the server but it is happening too early, it is for one of two reasons.
@@ -440,6 +531,8 @@ namespace {
             gCastEndMs = 0;
             gGCDEndMs = 0;
             gCasting = false;
+            gChanneling = false;
+            gChannelCastCount = 0;
         }
 
         auto const signalEvent = detour->GetTrampolineT<SignalEventT>();
@@ -470,8 +563,15 @@ namespace {
         return spellDelayed(opCode, packet);
     }
 
+
     int *ISceneEndHook(hadesmem::PatchDetourBase *detour, uintptr_t *ptr) {
         auto const iSceneEnd = detour->GetTrampolineT<ISceneEndT>();
+
+//        auto const getAutoRepeatingSpell = reinterpret_cast<Spell_C_GetAutoRepeatingSpellT>(Offsets::Spell_C_GetAutoRepeatingSpell);
+//        auto const autoRepeatingSpell = getAutoRepeatingSpell();
+//        if (autoRepeatingSpell) {
+//            DEBUG_LOG("Auto repeating spell " << autoRepeatingSpell);
+//        }
 
         if (lastDetour && gSpellQueued) {
             auto currentTime = GetTime();
@@ -554,6 +654,7 @@ extern "C" __declspec(dllexport) DWORD Load() {
     gCancelling = false;
     gNotifyServer = false;
     gCasting = false;
+    gChanneling = false;
 
     const hadesmem::Process process(::GetCurrentProcessId());
 
@@ -568,11 +669,12 @@ extern "C" __declspec(dllexport) DWORD Load() {
                                                                                &CancelSpellHook);
     gCancelSpellDetour->Apply();
 
-    //JT: Disable this. This is only for AOE spells and breaks animations.
-    // monitor for spell cast triggered after target (terrain, item, etc.) is selected
-//    auto const sendCastOrig = hadesmem::detail::AliasCast<SendCastT>(Offsets::SendCast);
-//    gSendCastDetour = std::make_unique<hadesmem::PatchDetour<SendCastT>>(process, sendCastOrig, &SendCastHook);
-//    gSendCastDetour->Apply();
+    auto const  spellChannelStartHandlerOrig = hadesmem::detail::AliasCast<SpellChannelStartHandlerT>(
+            Offsets::SpellChannelStartHandler);
+    gSpellChannelStartHandlerDetour = std::make_unique<hadesmem::PatchDetour<SpellChannelStartHandlerT>>(process,
+                                                                                                         spellChannelStartHandlerOrig,
+                                                                                                         &SpellChannelStartHandlerHook);
+    gSpellChannelStartHandlerDetour->Apply();
 
     auto const spellChannelUpdateHandlerOrig = hadesmem::detail::AliasCast<SpellChannelUpdateHandlerT>(
             Offsets::SpellChannelUpdateHandler);
@@ -587,28 +689,20 @@ extern "C" __declspec(dllexport) DWORD Load() {
                                                                                &SignalEventHook);
     gSignalEventDetour->Apply();
 
-//    sleep_for(std::chrono::milliseconds(8000));
     auto const spellFailedOrig = hadesmem::detail::AliasCast<Spell_C_SpellFailedT>(Offsets::Spell_C_SpellFailed);
     gSpellFailedDetour = std::make_unique<hadesmem::PatchDetour<Spell_C_SpellFailedT>>(process, spellFailedOrig,
-                                                                                       &Spell_C_SpellFailed);
+                                                                                       &Spell_C_SpellFailedHook);
     gSpellFailedDetour->Apply();
 
-    // monitor for spell cast result from server
+    auto const spellGoOrig = hadesmem::detail::AliasCast<SpellGoT>(Offsets::SpellGo);
+    gSpellGoDetour = std::make_unique<hadesmem::PatchDetour<SpellGoT>>(process, spellGoOrig, &SpellGoHook);
+    gSpellGoDetour->Apply();
 
     // watch for pushback notifications from the server
     auto const spellDelayedOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::SpellDelayed);
     gSpellDelayedDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT>>(process, spellDelayedOrig,
                                                                                   &SpellDelayedHook);
     gSpellDelayedDetour->Apply();
-    //JT: Disabling SPELLCAST_START from the server breaks HealComm. It needs time to have passed between CastSpell and
-    // SPELLCAST_START. Rather have the castbar appear slightly late (only visual mismatch).
-    // prevent spellbar re-activation upon successful cast notification from server
-//    const std::vector<std::uint8_t> patch(5, 0x90);
-//    gCastbarPatch = std::make_unique<hadesmem::PatchRaw>(process, reinterpret_cast<void *>(Offsets::CreateCastbar), patch);
-//    gCastbarPatch->Apply();
-
-//    sleep_for(std::chrono::milliseconds(8000));
-
 
     // Hook the ISceneEnd function to get the EndScene function pointer
     auto const iEndSceneOrig = hadesmem::detail::AliasCast<ISceneEndT>(Offsets::ISceneEndPtr);

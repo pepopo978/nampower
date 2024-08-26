@@ -51,6 +51,18 @@ std::uint32_t GetCastTime(void *unit, int spellId)
     return getSpellCastingTime(unit, spellId);
 }
 
+CDuration* GetDurationObject(int durationIndex)
+{
+    auto const durationListPtr = *reinterpret_cast<std::uint32_t *>(Offsets::GetDurationObject);
+    if(durationListPtr){
+        auto const durationObjectPtr = *reinterpret_cast<std::uint32_t *>(durationListPtr + durationIndex * 4);
+        if(durationObjectPtr){
+            return reinterpret_cast<CDuration *>(durationObjectPtr);
+        }
+    }
+    return nullptr;
+}
+
 const SpellRec *GetSpellInfo(int spellId)
 {
     auto const spellDb = reinterpret_cast<WowClientDB<SpellRec> *>(Offsets::SpellDb);
