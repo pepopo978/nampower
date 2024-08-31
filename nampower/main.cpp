@@ -216,11 +216,6 @@ namespace {
         auto const spell = game::GetSpellInfo(spellId);
         auto const spellIsOnSwing = SpellIsOnSwing(spell);
 
-        lastUnit = unit;
-        lastSpellId = spellId;
-        lastItem = item;
-        lastGuid = guid;
-
         // on swing spells are independent of cast bar / gcd, handle them separately
         if (spellIsOnSwing) {
             lastOnSwingSpellId = spellId;
@@ -242,6 +237,11 @@ namespace {
 
             return ret;
         }
+
+        lastUnit = unit;
+        lastSpellId = spellId;
+        lastItem = item;
+        lastGuid = guid;
 
         auto const castTime = game::GetCastTime(unit, spellId);
 
