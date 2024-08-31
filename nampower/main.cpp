@@ -162,12 +162,6 @@ namespace {
         auto bufferTime = castTime == 0 ? 0 : gBufferTimeMs;
 
         gLastCastStartTime = castTime;
-        gChanneling = SpellIsChanneling(spell);
-
-        if (gChanneling) {
-            auto const duration = game::GetDurationObject(spell->DurationIndex);
-            gChannelDuration = duration->m_Duration2;
-        }
 
 
         if (SpellIsOnGCD(spell)) {
@@ -268,14 +262,6 @@ namespace {
         } else if (spellOnGCD && remainingGCD > 0 && remainingGCD < gSpellQueueWindowMs) {
             DEBUG_LOG("Queuing for after gcd: " << remainingGCD << "ms " << game::GetSpellName(spellId));
             gSpellQueued = true;
-
-            // save the detour to trigger the cast again after the cooldown is up
-            lastDetour = detour;
-
-            return false;
-        } else if (spellIsChanneling && gChanneling) {
-            DEBUG_LOG("Queuing for after channeling " << game::GetSpellName(spellId));
-            gChannelQueued = true;
 
             // save the detour to trigger the cast again after the cooldown is up
             lastDetour = detour;
