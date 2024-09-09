@@ -73,10 +73,12 @@ namespace {
     static DWORD gMaxInstantCastBufferIncrease;
     static DWORD gMinBufferTimeMs; // set by user
     static DWORD gMinInstantCastBufferTimeMs; // set by user
+    static DWORD gOnSwingBufferCooldownMs;
     static DWORD gSpellQueueWindowMs;
     static DWORD gLastCast;
     static DWORD gLastCastStartTime;
     static DWORD gLastChannelStartTime;
+    static DWORD gLastOnSwingCastTime;
 
     static DWORD gLastErrorTimeMs;
     static DWORD gLastBufferIncreaseTimeMs;
@@ -219,10 +221,13 @@ namespace {
             auto ret = castSpell(unit, spellId, item, guid);
 
             if (!ret) {
-                DEBUG_LOG("Queuing on swing spell " << game::GetSpellName(spellId));
-                gOnSwingQueued = true;
-                // save the detour to trigger the cast again after the cooldown is up
-                onSwingDetour = detour;
+                // if not in cooldown window
+                if (GetTime() - gLastOnSwingCastTime > gOnSwingBufferCooldownMs) {
+                    DEBUG_LOG("Queuing on swing spell " << game::GetSpellName(spellId));
+                    gOnSwingQueued = true;
+                    // save the detour to trigger the cast again after the cooldown is up
+                    onSwingDetour = detour;
+                }
             } else {
                 DEBUG_LOG("Successful on swing spell " << game::GetSpellName(spellId));
                 gOnSwingQueued = false;
@@ -375,6 +380,7 @@ namespace {
                 DEBUG_LOG("On swing spell " << game::GetSpellName(spellId) <<
                                             " resolved, casting queued on swing spell "
                                             << game::GetSpellName(lastOnSwingSpellId));
+                gLastOnSwingCastTime = GetTime();
                 gOnSwingQueued = false;
                 CastSpellHook(onSwingDetour, lastUnit, lastOnSwingSpellId, lastItem, lastGuid);
             }
@@ -604,7 +610,10 @@ extern "C" __declspec(dllexport) DWORD Load() {
     gMaxInstantCastBufferIncrease = 30;
     gMinBufferTimeMs = 10; // time in ms to buffer cast to minimize server failure
     gInstantCastBufferTimeMs = 60; // time in ms to buffer instant cast to minimize server failure
-    gSpellQueueWindowMs = 500; // time in ms before cast is possible to sleep to try to cast at the perfect time
+    gSpellQueueWindowMs = 500; // time in ms before cast to allow queuing spells
+    gOnSwingBufferCooldownMs = 500; // time in ms to wait before queuing on swing spell after a swing
+
+    DEBUG_LOG("Loading nampower v0.9.0");
 
     std::ifstream inputFile("nampower.cfg");
     if (inputFile.is_open()) {
@@ -627,6 +636,9 @@ extern "C" __declspec(dllexport) DWORD Load() {
             } else if (lineNum == 4) {
                 iss >> gMaxInstantCastBufferIncrease;
                 DEBUG_LOG("Max instant cast buffer increase: " << gMaxInstantCastBufferIncrease << " ms");
+            } else if (lineNum == 5) {
+                iss >> gOnSwingBufferCooldownMs;
+                DEBUG_LOG("On swing buffer cooldown: " << gOnSwingBufferCooldownMs << " ms");
             }
             lineNum++;
         }
