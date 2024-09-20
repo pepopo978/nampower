@@ -31,8 +31,7 @@
 
 #include <cstdint>
 
-enum class Offsets : std::uint32_t
-{
+enum class Offsets : std::uint32_t {
     GetObjectPtr = 0x464870,
     GetActivePlayer = 0x468550,
     GetDurationObject = 0x00C0D828,

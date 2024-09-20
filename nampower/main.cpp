@@ -75,6 +75,7 @@ namespace {
     static DWORD gMinInstantCastBufferTimeMs; // set by user
     static DWORD gOnSwingBufferCooldownMs;
     static DWORD gSpellQueueWindowMs;
+    static DWORD gChannelQueueWindowMs;
     static DWORD gLastCast;
     static DWORD gLastCastStartTime;
     static DWORD gLastChannelStartTime;
@@ -164,6 +165,12 @@ namespace {
         auto bufferTime = castTime == 0 ? 0 : gBufferTimeMs;
 
         gLastCastStartTime = castTime;
+        gChanneling = SpellIsChanneling(spell);
+
+        if (gChanneling) {
+            auto const duration = game::GetDurationObject(spell->DurationIndex);
+            gChannelDuration = duration->m_Duration2;
+        }
 
 
         if (SpellIsOnGCD(spell)) {
@@ -211,6 +218,7 @@ namespace {
     bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, int spellId, void *item, std::uint64_t guid) {
         auto const spell = game::GetSpellInfo(spellId);
         auto const spellIsOnSwing = SpellIsOnSwing(spell);
+        auto const spellName = game::GetSpellName(spellId);
 
         // on swing spells are independent of cast bar / gcd, handle them separately
         if (spellIsOnSwing) {
@@ -223,13 +231,13 @@ namespace {
             if (!ret) {
                 // if not in cooldown window
                 if (GetTime() - gLastOnSwingCastTime > gOnSwingBufferCooldownMs) {
-                    DEBUG_LOG("Queuing on swing spell " << game::GetSpellName(spellId));
+                    DEBUG_LOG("Queuing on swing spell " << spellName);
                     gOnSwingQueued = true;
                     // save the detour to trigger the cast again after the cooldown is up
                     onSwingDetour = detour;
                 }
             } else {
-                DEBUG_LOG("Successful on swing spell " << game::GetSpellName(spellId));
+                DEBUG_LOG("Successful on swing spell " << spellName);
                 gOnSwingQueued = false;
                 onSwingDetour = nullptr;
             }
@@ -256,8 +264,11 @@ namespace {
         auto remainingCastTime = gCastEndMs - currentTime;
         auto remainingGCD = gGCDEndMs - currentTime;
 
-        if (remainingCastTime > 0 && remainingCastTime < gSpellQueueWindowMs) {
-            DEBUG_LOG("Queuing for after cooldown: " << remainingCastTime << "ms " << game::GetSpellName(spellId));
+        auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
+        if (cursorMode == 2) {
+            // TODO add queuing if I can figure out how to set the cursor correctly, for now don't queue
+        } else if (remainingCastTime > 0 && remainingCastTime < gSpellQueueWindowMs) {
+            DEBUG_LOG("Queuing for after cooldown: " << remainingCastTime << "ms " << spellName);
             gSpellQueued = true;
 
             // save the detour to trigger the cast again after the cooldown is up
@@ -265,16 +276,29 @@ namespace {
 
             return false;
         } else if (spellOnGCD && remainingGCD > 0 && remainingGCD < gSpellQueueWindowMs) {
-            DEBUG_LOG("Queuing for after gcd: " << remainingGCD << "ms " << game::GetSpellName(spellId));
+            DEBUG_LOG("Queuing for after gcd: " << remainingGCD << "ms " << spellName);
             gSpellQueued = true;
 
             // save the detour to trigger the cast again after the cooldown is up
             lastDetour = detour;
 
             return false;
+        } else if (spellIsChanneling && gChanneling) {
+            // calculate the time remaining in the channel
+            auto const remainingChannelTime = gChannelDuration - (currentTime - gLastChannelStartTime);
+
+            if (remainingChannelTime < gChannelQueueWindowMs) {
+                DEBUG_LOG("Queuing for after channeling " << spellName);
+                gChannelQueued = true;
+
+                // save the detour to trigger the cast again after the cooldown is up
+                lastDetour = detour;
+
+                return false;
+            }
         }
 
-        DEBUG_LOG("Attempt cast spell time elapsed since last cast " << currentTime - gLastCast);
+        DEBUG_LOG("Attempt cast " << spellName << " , time elapsed since last cast " << currentTime - gLastCast);
 
         // is there a cooldown? (ignore for on swing spells)
         if (gCastEndMs) {
@@ -327,11 +351,9 @@ namespace {
             ret = castSpell(unit, spellId, item, guid);
         }
 
-        auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
         //JT: cursorMode == 2 is for clickcasting
         if (ret && !(spell->Attributes & game::SPELL_ATTR_RANGED) /* && cursorMode != 2 */) {
-            currentTime = GetTime();
-            BeginCast(currentTime, castTime, spell);
+            BeginCast(GetTime(), castTime, spell);
         } else {
             DEBUG_LOG("Spell cast start failed castSpell returned " << ret << " spell " << spellId << " isRanged " <<
                                                                     !(spell->Attributes & game::SPELL_ATTR_RANGED));
@@ -454,7 +476,7 @@ namespace {
         auto const elapsed = 500 + GetTime() - gLastChannelStartTime;
         DEBUG_LOG("Channel update elapsed " << elapsed << " duration " << gChannelDuration);
 
-        if(elapsed > gChannelDuration) {
+        if (elapsed > gChannelDuration) {
             DEBUG_LOG("Channel done");
             gChanneling = false;
             gChannelCastCount = 0;
@@ -612,6 +634,7 @@ extern "C" __declspec(dllexport) DWORD Load() {
     gInstantCastBufferTimeMs = 60; // time in ms to buffer instant cast to minimize server failure
     gSpellQueueWindowMs = 500; // time in ms before cast to allow queuing spells
     gOnSwingBufferCooldownMs = 500; // time in ms to wait before queuing on swing spell after a swing
+    gChannelQueueWindowMs = 1500; // time in ms before channel ends to allow queuing spells
 
     DEBUG_LOG("Loading nampower v0.9.0");
 
@@ -639,6 +662,9 @@ extern "C" __declspec(dllexport) DWORD Load() {
             } else if (lineNum == 5) {
                 iss >> gOnSwingBufferCooldownMs;
                 DEBUG_LOG("On swing buffer cooldown: " << gOnSwingBufferCooldownMs << " ms");
+            } else if (lineNum == 6) {
+                iss >> gChannelQueueWindowMs;
+                DEBUG_LOG("Channel queuing window: " << gChannelQueueWindowMs << " ms");
             }
             lineNum++;
         }
@@ -667,7 +693,7 @@ extern "C" __declspec(dllexport) DWORD Load() {
                                                                                &CancelSpellHook);
     gCancelSpellDetour->Apply();
 
-    auto const  spellChannelStartHandlerOrig = hadesmem::detail::AliasCast<SpellChannelStartHandlerT>(
+    auto const spellChannelStartHandlerOrig = hadesmem::detail::AliasCast<SpellChannelStartHandlerT>(
             Offsets::SpellChannelStartHandler);
     gSpellChannelStartHandlerDetour = std::make_unique<hadesmem::PatchDetour<SpellChannelStartHandlerT>>(process,
                                                                                                          spellChannelStartHandlerOrig,
