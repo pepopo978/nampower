@@ -1,6 +1,19 @@
-**Please consider donating if you use this tool.**
+# Pepo v2.0.0 Changes
 
-[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=QFWZUEMC5N3SW)
+Added spell queuing with lots of customization.  See nampower.cfg for configuration details.
+
+### How does queuing work?
+Trying to cast a spell within the appropriate window before your current spell finishes will queue your new spell.  
+The spell will be cast as soon as possible after the current spell finishes.  
+
+
+### Why do I need a buffer?
+From my own testing it seems that a buffer is required on spells to avoid "This ability isn't ready yet" errors.  
+By that I mean that if you cast a gcd spell every 1.5 seconds without your ping changing you will occasionally get 
+errors from the server and your cast will get rejected.  If you have 150ms+ ping this can be very punishing.  
+
+I believe this is related to the time it takes the server to process incoming spells.  There is logic to 
+subtract the server tick time from your gcd in vmangos but turtle does not appear to be doing this.
 
 # Pepo v1.0.0 Changes
 
@@ -8,7 +21,10 @@ Now looks for a nampower.cfg file in the same directory with two lines:
 
 1.  The first line should contain the "buffer" time between each cast.  This is the amount of time to delay casts to ensure you don't try to cast again too early due to server/packet lag and get rejected by the server with a "This ability isn't ready yet" error.  For 150ms I found 30ms to be a reasonable buffer.
 2.  The second line is the window in ms before each cast during which nampower will delay cast attempts to send them to the server at the perfect time.  So 300 would mean if you cast anytime in the 300ms window before your next optimal cast your cast will be sent at the idea time.  This means you don't have to spam cast as aggressively.  This feature will cause a small stutter because it is pausing your UI (I couldn't find a better way to do this but I'm sure one exists now with superwow) so if you don't like that set this to 0.
-  
+
+**Please consider donating if you use this tool. - Namreeb**
+
+[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=QFWZUEMC5N3SW)
   
 # nampower
 

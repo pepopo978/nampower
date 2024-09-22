@@ -59,7 +59,7 @@ std::ofstream debugLogFile("nampower_debug.log");
 BOOL WINAPI DllMain(HINSTANCE, DWORD, void *);
 
 namespace {
-    static const DWORD MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE = 5000; // time limit in ms after which queued casts are ignored in errors
+    static const DWORD MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE = 10000; // time limit in ms after which queued casts are ignored in errors
     static const DWORD DYNAMIC_BUFFER_INCREMENT = 5; // amount to adjust buffer in ms on errors/lack of errors
     static const DWORD BUFFER_INCREASE_FREQUENCY = 5000; // time in ms between changes to raise buffer
     static const DWORD BUFFER_DECREASE_FREQUENCY = 10000; // time in ms between changes to lower buffer
@@ -680,7 +680,7 @@ extern "C" __declspec(dllexport) DWORD Load() {
     gChannelQueueWindowMs = 1500; // time in ms before channel ends to allow queuing spells
     gTargetingQueueWindowMs = 1500; // time in ms before cast to allow targeting
 
-    DEBUG_LOG("Loading nampower v0.9.0");
+    DEBUG_LOG("Loading nampower v1.9.0");
 
     std::ifstream inputFile("nampower.cfg");
     if (inputFile.is_open()) {
