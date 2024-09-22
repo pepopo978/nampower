@@ -130,6 +130,9 @@ namespace {
     using SpellGoT = void (__fastcall *)(uint64_t *, uint64_t *, uint32_t, game::CDataStore *);
     using SpellTargetUnitT = bool (__fastcall *)(uintptr_t *unitStr);
     using Spell_C_HandleSpriteClickT = bool (__fastcall *)(game::CSpriteClickEvent *event);
+    using Script_GetGUIDFromNameT = std::uint64_t (__fastcall *)(const char *);
+    using lua_isstringT = bool (__fastcall *)(uintptr_t *, int);
+    using lua_tostringT = const char *(__fastcall *)(uintptr_t *, int);
 
     std::unique_ptr<hadesmem::PatchDetour<CastSpellT>> gCastDetour;
     std::unique_ptr<hadesmem::PatchDetour<SendCastT>> gSendCastDetour;
@@ -226,6 +229,8 @@ namespace {
         auto const spell = game::GetSpellInfo(spellId);
         auto const spellIsOnSwing = SpellIsOnSwing(spell);
         auto const spellName = game::GetSpellName(spellId);
+
+        DEBUG_LOG("Cast spell guid " << guid << " spell " << spellName);
 
         // on swing spells are independent of cast bar / gcd, handle them separately
         if (spellIsOnSwing) {
@@ -596,6 +601,25 @@ namespace {
         return spellDelayed(opCode, packet);
     }
 
+    bool SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *unitStr) {
+        auto const spellTargetUnit = detour->GetTrampolineT<SpellTargetUnitT>();
+
+        // check if valid string
+        auto const lua_isstring = reinterpret_cast<lua_isstringT>(Offsets::lua_isstring);
+        if(lua_isstring(unitStr, 1)) {
+            auto const lua_tostring = reinterpret_cast<lua_tostringT>(Offsets::lua_tostring);
+            auto const unitName = lua_tostring(unitStr, 1);
+
+            auto const getGUIDFromName = reinterpret_cast<Script_GetGUIDFromNameT>(Offsets::Script_GetGUIDFromName);
+            auto const guid = getGUIDFromName(unitName);
+            if (guid) {
+                DEBUG_LOG("Spell target unit " << unitName << " guid " << guid);
+                lastGuid = guid;
+            }
+        }
+
+        return spellTargetUnit(unitStr);
+    }
 
     int *ISceneEndHook(hadesmem::PatchDetourBase *detour, uintptr_t *ptr) {
         auto const iSceneEnd = detour->GetTrampolineT<ISceneEndT>();
@@ -750,6 +774,10 @@ extern "C" __declspec(dllexport) DWORD Load() {
     gSpellDelayedDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT>>(process, spellDelayedOrig,
                                                                                   &SpellDelayedHook);
     gSpellDelayedDetour->Apply();
+
+    auto const spellTargetUnitOrig = hadesmem::detail::AliasCast<SpellTargetUnitT>(Offsets::Script_SpellTargetUnit);
+    gSpellTargetUnitDetour = std::make_unique<hadesmem::PatchDetour<SpellTargetUnitT>>(process, spellTargetUnitOrig, &SpellTargetUnitHook);
+    gSpellTargetUnitDetour->Apply();
 
     // Hook the ISceneEnd function to get the EndScene function pointer
     auto const iEndSceneOrig = hadesmem::detail::AliasCast<ISceneEndT>(Offsets::ISceneEndPtr);
