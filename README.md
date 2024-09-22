@@ -6,6 +6,11 @@ Added spell queuing with lots of customization.  See nampower.cfg for configurat
 Trying to cast a spell within the appropriate window before your current spell finishes will queue your new spell.  
 The spell will be cast as soon as possible after the current spell finishes.  
 
+There are separate configurable queue windows for:
+- Normal spells
+- On swing spells (the window functions as a cooldown where you cannot instead so that I don't have to track swing timers)
+- Channeling spells
+- Spells with terrain targeting
 
 ### Why do I need a buffer?
 From my own testing it seems that a buffer is required on spells to avoid "This ability isn't ready yet" errors.  
@@ -13,7 +18,11 @@ By that I mean that if you cast a gcd spell every 1.5 seconds without your ping 
 errors from the server and your cast will get rejected.  If you have 150ms+ ping this can be very punishing.  
 
 I believe this is related to the time it takes the server to process incoming spells.  There is logic to 
-subtract the server tick time from your gcd in vmangos but turtle does not appear to be doing this.
+subtract the server processing time from your gcd in vmangos but turtle does not appear to be doing this.  
+
+To compensate for what seems to be a 50ms server processing time the default buffer in nampower.cfg is 55ms.  If you are close to the server
+you can experiment with lowering this value.  You will occasionally get errors but if they are infrequent enough for you
+the time saved will be worth it.  
 
 # Pepo v1.0.0 Changes
 
