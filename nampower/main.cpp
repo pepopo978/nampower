@@ -76,6 +76,7 @@ namespace {
     static DWORD gOnSwingBufferCooldownMs;
     static DWORD gSpellQueueWindowMs;
     static DWORD gChannelQueueWindowMs;
+    static DWORD gTargetingQueueWindowMs;
     static DWORD gLastCast;
     static DWORD gLastCastStartTime;
     static DWORD gLastChannelStartTime;
@@ -118,6 +119,7 @@ namespace {
     using SignalEventT = void (__fastcall *)(game::Events);
     using PacketHandlerT = int (__stdcall *)(int, game::CDataStore *);
     using ISceneEndT = int *(__fastcall *)(uintptr_t *unk);
+    using EndSceneT = int (__fastcall *)(uintptr_t *unk);
     using SpellStartHandlerT = void (__fastcall *)(int, int, int, game::CDataStore *);
     using SpellChannelStartHandlerT = int (__stdcall *)(int, game::CDataStore *);
     using SpellChannelUpdateHandlerT = int (__stdcall *)(int, game::CDataStore *);
@@ -126,6 +128,8 @@ namespace {
     using SpellFailedHandlerT = void (__fastcall *)(int, game::CDataStore *);
     using CastResultHandlerT = bool (__fastcall *)(std::uint64_t, game::CDataStore *);
     using SpellGoT = void (__fastcall *)(uint64_t *, uint64_t *, uint32_t, game::CDataStore *);
+    using SpellTargetUnitT = bool (__fastcall *)(uintptr_t *unitStr);
+    using Spell_C_HandleSpriteClickT = bool (__fastcall *)(game::CSpriteClickEvent *event);
 
     std::unique_ptr<hadesmem::PatchDetour<CastSpellT>> gCastDetour;
     std::unique_ptr<hadesmem::PatchDetour<SendCastT>> gSendCastDetour;
@@ -135,6 +139,7 @@ namespace {
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_SpellFailedT>> gSpellFailedDetour;
     std::unique_ptr<hadesmem::PatchRaw> gCastbarPatch;
     std::unique_ptr<hadesmem::PatchDetour<ISceneEndT>> gIEndSceneDetour;
+    std::unique_ptr<hadesmem::PatchDetour<EndSceneT>> gEndSceneDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellStartHandlerT>> gSpellStartHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellChannelStartHandlerT>> gSpellChannelStartHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellChannelUpdateHandlerT>> gSpellChannelUpdateHandlerDetour;
@@ -142,6 +147,8 @@ namespace {
     std::unique_ptr<hadesmem::PatchDetour<SpellFailedHandlerT>> gSpellFailedHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_GetAutoRepeatingSpellT>> gSpell_C_GetAutoRepeatingSpellDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellGoT>> gSpellGoDetour;
+    std::unique_ptr<hadesmem::PatchDetour<SpellTargetUnitT>> gSpellTargetUnitDetour;
+    std::unique_ptr<hadesmem::PatchDetour<Spell_C_HandleSpriteClickT>> gSpell_C_HandleSpriteClickDetour;
 
     DWORD GetTime() {
         return static_cast<DWORD>(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -260,13 +267,18 @@ namespace {
         gSpellQueued = false;
         gChannelQueued = false;
 
+        auto const castSpell = detour->GetTrampolineT<CastSpellT>();
         auto currentTime = GetTime();
         auto remainingCastTime = gCastEndMs - currentTime;
         auto remainingGCD = gGCDEndMs - currentTime;
 
         auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
-        if (cursorMode == 2) {
-            // TODO add queuing if I can figure out how to set the cursor correctly, for now don't queue
+        if (spell->Targets == game::SpellTarget::TARGET_LOCATION_UNIT_POSITION && cursorMode == 1) {
+            // if the spell is a ground target spell, allowing targeting while casting or waiting for gcd
+            if ((remainingCastTime > 0 && remainingCastTime < gTargetingQueueWindowMs) ||
+                (remainingGCD > 0 && remainingGCD < gTargetingQueueWindowMs)) {
+                castSpell(unit, spellId, item, guid); // start the cast which will trigger targeting
+            }
         } else if (remainingCastTime > 0 && remainingCastTime < gSpellQueueWindowMs) {
             DEBUG_LOG("Queuing for after cooldown: " << remainingCastTime << "ms " << spellName);
             gSpellQueued = true;
@@ -324,7 +336,6 @@ namespace {
 
         gCasting = true;
 
-        auto const castSpell = detour->GetTrampolineT<CastSpellT>();
         auto ret = castSpell(unit, spellId, item, guid);
 
         // if this is a trade skill or item enchant, do nothing further
@@ -337,18 +348,26 @@ namespace {
         // haven't gotten spell result from the previous cast yet, probably due to latency.
         // simulate a cancel to clear the cast bar but only when there should be a cast time
         if (!ret && gLastCastStartTime > 0) {
-            DEBUG_LOG("Canceling spell cast due to previous spell having cast time of " << gLastCastStartTime);
+            if(*reinterpret_cast<int *>(Offsets::SpellIsTargeting) == 0) {
+                DEBUG_LOG("Canceling spell cast due to previous spell having cast time of " << gLastCastStartTime);
 
-            gCancelling = true;
-            //JT: Suggest replacing CancelSpell with InterruptSpell (the API called when moving during casting).
-            // The address of InterruptSpell needs to be dug out. It could possibly fix the sometimes broken animations.
-            auto const cancelSpell = reinterpret_cast<CancelSpellT>(Offsets::CancelSpell);
-            cancelSpell(false, false, game::SPELL_FAILED_ERROR);
+                gCancelling = true;
+                //JT: Suggest replacing CancelSpell with InterruptSpell (the API called when moving during casting).
+                // The address of InterruptSpell needs to be dug out. It could possibly fix the sometimes broken animations.
+                auto const cancelSpell = reinterpret_cast<CancelSpellT>(Offsets::CancelSpell);
+                cancelSpell(false, false, game::SPELL_FAILED_ERROR);
 
-            gCancelling = false;
+                gCancelling = false;
 
-            // try again...
-            ret = castSpell(unit, spellId, item, guid);
+                // try again...
+                ret = castSpell(unit, spellId, item, guid);
+                if (ret) {
+                    DEBUG_LOG("Retry cast successful, clearing queued error cast");
+                    gSpellQueued = false;
+                }
+            } else {
+                DEBUG_LOG("Initial cast failed, not canceling spell cast due to targeting");
+            }
         }
 
         //JT: cursorMode == 2 is for clickcasting
@@ -635,6 +654,7 @@ extern "C" __declspec(dllexport) DWORD Load() {
     gSpellQueueWindowMs = 500; // time in ms before cast to allow queuing spells
     gOnSwingBufferCooldownMs = 500; // time in ms to wait before queuing on swing spell after a swing
     gChannelQueueWindowMs = 1500; // time in ms before channel ends to allow queuing spells
+    gTargetingQueueWindowMs = 1500; // time in ms before cast to allow targeting
 
     DEBUG_LOG("Loading nampower v0.9.0");
 
@@ -665,6 +685,9 @@ extern "C" __declspec(dllexport) DWORD Load() {
             } else if (lineNum == 6) {
                 iss >> gChannelQueueWindowMs;
                 DEBUG_LOG("Channel queuing window: " << gChannelQueueWindowMs << " ms");
+            } else if (lineNum == 7) {
+                iss >> gTargetingQueueWindowMs;
+                DEBUG_LOG("Targeting queuing window: " << gTargetingQueueWindowMs << " ms");
             }
             lineNum++;
         }

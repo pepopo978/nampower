@@ -44,6 +44,7 @@ enum class Offsets : std::uint32_t {
     Language = 0xC0E080,
     SpellDb = 0xC0D788,
     CursorMode = 0xBE2C4C,
+    SpellIsTargeting = 0xCECAC0,
 
     CastingSpellId = 0xCECA88,
     ISceneEndPtr = 0x5A17A0,
