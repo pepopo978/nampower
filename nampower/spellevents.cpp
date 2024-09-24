@@ -24,22 +24,14 @@ namespace Nampower {
 
 
         if (eventId == game::Events::SPELLCAST_STOP) {
-            // if this is from the client, we don't care about anything else.  immediately stop
-            // the cast bar and reset our internal cooldown.
-            if (gNotifyServer) {
-                DEBUG_LOG("Spellcast stop, resetting cooldown");
-                gCastEndMs = 0;
-                gGCDEndMs = 0;
-                gChanneling = false;
-                gChannelCastCount = 0;
-            }
-
-                // if this is from the server but it is happening too early, it is for one of two reasons.
-                // 1) it is for the last cast, in which case we can ignore it
-                // 2) it is for our current cast and the server decided to cast sooner than we expected
-                //    this can happen from mage 8/8 t2 proc or presence of mind
-            else if (!gCasting && !gCancelling && currentTime <= gCastEndMs) {
-                DEBUG_LOG("Server triggered spellcast stop");
+            // if this is from the server but it is happening too early, it is for one of two reasons.
+            // 1) it is for the last cast, in which case we can ignore it
+            // 2) it is for our current cast and the server decided to cast sooner than we expected
+            //    this can happen from mage 8/8 t2 proc or presence of mind
+            if (gCasting) {
+                DEBUG_LOG("SPELLCAST_STOP during casting");
+            } else {
+                DEBUG_LOG("SPELLCAST_STOP ignored");
                 return;
             }
         }
@@ -49,8 +41,7 @@ namespace Nampower {
             // the server perceives too little time as having passed to allow another cast.  i dont
             // think there is anything we can do about this except to honor the servers request to
             // abort the cast.  reset our cooldown and allow
-        else if (eventId == game::Events::SPELLCAST_FAILED/* && !gNotifyServer*/ ||
-                 //JT: !gNotifyServer breaks QuickHeal
+        else if (eventId == game::Events::SPELLCAST_FAILED ||
                  eventId ==
                  game::Events::SPELLCAST_INTERRUPTED) //JT: moving to cancel the spell sends "SPELLCAST_INTERRUPTED"
         {
@@ -59,6 +50,10 @@ namespace Nampower {
             gCasting = false;
             gChanneling = false;
             gChannelCastCount = 0;
+
+            if(gCancelling) {
+                return; // don't broadcast the event if we are the ones causing it
+            }
         }
 
         auto const signalEvent = detour->GetTrampolineT<SignalEventT>();

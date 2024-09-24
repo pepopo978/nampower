@@ -18,8 +18,10 @@ namespace Nampower {
             gChannelDuration = duration->m_Duration2;
         }
 
+        auto const spellOnGCD = SpellIsOnGCD(spell);
+        gLastCastOnGCD = spellOnGCD;
 
-        if (SpellIsOnGCD(spell)) {
+        if (spellOnGCD) {
             gCastEndMs = castTime ? currentTime + castTime + gBufferTimeMs : 0;
 
             auto gcd = spell->StartRecoveryTime;
@@ -153,7 +155,7 @@ namespace Nampower {
 
                 return false;
             }
-        } else if (spellOnGCD && (remainingCastTimeInQueueWindow || remainingGCDInQueueWindow)) {
+        } else if (spellOnGCD && inSpellQueueWindow) {
             if (gQueueInstantSpells) {
                 DEBUG_LOG("Queuing instant cast for after cooldown: " << remainingCD << "ms " << spellName);
                 gSpellQueued = true;
@@ -191,7 +193,7 @@ namespace Nampower {
         }
 
         // is there a GCD?
-        if (remainingGCD) {
+        if (spellOnGCD && remainingGCD) {
             DEBUG_LOG("Gcd active " << remainingGCD << "ms remaining");
             return false;
         } else {
@@ -199,8 +201,8 @@ namespace Nampower {
         }
 
         gCasting = true;
-
         auto ret = castSpell(unit, spellId, item, guid);
+        gCasting = false;
 
         // if this is a trade skill or item enchant, do nothing further
         if (spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_TRADE_SKILL ||
@@ -211,7 +213,8 @@ namespace Nampower {
 
         // haven't gotten spell result from the previous cast yet, probably due to latency.
         // simulate a cancel to clear the cast bar but only when there should be a cast time
-        if (!ret && gLastCastStartTime > 0) {
+        // mining/herbing have cast time but aren't on GCD, don't cancel them
+        if (!ret && gLastCastStartTime > 0 && gLastCastOnGCD) {
             if (*reinterpret_cast<int *>(Offsets::SpellIsTargeting) == 0) {
                 DEBUG_LOG("Canceling spell cast due to previous spell having cast time of " << gLastCastStartTime);
 
@@ -219,12 +222,15 @@ namespace Nampower {
                 //JT: Suggest replacing CancelSpell with InterruptSpell (the API called when moving during casting).
                 // The address of InterruptSpell needs to be dug out. It could possibly fix the sometimes broken animations.
                 auto const cancelSpell = reinterpret_cast<CancelSpellT>(Offsets::CancelSpell);
-                cancelSpell(false, false, game::SPELL_FAILED_ERROR);
+                cancelSpell(game::SPELL_FAILED_INTERRUPTED);
 
                 gCancelling = false;
 
                 // try again...
+                gCasting = true;
                 ret = castSpell(unit, spellId, item, guid);
+                gCasting = false;
+
                 if (ret) {
                     DEBUG_LOG("Retry cast successful, clearing queued error cast");
                     gSpellQueued = false;
@@ -239,18 +245,6 @@ namespace Nampower {
             DEBUG_LOG("Spell cast start failed castSpell returned " << ret << " spell " << spellId << " isRanged " <<
                                                                     !(spell->Attributes & game::SPELL_ATTR_RANGED));
         }
-
-        gCasting = false;
-
-        return ret;
-    }
-
-    int
-    CancelSpellHook(hadesmem::PatchDetourBase *detour, bool failed, bool notifyServer, game::SpellCastResult reason) {
-        gNotifyServer = notifyServer;
-
-        auto const cancelSpell = detour->GetTrampolineT<CancelSpellT>();
-        auto const ret = cancelSpell(failed, notifyServer, reason);
 
         return ret;
     }
@@ -320,9 +314,9 @@ namespace Nampower {
         return result;
     }
 
-    void SendCastHook(hadesmem::PatchDetourBase *detour, game::SpellCast *cast) {
+    void SendCastHook(hadesmem::PatchDetourBase *detour, game::SpellCast *cast, char unk) {
         auto const sendCast = detour->GetTrampolineT<SendCastT>();
-        sendCast(cast);
+        sendCast(cast, unk);
 
         auto const spell = game::GetSpellInfo(cast->spellId);
         BeginCast(GetTime(), lastCastTime, spell);

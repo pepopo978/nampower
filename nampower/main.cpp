@@ -75,6 +75,7 @@ namespace Nampower {
 
     DWORD gLastCast;
     DWORD gLastCastStartTime;
+    DWORD gLastCastOnGCD;
     DWORD gLastChannelStartTime;
     DWORD gLastOnSwingCastTime;
 
@@ -90,10 +91,6 @@ namespace Nampower {
 
     // true when we are simulating a server-based spell cancel to reset the cast bar
     bool gCancelling;
-
-    // true when the current spell cancellation requires that we notify the server
-    // (a client side cancellation of a non-instant cast spell)
-    bool gNotifyServer;
 
     // true when we are in the middle of an attempt to cast a spell
     bool gCasting;
@@ -445,12 +442,6 @@ namespace Nampower {
         auto const sendCastOrig = hadesmem::detail::AliasCast<SendCastT>(Offsets::SendCast);
         gSendCastDetour = std::make_unique<hadesmem::PatchDetour<SendCastT >>(process, sendCastOrig, &SendCastHook);
         gSendCastDetour->Apply();
-
-        // monitor for client-based spell interruptions to stop the castbar
-        auto const cancelSpellOrig = hadesmem::detail::AliasCast<CancelSpellT>(Offsets::CancelSpell);
-        gCancelSpellDetour = std::make_unique<hadesmem::PatchDetour<CancelSpellT >>(process, cancelSpellOrig,
-                                                                                    &CancelSpellHook);
-        gCancelSpellDetour->Apply();
 
         auto const spellChannelStartHandlerOrig = hadesmem::detail::AliasCast<SpellChannelStartHandlerT>(
                 Offsets::SpellChannelStartHandler);

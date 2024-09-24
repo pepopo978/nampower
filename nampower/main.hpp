@@ -70,6 +70,7 @@ namespace Nampower {
     extern DWORD gBufferTimeMs;   // adjusts dynamically depending on errors
     extern DWORD gLastCast;
     extern DWORD gLastCastStartTime;
+    extern DWORD gLastCastOnGCD;
     extern DWORD gLastChannelStartTime;
     extern DWORD gLastOnSwingCastTime;
 
@@ -85,10 +86,6 @@ namespace Nampower {
 
     // true when we are simulating a server-based spell cancel to reset the cast bar
     extern bool gCancelling;
-
-    // true when the current spell cancellation requires that we notify the server
-    // (a client side cancellation of a non-instant cast spell)
-    extern bool gNotifyServer;
 
     // true when we are in the middle of an attempt to cast a spell
     extern bool gCasting;
@@ -106,8 +103,8 @@ namespace Nampower {
     extern uint64_t lastGuid;
 
     using CastSpellT = bool (__fastcall *)(void *, uint32_t, void *, std::uint64_t);
-    using SendCastT = void (__fastcall *)(game::SpellCast *);
-    using CancelSpellT = int (__fastcall *)(bool, bool, game::SpellCastResult);
+    using SendCastT = void (__fastcall *)(game::SpellCast *, char unk);
+    using CancelSpellT = void (__stdcall *)(game::SpellCastResult);
     using SignalEventT = void (__fastcall *)(game::Events);
     using PacketHandlerT = int (__stdcall *)(int, game::CDataStore *);
     using ISceneEndT = int *(__fastcall *)(uintptr_t *unk);

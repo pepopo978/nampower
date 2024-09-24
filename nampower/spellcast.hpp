@@ -25,5 +25,5 @@ namespace Nampower {
                                  uint32_t unk3,
                                  float unk4);
 
-    void SendCastHook(hadesmem::PatchDetourBase *detour, game::SpellCast *cast);
+    void SendCastHook(hadesmem::PatchDetourBase *detour, game::SpellCast *cast, char unk);
 }
