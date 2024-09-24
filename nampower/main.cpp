@@ -518,18 +518,23 @@ namespace Nampower {
         init_hooks();
     }
 
+    std::once_flag load_flag;
+
     void load() {
-        DEBUG_LOG("Loading nampower v1.9.0");
+        std::call_once(load_flag, []() {
+                           DEBUG_LOG("Loading nampower v1.9.0");
 
-        // hook spell visuals initialize
-        const hadesmem::Process process(::GetCurrentProcessId());
+                           // hook spell visuals initialize
+                           const hadesmem::Process process(::GetCurrentProcessId());
 
-        auto const spellVisualsInitOrig = hadesmem::detail::AliasCast<SpellVisualsInitializeT>(
-                Offsets::SpellVisualsInitialize);
-        gSpellVisualsInitDetour = std::make_unique<hadesmem::PatchDetour<SpellVisualsInitializeT >>(process,
-                                                                                                    spellVisualsInitOrig,
-                                                                                                    &SpellVisualsInitializeHook);
-        gSpellVisualsInitDetour->Apply();
+                           auto const spellVisualsInitOrig = hadesmem::detail::AliasCast<SpellVisualsInitializeT>(
+                                   Offsets::SpellVisualsInitialize);
+                           gSpellVisualsInitDetour = std::make_unique<hadesmem::PatchDetour<SpellVisualsInitializeT >>(process,
+                                                                                                                       spellVisualsInitOrig,
+                                                                                                                       &SpellVisualsInitializeHook);
+                           gSpellVisualsInitDetour->Apply();
+                       }
+        );
     }
 
 }
