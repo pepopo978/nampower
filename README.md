@@ -8,6 +8,17 @@ The following CVars control the behavior of the spell queuing system:
 You can access CVars in game with `/run DEFAULT_CHAT_FRAME:AddMessage(GetCVar("CVarName"))`<br>
 and set them with `/run SetCVar("CVarName", "Value")`
 
+You can also just place them in your Config.wtf file in your WTF folder.  If they are the default value they will not be written to the file.
+Example:
+```
+SET EnableMusic "0"
+SET MasterSoundEffects "0"
+
+SET NP_QuickcastTargetingSpells "1"
+SET NP_SpellQueueWindowMs "1000"
+SET NP_TargetingQueueWindowMs "1000"
+```
+
 - `NP_QueueCastTimeSpells` - Whether to enable spell queuing for spells with a cast time.  0 to disable, 1 to enable. Default is 1.
 - `NP_QueueInstantSpells` - Whether to enable spell queuing for instant cast spells tied to gcd.  0 to disable, 1 to enable.  Default is 1.
 - `NP_QueueOnSwingSpells` - Whether to enable on swing spell queuing.  0 to disable, 1 to enable. Default is 1.

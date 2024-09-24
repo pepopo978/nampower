@@ -107,31 +107,45 @@ namespace Nampower {
         auto const castSpell = detour->GetTrampolineT<CastSpellT>();
         auto currentTime = GetTime();
         auto remainingCastTime = (gCastEndMs > currentTime) ? gCastEndMs - currentTime : 0;
-        auto remainingGCD = gGCDEndMs - currentTime;
+        auto remainingGCD = (gGCDEndMs > currentTime) ? gGCDEndMs - currentTime : 0;
+
+        auto remainingCD = (remainingCastTime > remainingGCD) ? remainingCastTime : remainingGCD;
+
+        auto remainingCastTimeInQueueWindow = remainingCastTime > 0 && remainingCastTime < gSpellQueueWindowMs;
+        auto remainingGCDInQueueWindow = remainingGCD > 0 && remainingGCD < gSpellQueueWindowMs;
+        auto inSpellQueueWindow = remainingCastTimeInQueueWindow || remainingGCDInQueueWindow;
 
         auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
         if (spell->Targets == game::SpellTarget::TARGET_LOCATION_UNIT_POSITION &&
             cursorMode == 1) {
+            auto remainingCastTimeInTargetingQueueWindow =
+                    remainingCastTime > 0 && remainingCastTime < gTargetingQueueWindowMs;
+            auto remainingGCDInTargetingQueueWindow = remainingGCD > 0 && remainingGCD < gTargetingQueueWindowMs;
+            inSpellQueueWindow = remainingCastTimeInTargetingQueueWindow || remainingGCDInTargetingQueueWindow;
+
             if (gQueueTargetingSpells) {
-                if (remainingCastTime > 0) {
-                    if (remainingCastTime < gTargetingQueueWindowMs) {
-                        DEBUG_LOG("Queuing targeting for after cooldown: " << remainingCastTime << "ms " << spellName);
+                if (castTime > 0 && inSpellQueueWindow) {
+                    if (gQueueCastTimeSpells) {
+                        DEBUG_LOG("Queuing targeting for after cooldown: " << remainingCD << "ms " << spellName);
                         gSpellQueued = true;
                         // save the detour to trigger the cast again after the cooldown is up
                         lastDetour = detour;
                         return false;
                     }
-                } else if (spellOnGCD && remainingGCD > 0 && remainingGCD < gSpellQueueWindowMs) {
-                    DEBUG_LOG("Queuing targeting for after gcd: " << remainingGCD << "ms " << spellName);
-                    gSpellQueued = true;
-                    // save the detour to trigger the cast again after the cooldown is up
-                    lastDetour = detour;
-                    return false;
+                } else if (spellOnGCD && inSpellQueueWindow) {
+                    if (gQueueInstantSpells) {
+                        DEBUG_LOG("Queuing instant cast targeting for after cooldown: " << remainingCD << "ms "
+                                                                                        << spellName);
+                        gSpellQueued = true;
+                        // save the detour to trigger the cast again after the cooldown is up
+                        lastDetour = detour;
+                        return false;
+                    }
                 }
             }
-        } else if (remainingCastTime > 0 && remainingCastTime < gSpellQueueWindowMs) {
+        } else if (castTime > 0 && inSpellQueueWindow) {
             if (gQueueCastTimeSpells) {
-                DEBUG_LOG("Queuing for after cooldown: " << remainingCastTime << "ms " << spellName);
+                DEBUG_LOG("Queuing for after cooldown: " << remainingCD << "ms " << spellName);
                 gSpellQueued = true;
 
                 // save the detour to trigger the cast again after the cooldown is up
@@ -139,9 +153,9 @@ namespace Nampower {
 
                 return false;
             }
-        } else if (spellOnGCD && remainingGCD > 0 && remainingGCD < gSpellQueueWindowMs) {
+        } else if (spellOnGCD && (remainingCastTimeInQueueWindow || remainingGCDInQueueWindow)) {
             if (gQueueInstantSpells) {
-                DEBUG_LOG("Queuing for after gcd: " << remainingGCD << "ms " << spellName);
+                DEBUG_LOG("Queuing instant cast for after cooldown: " << remainingCD << "ms " << spellName);
                 gSpellQueued = true;
 
                 // save the detour to trigger the cast again after the cooldown is up
@@ -168,27 +182,21 @@ namespace Nampower {
 
         DEBUG_LOG("Attempt cast " << spellName << " , time elapsed since last cast " << currentTime - gLastCast);
 
-        // is there a cooldown? (ignore for on swing spells)
-        if (gCastEndMs) {
-            // is it still active?
-            if (gCastEndMs > currentTime) {
-                DEBUG_LOG("Cooldown active " << gCastEndMs - currentTime << "ms remaining");
-                return false;
-            }
-
+        // is there a cast? (ignore for on swing spells)
+        if (remainingCastTime) {
+            DEBUG_LOG("Cooldown active " << remainingCastTime << "ms remaining");
+            return false;
+        } else {
             gCastEndMs = 0;
         }
-        // is there a GCD?
-        if (spellOnGCD && gGCDEndMs) {
-            // is it still active?
-            if (gGCDEndMs > currentTime) {
-                DEBUG_LOG("Gcd active " << gGCDEndMs - currentTime << "ms remaining");
-                return false;
-            }
 
+        // is there a GCD?
+        if (remainingGCD) {
+            DEBUG_LOG("Gcd active " << remainingGCD << "ms remaining");
+            return false;
+        } else {
             gGCDEndMs = 0;
         }
-
 
         gCasting = true;
 
