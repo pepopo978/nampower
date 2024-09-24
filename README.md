@@ -1,6 +1,34 @@
 # Pepo v2.0.0 Changes
 
-Added spell queuing with lots of customization.  See nampower.cfg for configuration details.
+Added spell queuing, automatic retry on error, and quickcasting with lots of customization.  
+
+### Configuration
+The following CVars control the behavior of the spell queuing system:
+
+You can access CVars in game with `/run DEFAULT_CHAT_FRAME:AddMessage(GetCVar("CVarName"))`<br>
+and set them with `/run SetCVar("CVarName", "Value")`
+
+- `NP_QueueCastTimeSpells` - Whether to enable spell queuing for spells with a cast time.  0 to disable, 1 to enable. Default is 1.
+- `NP_QueueInstantSpells` - Whether to enable spell queuing for instant cast spells tied to gcd.  0 to disable, 1 to enable.  Default is 1.
+- `NP_QueueOnSwingSpells` - Whether to enable on swing spell queuing.  0 to disable, 1 to enable. Default is 1.
+- `NP_QueueChannelingSpells` - Whether to enable channeling spell queuing.  0 to disable, 1 to enable. Default is 1.
+- `NP_QueueTargetingSpells` - Whether to enable terrain targeting spell queuing.  0 to disable, 1 to enable. Default is 1.
+
+
+- `NP_SpellQueueWindowMs` - The window in ms before a cast finishes where the next will get queued. Default is 500.
+- `NP_OnSwingBufferCooldownMs` - The cooldown time in ms after an on swing spell before you can queue on swing spells. Default is 500.
+- `NP_ChannelQueueWindowMs` - The window in ms before a channel finishes where the next will get queued. Default is 1500.
+- `NP_TargetingQueueWindowMs` - The window in ms before a terrain targeting spell finishes where the next will get queued. Default is 500.
+
+
+- `NP_MinBufferTimeMs` - The minimum buffer buffer delay in ms added to each cast (covered more below).  The dynamic buffer adjustments will not go below this value. Default is 55.
+- `NP_MaxBufferIncreaseMs` - The maximum amount of time in ms to increase the buffer by when the server rejects a cast. This prevents getting too long of a buffer if you happen to get a ton of rejections in a row. Default is 30.
+
+
+- `NP_QuickcastTargetingSpells` - Whether or not to enable quick casting for ALL spells with terrain targeting.  This will cause the spell to instantly cast on your cursor without waiting for you to confirm the targeting circle.  Queuing targeting spells will use quickcasting regardless of this value.  0 to disable, 1 to enable. Default is 0.
+
+### Bug Reporting
+If you encounter any bugs please report them in the issues tab.  Please include the nampower_debug.txt file in the same directory as your WoW.exe to help me diagnose the issue.  If you are able to reproduce the bug please include the steps to reproduce it.  In a future version once bugs are ironed out I'll make logging optional.
 
 ### How does queuing work?
 Trying to cast a spell within the appropriate window before your current spell finishes will queue your new spell.  
@@ -8,19 +36,19 @@ The spell will be cast as soon as possible after the current spell finishes.
 
 There are separate configurable queue windows for:
 - Normal spells
-- On swing spells (the window functions as a cooldown where you cannot instead so that I don't have to track swing timers)
+- On swing spells (the window functions as a cooldown instead where you cannot immediately double queue on swing spells so that I don't have to track swing timers)
 - Channeling spells
 - Spells with terrain targeting
 
 ### Why do I need a buffer?
-From my own testing it seems that a buffer is required on spells to avoid "This ability isn't ready yet" errors.  
+From my own testing it seems that a buffer is required on spells to avoid "This ability isn't ready yet"/"Another action in progress" errors.  
 By that I mean that if you cast a gcd spell every 1.5 seconds without your ping changing you will occasionally get 
 errors from the server and your cast will get rejected.  If you have 150ms+ ping this can be very punishing.  
 
-I believe this is related to the time it takes the server to process incoming spells.  There is logic to 
+I believe this is related to the server tick during which incoming spells are processed.  There is logic to 
 subtract the server processing time from your gcd in vmangos but turtle does not appear to be doing this.  
 
-To compensate for what seems to be a 50ms server processing time the default buffer in nampower.cfg is 55ms.  If you are close to the server
+To compensate for what seems to be a 50ms server tick the default buffer in nampower.cfg is 55ms.  If you are close to the server
 you can experiment with lowering this value.  You will occasionally get errors but if they are infrequent enough for you
 the time saved will be worth it.  
 

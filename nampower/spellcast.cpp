@@ -2,9 +2,9 @@
 // Created by pmacc on 9/21/2024.
 //
 
-#include "spell_cast.hpp"
-#include "init.hpp"
+#include "spellcast.hpp"
 #include "helper.hpp"
+#include "offsets.hpp"
 
 namespace Nampower {
     void BeginCast(DWORD currentTime, std::uint32_t castTime, const game::SpellRec *spell) {
@@ -44,11 +44,6 @@ namespace Nampower {
                 DEBUG_LOG("Decreasing buffer to " << gBufferTimeMs);
             }
 
-            if (gInstantCastBufferTimeMs > gMinInstantCastBufferTimeMs) {
-                gInstantCastBufferTimeMs -= DYNAMIC_BUFFER_INCREMENT;
-                DEBUG_LOG("Decreasing instant cast buffer to " << gInstantCastBufferTimeMs);
-            }
-
             gLastBufferDecreaseTimeMs = currentTime; // update the last error time to prevent lowering buffer too often
         }
 
@@ -61,7 +56,8 @@ namespace Nampower {
         //}
     }
 
-    bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, int spellId, void *item, std::uint64_t guid) {
+    bool
+    CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, uint32_t spellId, void *item, std::uint64_t guid) {
         auto const spell = game::GetSpellInfo(spellId);
         auto const spellIsOnSwing = SpellIsOnSwing(spell);
         auto const spellName = game::GetSpellName(spellId);
@@ -76,7 +72,7 @@ namespace Nampower {
             auto const castSpell = detour->GetTrampolineT<CastSpellT>();
             auto ret = castSpell(unit, spellId, item, guid);
 
-            if (!ret) {
+            if (!ret && gQueueOnSwingSpells) {
                 // if not in cooldown window
                 if (GetTime() - gLastOnSwingCastTime > gOnSwingBufferCooldownMs) {
                     DEBUG_LOG("Queuing on swing spell " << spellName);
@@ -110,44 +106,63 @@ namespace Nampower {
 
         auto const castSpell = detour->GetTrampolineT<CastSpellT>();
         auto currentTime = GetTime();
-        auto remainingCastTime = gCastEndMs - currentTime;
+        auto remainingCastTime = (gCastEndMs > currentTime) ? gCastEndMs - currentTime : 0;
         auto remainingGCD = gGCDEndMs - currentTime;
 
         auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
-        if (spell->Targets == game::SpellTarget::TARGET_LOCATION_UNIT_POSITION && cursorMode == 1) {
-            // if the spell is a ground target spell, allowing targeting while casting or waiting for gcd
-            if ((remainingCastTime > 0 && remainingCastTime < gTargetingQueueWindowMs) ||
-                (remainingGCD > 0 && remainingGCD < gTargetingQueueWindowMs)) {
-                castSpell(unit, spellId, item, guid); // start the cast which will trigger targeting
+        if (spell->Targets == game::SpellTarget::TARGET_LOCATION_UNIT_POSITION &&
+            cursorMode == 1) {
+            if (gQueueTargetingSpells) {
+                if (remainingCastTime > 0) {
+                    if (remainingCastTime < gTargetingQueueWindowMs) {
+                        DEBUG_LOG("Queuing targeting for after cooldown: " << remainingCastTime << "ms " << spellName);
+                        gSpellQueued = true;
+                        // save the detour to trigger the cast again after the cooldown is up
+                        lastDetour = detour;
+                        return false;
+                    }
+                } else if (spellOnGCD && remainingGCD > 0 && remainingGCD < gSpellQueueWindowMs) {
+                    DEBUG_LOG("Queuing targeting for after gcd: " << remainingGCD << "ms " << spellName);
+                    gSpellQueued = true;
+                    // save the detour to trigger the cast again after the cooldown is up
+                    lastDetour = detour;
+                    return false;
+                }
             }
         } else if (remainingCastTime > 0 && remainingCastTime < gSpellQueueWindowMs) {
-            DEBUG_LOG("Queuing for after cooldown: " << remainingCastTime << "ms " << spellName);
-            gSpellQueued = true;
-
-            // save the detour to trigger the cast again after the cooldown is up
-            lastDetour = detour;
-
-            return false;
-        } else if (spellOnGCD && remainingGCD > 0 && remainingGCD < gSpellQueueWindowMs) {
-            DEBUG_LOG("Queuing for after gcd: " << remainingGCD << "ms " << spellName);
-            gSpellQueued = true;
-
-            // save the detour to trigger the cast again after the cooldown is up
-            lastDetour = detour;
-
-            return false;
-        } else if (spellIsChanneling && gChanneling) {
-            // calculate the time remaining in the channel
-            auto const remainingChannelTime = gChannelDuration - (currentTime - gLastChannelStartTime);
-
-            if (remainingChannelTime < gChannelQueueWindowMs) {
-                DEBUG_LOG("Queuing for after channeling " << spellName);
-                gChannelQueued = true;
+            if (gQueueCastTimeSpells) {
+                DEBUG_LOG("Queuing for after cooldown: " << remainingCastTime << "ms " << spellName);
+                gSpellQueued = true;
 
                 // save the detour to trigger the cast again after the cooldown is up
                 lastDetour = detour;
 
                 return false;
+            }
+        } else if (spellOnGCD && remainingGCD > 0 && remainingGCD < gSpellQueueWindowMs) {
+            if (gQueueInstantSpells) {
+                DEBUG_LOG("Queuing for after gcd: " << remainingGCD << "ms " << spellName);
+                gSpellQueued = true;
+
+                // save the detour to trigger the cast again after the cooldown is up
+                lastDetour = detour;
+
+                return false;
+            }
+        } else if (spellIsChanneling && gChanneling) {
+            if (gQueueChannelingSpells) {
+                // calculate the time remaining in the channel
+                auto const remainingChannelTime = gChannelDuration - (currentTime - gLastChannelStartTime);
+
+                if (remainingChannelTime < gChannelQueueWindowMs) {
+                    DEBUG_LOG("Queuing for after channeling " << spellName);
+                    gChannelQueued = true;
+
+                    // save the detour to trigger the cast again after the cooldown is up
+                    lastDetour = detour;
+
+                    return false;
+                }
             }
         }
 
@@ -212,9 +227,7 @@ namespace Nampower {
         }
 
         //JT: cursorMode == 2 is for clickcasting
-        if (ret && !(spell->Attributes & game::SPELL_ATTR_RANGED) /* && cursorMode != 2 */) {
-            BeginCast(GetTime(), castTime, spell);
-        } else {
+        if (!ret && !(spell->Attributes & game::SPELL_ATTR_RANGED) && cursorMode != 2) {
             DEBUG_LOG("Spell cast start failed castSpell returned " << ret << " spell " << spellId << " isRanged " <<
                                                                     !(spell->Attributes & game::SPELL_ATTR_RANGED));
         }
@@ -272,51 +285,38 @@ namespace Nampower {
         spellGo(casterGUID, targetGUID, spellId, spellData);
     }
 
-    void Spell_C_SpellFailedHook(hadesmem::PatchDetourBase *detour, int spellId,
-                                 game::SpellCastResult spellResult, int unk1, int unk2, char unk3) {
-        if (lastDetour &&
-            (spellResult == game::SpellCastResult::SPELL_FAILED_NOT_READY ||
-             spellResult == game::SpellCastResult::SPELL_FAILED_ITEM_NOT_READY ||
-             spellResult == game::SpellCastResult::SPELL_FAILED_SPELL_IN_PROGRESS)
-                ) {
-            auto const currentTime = GetTime();
+    bool Spell_C_TargetSpellHook(hadesmem::PatchDetourBase *detour,
+                                 uint32_t *player,
+                                 uint32_t *spellId,
+                                 uint32_t unk3,
+                                 float unk4) {
+        auto const spellTarget = detour->GetTrampolineT<Spell_C_TargetSpellT>();
+        auto result = spellTarget(player, spellId, unk3, unk4);
 
-            // ignore error spam
-            if (currentTime - gLastErrorTimeMs < 200) {
-                lastDetour = nullptr; // reset the last detour
-                DEBUG_LOG("Cast failed code " << int(spellResult) << ", not queuing retry due to recent error at "
-                                              << gLastErrorTimeMs);
-                return;
-            } else {
-                DEBUG_LOG("Cast failed code " << int(spellResult) << ", queuing a retry");
-            }
-            gLastErrorTimeMs = currentTime;
-            gSpellQueued = true;
+        if (!result) {
+            auto const spellName = game::GetSpellName(*spellId);
+            auto const spell = game::GetSpellInfo(*spellId);
 
-            // check if we should increase the buffer time
-            if (currentTime - gLastBufferIncreaseTimeMs > BUFFER_INCREASE_FREQUENCY) {
-                if (lastCastTime == 0) {
-                    // check if gInstantCastBufferTimeMs is already at max
-                    if (gInstantCastBufferTimeMs - gMinInstantCastBufferTimeMs <
-                        gMaxInstantCastBufferIncrease) {
-                        gInstantCastBufferTimeMs += DYNAMIC_BUFFER_INCREMENT;
-                        DEBUG_LOG("Increasing instant cast buffer to " << gInstantCastBufferTimeMs);
-                        gLastBufferIncreaseTimeMs = currentTime;
-                    }
-                } else {
-                    // check if gBufferTimeMs is already at max
-                    if (gBufferTimeMs - gMinBufferTimeMs < gMaxBufferIncrease) {
-                        gBufferTimeMs += DYNAMIC_BUFFER_INCREMENT;
-                        DEBUG_LOG("Increasing buffer to " << gBufferTimeMs);
-                        gLastBufferIncreaseTimeMs = currentTime;
-                    }
+            if (spell->Targets == game::SpellTarget::TARGET_LOCATION_UNIT_POSITION) {
+                // if quickcast is on instantly trigger all casts
+                // otherwise if this is a queued cast, trigger it instant cast
+                if (gQuickcastTargetingSpells || (gQueueTargetingSpells && gNormalQueueTriggered)) {
+                    DEBUG_LOG("Quickcasting terrain spell " << spellName
+                                                            << " quickcast: " << gQuickcastTargetingSpells
+                                                            << " queuetrigger: " << gNormalQueueTriggered);
+                    LuaCall("CameraOrSelectOrMoveStart()");
+                    LuaCall("CameraOrSelectOrMoveStop()");
                 }
             }
-        } else if (lastDetour) {
-            DEBUG_LOG("Cast failed code " << int(spellResult) << " ignored");
         }
+        return result;
+    }
 
-        auto const spellFailed = detour->GetTrampolineT<Spell_C_SpellFailedT>();
-        spellFailed(spellId, spellResult, unk1, unk2, unk3);
+    void SendCastHook(hadesmem::PatchDetourBase *detour, game::SpellCast *cast) {
+        auto const sendCast = detour->GetTrampolineT<SendCastT>();
+        sendCast(cast);
+
+        auto const spell = game::GetSpellInfo(cast->spellId);
+        BeginCast(GetTime(), lastCastTime, spell);
     }
 }

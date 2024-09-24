@@ -3,10 +3,19 @@ set(DLL_NAME nampower)
 include_directories(Include ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR})
 
 set(SOURCE_FILES
-    game.cpp
-    game.hpp
-    main.cpp
-    offsets.hpp
+        game.hpp
+        game.cpp
+        main.hpp
+        main.cpp
+        offsets.hpp
+        helper.cpp
+        helper.hpp
+        spellcast.hpp
+        spellcast.cpp
+        spellchannel.hpp
+        spellchannel.cpp
+        spellevents.hpp
+        spellevents.cpp
 )
 
 add_library(${DLL_NAME} SHARED ${SOURCE_FILES})

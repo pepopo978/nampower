@@ -2,7 +2,19 @@
 // Created by pmacc on 9/21/2024.
 //
 
-#ifndef NAMPOWER_SPELLEVENTS_H
-#define NAMPOWER_SPELLEVENTS_H
+#pragma once
 
-#endif //NAMPOWER_SPELLEVENTS_H
+#include "main.hpp"
+
+namespace Nampower {
+
+    void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId);
+
+    int SpellDelayedHook(hadesmem::PatchDetourBase *detour, int opCode, game::CDataStore *packet);
+
+    bool SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *unitStr);
+
+    void Spell_C_SpellFailedHook(hadesmem::PatchDetourBase *detour, int spellId,
+                                 game::SpellCastResult spellResult, int unk1, int unk2, char unk3);
+
+}

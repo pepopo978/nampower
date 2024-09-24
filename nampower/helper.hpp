@@ -2,15 +2,15 @@
 // Created by pmacc on 9/21/2024.
 //
 
-#ifndef NAMPOWER_HELPER_H
-#define NAMPOWER_HELPER_H
+#pragma once
+
+#include "game.hpp"
 
 namespace Nampower {
 
-    class helper {
+    bool SpellIsOnGCD(const game::SpellRec *spell);
 
-    };
+    bool SpellIsChanneling(const game::SpellRec *spell);
 
-} // Nampower
-
-#endif //NAMPOWER_HELPER_H
+    bool SpellIsOnSwing(const game::SpellRec *spell);
+}

@@ -43,15 +43,15 @@ void *GetObjectPtr(std::uint64_t guid)
     return getObjectPtr(guid);
 }
 
-std::uint32_t GetCastTime(void *unit, int spellId)
+std::uint32_t GetCastTime(void *unit, uint32_t spellId)
 {
     auto const vmt = *reinterpret_cast<std::uint8_t **>(unit);
-    int(__thiscall *getSpellCastingTime)(void *, int) = *reinterpret_cast<decltype(&getSpellCastingTime)>(vmt + 4 * static_cast<std::uint32_t>(Offsets::GetCastingTimeIndex));
+    int(__thiscall *getSpellCastingTime)(void *, uint32_t) = *reinterpret_cast<decltype(&getSpellCastingTime)>(vmt + 4 * static_cast<std::uint32_t>(Offsets::GetCastingTimeIndex));
 
     return getSpellCastingTime(unit, spellId);
 }
 
-CDuration* GetDurationObject(int durationIndex)
+CDuration* GetDurationObject(uint32_t durationIndex)
 {
     auto const durationListPtr = *reinterpret_cast<std::uint32_t *>(Offsets::GetDurationObject);
     if(durationListPtr){
@@ -63,17 +63,17 @@ CDuration* GetDurationObject(int durationIndex)
     return nullptr;
 }
 
-const SpellRec *GetSpellInfo(int spellId)
+const SpellRec *GetSpellInfo(uint32_t spellId)
 {
     auto const spellDb = reinterpret_cast<WowClientDB<SpellRec> *>(Offsets::SpellDb);
 
-    if (spellId < 0 || spellId > spellDb->m_maxID)
+    if (spellId > spellDb->m_maxID)
         return nullptr;
 
     return spellDb->m_recordsById[spellId];
 }
 
-const char *GetSpellName(int spellId)
+const char *GetSpellName(uint32_t spellId)
 {
     auto const spell = GetSpellInfo(spellId);
 

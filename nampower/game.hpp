@@ -130,7 +130,7 @@ namespace game {
     template<typename T>
     struct WowClientDB {
         T **m_recordsById;
-        int m_maxID;
+        uint32_t m_maxID;
         int Unk3;
         int Unk4;
         int Unk5;
@@ -963,13 +963,13 @@ namespace game {
 
     void *GetObjectPtr(std::uint64_t guid);
 
-    std::uint32_t GetCastTime(void *unit, int spellId);
+    std::uint32_t GetCastTime(void *unit, uint32_t spellId);
 
-    CDuration *GetDurationObject(int durationIndex);
+    CDuration *GetDurationObject(uint32_t durationIndex);
 
-    const SpellRec *GetSpellInfo(int spellId);
+    const SpellRec *GetSpellInfo(uint32_t spellId);
 
-    const char *GetSpellName(int spellId);
+    const char *GetSpellName(uint32_t spellId);
 
     std::uint64_t ClntObjMgrGetActivePlayer();
 

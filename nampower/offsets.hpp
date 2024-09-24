@@ -41,7 +41,6 @@ enum class Offsets : std::uint32_t {
     CursorMode = 0xBE2C4C,
     SpellIsTargeting = 0xCECAC0,
 
-    CastSpell = 0x6E4B60,
     CancelSpell = 0x6E4940,
     SpellDelayed = 0x6E74F0,
     SignalEvent = 0x703E50,
@@ -57,15 +56,26 @@ enum class Offsets : std::uint32_t {
     SendCast = 0x6E54F0,
     CreateCastbar = 0x6E7A53,
     SpellStartHandler = 0x006E7640,
+    CheckAndReportSpellInhibitFlags = 0x006094f0,
 
+    Spell_C_CastSpell = 0x6E4B60,
     Spell_C_SpellFailed = 0x006E1A00,
     Spell_C_CastSpellByID = 0x6E5A90,
     Spell_C_GetAutoRepeatingSpell = 0x006E9FD0,
     Spell_C_HandleSpriteClick = 0x006E5B10,
+    Spell_C_TargetSpell = 0x006E5250,
+
+    CVarLookup = 0x0063DEC0,
+    RegisterCVar = 0X0063DB90,
 
     Script_SpellTargetUnit = 0x006E6D90,
     Script_GetGUIDFromName = 0X00515970,
+    Script_SetCVar = 0x00488C10,
 
-    lua_isstring = 0x006f3510,
-    lua_tostring = 0x006f3690,
+    lua_isstring = 0x006F3510,
+    lua_tostring = 0x006F3690,
+    lua_call = 0x00704CD0,
+    lua_pcall = 0x006F41A0,
+
+    SpellVisualsInitialize = 0x006ec0e0,
 };
