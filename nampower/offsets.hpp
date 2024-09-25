@@ -68,6 +68,8 @@ enum class Offsets : std::uint32_t {
     CVarLookup = 0x0063DEC0,
     RegisterCVar = 0X0063DB90,
 
+    ClientServicesSendMessagePtr = 0X00C28128,
+
     Script_SpellTargetUnit = 0x006E6D90,
     Script_GetGUIDFromName = 0X00515970,
     Script_SetCVar = 0x00488C10,

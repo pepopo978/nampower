@@ -24,16 +24,11 @@ namespace Nampower {
 
 
         if (eventId == game::Events::SPELLCAST_STOP) {
-            // if this is from the server but it is happening too early, it is for one of two reasons.
+            // if this is from the server, but it is happening too early, it is for one of two reasons.
             // 1) it is for the last cast, in which case we can ignore it
             // 2) it is for our current cast and the server decided to cast sooner than we expected
             //    this can happen from mage 8/8 t2 proc or presence of mind
-            if (gCasting) {
-                DEBUG_LOG("SPELLCAST_STOP during casting");
-            } else {
-                DEBUG_LOG("SPELLCAST_STOP ignored");
-                return;
-            }
+            DEBUG_LOG("SPELLCAST_STOP occurred");
         }
             // SPELLCAST_FAILED means the attempt was rejected by either the client or the server,
             // depending on the value of gNotifyServer.  if it was rejected by the server, this
@@ -50,10 +45,6 @@ namespace Nampower {
             gCasting = false;
             gChanneling = false;
             gChannelCastCount = 0;
-
-            if(gCancelling) {
-                return; // don't broadcast the event if we are the ones causing it
-            }
         }
 
         auto const signalEvent = detour->GetTrampolineT<SignalEventT>();
@@ -106,6 +97,9 @@ namespace Nampower {
 
     void Spell_C_SpellFailedHook(hadesmem::PatchDetourBase *detour, int spellId,
                                  game::SpellCastResult spellResult, int unk1, int unk2, char unk3) {
+        auto const spellFailed = detour->GetTrampolineT<Spell_C_SpellFailedT>();
+        spellFailed(spellId, spellResult, unk1, unk2, unk3);
+
         if (lastDetour &&
             (spellResult == game::SpellCastResult::SPELL_FAILED_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_ITEM_NOT_READY ||
@@ -137,8 +131,5 @@ namespace Nampower {
         } else if (lastDetour) {
             DEBUG_LOG("Cast failed code " << int(spellResult) << " ignored");
         }
-
-        auto const spellFailed = detour->GetTrampolineT<Spell_C_SpellFailedT>();
-        spellFailed(spellId, spellResult, unk1, unk2, unk3);
     }
 }
