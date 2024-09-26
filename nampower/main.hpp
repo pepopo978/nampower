@@ -83,6 +83,7 @@ namespace Nampower {
     extern bool gOnSwingQueued;
 
     extern bool gNormalQueueTriggered;
+    extern bool gLastSpellQueued;
 
     // true when we are simulating a server-based spell cancel to reset the cast bar
     extern bool gCancelling;
@@ -104,7 +105,7 @@ namespace Nampower {
 
     using CastSpellT = bool (__fastcall *)(void *, uint32_t, void *, std::uint64_t);
     using SendCastT = void (__fastcall *)(game::SpellCast *, char unk);
-    using CancelSpellT = void (__stdcall *)(game::SpellCastResult);
+    using CancelSpellT = void (__fastcall *)(bool, bool, game::SpellCastResult);
     using SignalEventT = void (__fastcall *)(game::Events);
     using PacketHandlerT = int (__stdcall *)(int, game::CDataStore *);
     using ISceneEndT = int *(__fastcall *)(uintptr_t *unk);
@@ -140,4 +141,6 @@ namespace Nampower {
 
 
     void LuaCall(const char *code);
+
+    void ResetCastFlags();
 }

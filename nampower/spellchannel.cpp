@@ -31,6 +31,7 @@ namespace Nampower {
                 gChannelQueued = false;
                 DEBUG_LOG("Channeling ended, triggering queued cast");
                 CastSpellHook(lastDetour, lastUnit, lastSpellId, lastItem, lastGuid);
+                gLastSpellQueued = true;
             }
         }
 

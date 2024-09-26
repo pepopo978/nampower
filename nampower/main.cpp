@@ -88,6 +88,7 @@ namespace Nampower {
     bool gNormalQueueTriggered;
     bool gChannelQueued;
     bool gOnSwingQueued;
+    bool gLastSpellQueued;
 
     // true when we are simulating a server-based spell cancel to reset the cast bar
     bool gCancelling;
@@ -139,6 +140,16 @@ namespace Nampower {
         function(code, "Unused");
     }
 
+
+    void ResetCastFlags() {
+        gCastEndMs = 0;
+        gGCDEndMs = 0;
+        gCasting = false;
+        gChanneling = false;
+        gChannelDuration = 0;
+        gChannelCastCount = 0;
+    }
+
     int *ISceneEndHook(hadesmem::PatchDetourBase *detour, uintptr_t *ptr) {
         auto const iSceneEnd = detour->GetTrampolineT<ISceneEndT>();
 
@@ -163,6 +174,7 @@ namespace Nampower {
 
                     gSpellQueued = false;
                     gNormalQueueTriggered = false;
+                    gLastSpellQueued = true;
 
                     return iSceneEnd(ptr);
                 } else {
@@ -442,6 +454,12 @@ namespace Nampower {
         auto const sendCastOrig = hadesmem::detail::AliasCast<SendCastT>(Offsets::SendCast);
         gSendCastDetour = std::make_unique<hadesmem::PatchDetour<SendCastT >>(process, sendCastOrig, &SendCastHook);
         gSendCastDetour->Apply();
+
+        // monitor for client-based spell interruptions to stop the castbar
+        auto const cancelSpellOrig = hadesmem::detail::AliasCast<CancelSpellT>(Offsets::CancelSpell);
+        gCancelSpellDetour = std::make_unique<hadesmem::PatchDetour<CancelSpellT >>(process, cancelSpellOrig,
+                                                                                    &CancelSpellHook);
+        gCancelSpellDetour->Apply();
 
         auto const spellChannelStartHandlerOrig = hadesmem::detail::AliasCast<SpellChannelStartHandlerT>(
                 Offsets::SpellChannelStartHandler);

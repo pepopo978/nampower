@@ -12,6 +12,7 @@ namespace Nampower {
 
         gLastCastStartTime = castTime;
         gChanneling = SpellIsChanneling(spell);
+        gLastSpellQueued = false; // reset the last spell queued flag
 
         if (gChanneling) {
             auto const duration = game::GetDurationObject(spell->DurationIndex);
@@ -63,8 +64,10 @@ namespace Nampower {
         auto const spell = game::GetSpellInfo(spellId);
         auto const spellIsOnSwing = SpellIsOnSwing(spell);
         auto const spellName = game::GetSpellName(spellId);
+        auto currentTime = GetTime();
 
-        DEBUG_LOG("Cast spell guid " << guid << " spell " << spellName);
+        DEBUG_LOG("Attempt cast " << spellName << " on guid " << guid << " , time since last cast "
+                                  << currentTime - gLastCast);
 
         // on swing spells are independent of cast bar / gcd, handle them separately
         if (spellIsOnSwing) {
@@ -107,7 +110,6 @@ namespace Nampower {
         gChannelQueued = false;
 
         auto const castSpell = detour->GetTrampolineT<CastSpellT>();
-        auto currentTime = GetTime();
         auto remainingCastTime = (gCastEndMs > currentTime) ? gCastEndMs - currentTime : 0;
         auto remainingGCD = (gGCDEndMs > currentTime) ? gGCDEndMs - currentTime : 0;
 
@@ -182,8 +184,6 @@ namespace Nampower {
             }
         }
 
-        DEBUG_LOG("Attempt cast " << spellName << " , time elapsed since last cast " << currentTime - gLastCast);
-
         // is there a cast? (ignore for on swing spells)
         if (remainingCastTime) {
             DEBUG_LOG("Cooldown active " << remainingCastTime << "ms remaining");
@@ -222,7 +222,7 @@ namespace Nampower {
                 //JT: Suggest replacing CancelSpell with InterruptSpell (the API called when moving during casting).
                 // The address of InterruptSpell needs to be dug out. It could possibly fix the sometimes broken animations.
                 auto const cancelSpell = reinterpret_cast<CancelSpellT>(Offsets::CancelSpell);
-                cancelSpell(game::SPELL_FAILED_INTERRUPTED);
+                cancelSpell(true, false, game::SPELL_FAILED_INTERRUPTED);
 
                 gCancelling = false;
 
@@ -232,7 +232,6 @@ namespace Nampower {
                 gCasting = false;
 
                 if (ret) {
-                    DEBUG_LOG("Retry cast successful, clearing queued error cast");
                     gSpellQueued = false;
                 }
             } else {
@@ -251,8 +250,11 @@ namespace Nampower {
 
     void SpellGoHook(hadesmem::PatchDetourBase *detour, uint64_t *casterGUID, uint64_t *targetGUID, uint32_t spellId,
                      game::CDataStore *spellData) {
+
+        auto const castByActivePlayer = game::ClntObjMgrGetActivePlayer() == *casterGUID;
+
         // only care about our own casts and lastSpellId(ignore spell procs)
-        if (gChanneling && game::ClntObjMgrGetActivePlayer() == *casterGUID) {
+        if (gChanneling && castByActivePlayer) {
             gChannelCastCount++;
 
             if (gChannelQueued || gSpellQueued) {
@@ -268,9 +270,10 @@ namespace Nampower {
                     gChannelCastCount = 0;
                     DEBUG_LOG("Channel is complete, triggering queued cast of " << game::GetSpellName(lastSpellId));
                     CastSpellHook(lastDetour, lastUnit, lastSpellId, lastItem, lastGuid);
+                    gLastSpellQueued = true;
                 }
             }
-        } else if (gOnSwingQueued && game::ClntObjMgrGetActivePlayer() == *casterGUID) {
+        } else if (gOnSwingQueued && castByActivePlayer) {
             // check if spell is on hit
             auto const spell = game::GetSpellInfo(spellId);
             if (spell->Attributes & game::SPELL_ATTR_ON_NEXT_SWING_1) {
@@ -280,6 +283,7 @@ namespace Nampower {
                 gLastOnSwingCastTime = GetTime();
                 gOnSwingQueued = false;
                 CastSpellHook(onSwingDetour, lastUnit, lastOnSwingSpellId, lastItem, lastGuid);
+                gLastSpellQueued = true;
             }
         }
 
@@ -312,6 +316,19 @@ namespace Nampower {
             }
         }
         return result;
+    }
+
+    void
+    CancelSpellHook(hadesmem::PatchDetourBase *detour, bool failed, bool notifyServer, game::SpellCastResult reason) {
+        DEBUG_LOG("Cancel spell cast failed:" << failed << " notifyServer:" << notifyServer << " reason:" << int(reason));
+
+        // triggered by us, reset the cast bar
+        if(notifyServer){
+            ResetCastFlags();
+        }
+
+        auto const cancelSpell = detour->GetTrampolineT<CancelSpellT>();
+        return cancelSpell(failed, notifyServer, reason);
     }
 
     void SendCastHook(hadesmem::PatchDetourBase *detour, game::SpellCast *cast, char unk) {
