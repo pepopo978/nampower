@@ -32,13 +32,13 @@ SET NP_TargetingQueueWindowMs "1000"
 - `NP_TargetingQueueWindowMs` - The window in ms before a terrain targeting spell finishes where the next will get queued. Default is 500.
 
 
-- `NP_MinBufferTimeMs` - The minimum buffer buffer delay in ms added to each cast (covered more below).  The dynamic buffer adjustments will not go below this value. Default is 55.
+- `NP_MinBufferTimeMs` - The minimum buffer delay in ms added to each cast (covered more below).  The dynamic buffer adjustments will not go below this value. Default is 55.
 - `NP_NonGcdBufferTimeMs` - The buffer delay in ms added AFTER each cast that is not tied to the gcd. Default is 0.
 - `NP_MaxBufferIncreaseMs` - The maximum amount of time in ms to increase the buffer by when the server rejects a cast. This prevents getting too long of a buffer if you happen to get a ton of rejections in a row. Default is 30.
 
 
-- `NP_RetryServerRejectedSpells` - Whether or not to retry spells that are rejected by the server for these reasons: SPELL_FAILED_ITEM_NOT_READY, SPELL_FAILED_NOT_READY, SPELL_FAILED_SPELL_IN_PROGRESS.  0 to disable, 1 to enable. Default is 1.
-- `NP_QuickcastTargetingSpells` - Whether or not to enable quick casting for ALL spells with terrain targeting.  This will cause the spell to instantly cast on your cursor without waiting for you to confirm the targeting circle.  Queuing targeting spells will use quickcasting regardless of this value (couldn't get it to work without doing this).  0 to disable, 1 to enable. Default is 0.
+- `NP_RetryServerRejectedSpells` - Whether to retry spells that are rejected by the server for these reasons: SPELL_FAILED_ITEM_NOT_READY, SPELL_FAILED_NOT_READY, SPELL_FAILED_SPELL_IN_PROGRESS.  0 to disable, 1 to enable. Default is 1.
+- `NP_QuickcastTargetingSpells` - Whether to enable quick casting for ALL spells with terrain targeting.  This will cause the spell to instantly cast on your cursor without waiting for you to confirm the targeting circle.  Queuing targeting spells will use quickcasting regardless of this value (couldn't get it to work without doing this).  0 to disable, 1 to enable. Default is 0.
 
 ### Bug Reporting
 If you encounter any bugs please report them in the issues tab.  Please include the nampower_debug.txt file in the same directory as your WoW.exe to help me diagnose the issue.  If you are able to reproduce the bug please include the steps to reproduce it.  In a future version once bugs are ironed out I'll make logging optional.
