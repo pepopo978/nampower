@@ -19,13 +19,14 @@
 #include <fstream>
 
 #include "game.hpp"
+#include "types.h"
 
 namespace Nampower {
     extern std::ofstream debugLogFile;
 
-    extern DWORD gStartTime;
+    extern uint32_t gStartTime;
 
-    extern DWORD GetTime();
+    extern uint32_t GetTime();
 
 #ifndef DEBUG_LOG_H
 #define DEBUG_LOG_H
@@ -42,66 +43,28 @@ namespace Nampower {
 
 #endif  // DEBUG_LOG_H
 
-    constexpr DWORD MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE = 10000; // time limit in ms after which queued casts are ignored in errors
-    constexpr DWORD DYNAMIC_BUFFER_INCREMENT = 5; // amount to adjust buffer in ms on errors/lack of errors
-    constexpr DWORD BUFFER_INCREASE_FREQUENCY = 5000; // time in ms between changes to raise buffer
-    constexpr DWORD BUFFER_DECREASE_FREQUENCY = 10000; // time in ms between changes to lower buffer
+    constexpr uint32_t MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE = 10000; // time limit in ms after which queued casts are ignored in errors
+    constexpr uint32_t DYNAMIC_BUFFER_INCREMENT = 5; // amount to adjust buffer in ms on errors/lack of errors
+    constexpr uint32_t BUFFER_INCREASE_FREQUENCY = 5000; // time in ms between changes to raise buffer
+    constexpr uint32_t BUFFER_DECREASE_FREQUENCY = 10000; // time in ms between changes to lower buffer
+
+    extern uint32_t gLastErrorTimeMs;
+    extern uint32_t gLastBufferIncreaseTimeMs;
+    extern uint32_t gLastBufferDecreaseTimeMs;
+
+    extern uint32_t gBufferTimeMs;   // adjusts dynamically depending on errors
+
+    extern hadesmem::PatchDetourBase *castSpellDetour;
 
     /* Configurable settings set by user */
-    extern bool gQueueCastTimeSpells;
-    extern bool gQueueInstantSpells;
-    extern bool gQueueOnSwingSpells;
-    extern bool gQueueChannelingSpells;
-    extern bool gQueueTargetingSpells;
+    extern UserSettings gUserSettings;
 
-    extern bool gQuickcastTargetingSpells;
+    extern LastCastData gLastCastData;
+    extern CastData gCastData;
 
-    extern DWORD gSpellQueueWindowMs;
-    extern DWORD gOnSwingBufferCooldownMs;
-    extern DWORD gChannelQueueWindowMs;
-    extern DWORD gTargetingQueueWindowMs;
-
-    extern DWORD gMinBufferTimeMs;
-    extern DWORD gMaxBufferIncrease;
-    /* */
-
-    extern DWORD gCastEndMs;
-    extern DWORD gGCDEndMs;
-    extern DWORD gBufferTimeMs;   // adjusts dynamically depending on errors
-    extern DWORD gLastCast;
-    extern DWORD gLastCastStartTime;
-    extern DWORD gLastCastOnGCD;
-    extern DWORD gLastChannelStartTime;
-    extern DWORD gLastOnSwingCastTime;
-
-    extern DWORD gLastErrorTimeMs;
-    extern DWORD gLastBufferIncreaseTimeMs;
-    extern DWORD gLastBufferDecreaseTimeMs;
-
-    extern bool gSpellQueued;
-    extern bool gChannelQueued;
-    extern bool gOnSwingQueued;
-
-    extern bool gNormalQueueTriggered;
-    extern bool gLastSpellQueued;
-
-    // true when we are simulating a server-based spell cancel to reset the cast bar
-    extern bool gCancelling;
-
-    // true when we are in the middle of an attempt to cast a spell
-    extern bool gCasting;
-    extern bool gChanneling;
-    extern uint32_t gChannelDuration;
-    extern uint32_t gChannelCastCount;
-
-    extern hadesmem::PatchDetourBase *onSwingDetour;
-    extern hadesmem::PatchDetourBase *lastDetour;
-    extern void *lastUnit;
-    extern uint32_t lastSpellId;
-    extern uint32_t lastOnSwingSpellId;
-    extern void *lastItem;
-    extern uint32_t lastCastTime;
-    extern uint64_t lastGuid;
+    extern CastSpellParams gLastNormalCastParams;
+    extern CastSpellParams gLastOnSwingCastParams;
+    extern CastSpellParams gLastNonGcdCastParams;
 
     using CastSpellT = bool (__fastcall *)(void *, uint32_t, void *, std::uint64_t);
     using SendCastT = void (__fastcall *)(game::SpellCast *, char unk);
@@ -141,6 +104,8 @@ namespace Nampower {
 
 
     void LuaCall(const char *code);
+
+    bool IsNonSwingSpellQueued();
 
     void ResetCastFlags();
 }

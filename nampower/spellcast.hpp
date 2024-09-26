@@ -9,7 +9,13 @@
 #include "main.hpp"
 
 namespace Nampower {
-    void BeginCast(DWORD currentTime, std::uint32_t castTime, const game::SpellRec *spell);
+    void BeginCast(uint32_t currentTime, std::uint32_t castTime, const game::SpellRec *spell);
+
+    void CastQueuedNonGcdSpell();
+
+    void CastQueuedNormalSpell();
+
+    void CastQueuedSpells();
 
     bool CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, uint32_t spellId, void *item, std::uint64_t guid);
 

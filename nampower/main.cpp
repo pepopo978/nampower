@@ -45,68 +45,29 @@
 #include <iostream>
 #include <fstream>
 
-BOOL WINAPI DllMain(HINSTANCE, DWORD, void *);
+BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
 namespace Nampower {
     std::ofstream debugLogFile("nampower_debug.log");
 
-    /* Configurable settings set by user */
-    bool gQueueCastTimeSpells;
-    bool gQueueInstantSpells;
-    bool gQueueOnSwingSpells;
-    bool gQueueChannelingSpells;
-    bool gQueueTargetingSpells;
+    uint32_t gStartTime;
 
-    bool gQuickcastTargetingSpells;
+    uint32_t gLastErrorTimeMs;
+    uint32_t gLastBufferIncreaseTimeMs;
+    uint32_t gLastBufferDecreaseTimeMs;
 
-    DWORD gSpellQueueWindowMs;
-    DWORD gOnSwingBufferCooldownMs;
-    DWORD gChannelQueueWindowMs;
-    DWORD gTargetingQueueWindowMs;
+    uint32_t gBufferTimeMs;   // adjusts dynamically depending on errors
 
-    DWORD gMinBufferTimeMs;
-    DWORD gMaxBufferIncrease;
-    /* */
+    hadesmem::PatchDetourBase *castSpellDetour;
 
-    DWORD gStartTime;
-    DWORD gCastEndMs;
-    DWORD gGCDEndMs;
-    DWORD gBufferTimeMs;   // adjusts dynamically depending on errors
+    UserSettings gUserSettings;
 
-    DWORD gLastCast;
-    DWORD gLastCastStartTime;
-    DWORD gLastCastOnGCD;
-    DWORD gLastChannelStartTime;
-    DWORD gLastOnSwingCastTime;
+    LastCastData gLastCastData;
+    CastData gCastData;
 
-    DWORD gLastErrorTimeMs;
-    DWORD gLastBufferIncreaseTimeMs;
-    DWORD gLastBufferDecreaseTimeMs;
-
-    // true a spell is queued
-    bool gSpellQueued;
-    bool gNormalQueueTriggered;
-    bool gChannelQueued;
-    bool gOnSwingQueued;
-    bool gLastSpellQueued;
-
-    // true when we are simulating a server-based spell cancel to reset the cast bar
-    bool gCancelling;
-
-    // true when we are in the middle of an attempt to cast a spell
-    bool gCasting;
-    bool gChanneling;
-    uint32_t gChannelDuration;
-    uint32_t gChannelCastCount;
-
-    hadesmem::PatchDetourBase *onSwingDetour;
-    hadesmem::PatchDetourBase *lastDetour;
-    void *lastUnit;
-    uint32_t lastSpellId;
-    uint32_t lastOnSwingSpellId;
-    void *lastItem;
-    uint32_t lastCastTime;
-    uint64_t lastGuid;
+    CastSpellParams gLastNormalCastParams;
+    CastSpellParams gLastOnSwingCastParams;
+    CastSpellParams gLastNonGcdCastParams;
 
     std::unique_ptr<hadesmem::PatchDetour<SetCVarT>> gSetCVarDetour;
     std::unique_ptr<hadesmem::PatchDetour<CastSpellT>> gCastDetour;
@@ -129,8 +90,8 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_HandleSpriteClickT>> gSpell_C_HandleSpriteClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_TargetSpellT>> gSpell_C_TargetSpellDetour;
 
-    DWORD GetTime() {
-        return static_cast<DWORD>(std::chrono::duration_cast<std::chrono::milliseconds>(
+    uint32_t GetTime() {
+        return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::high_resolution_clock::now().time_since_epoch()).count()) - gStartTime;
     }
 
@@ -140,48 +101,45 @@ namespace Nampower {
         function(code, "Unused");
     }
 
+    bool IsNonSwingSpellQueued() {
+        return gCastData.nonGcdSpellQueued || gCastData.normalSpellQueued;
+    }
+
 
     void ResetCastFlags() {
-        gCastEndMs = 0;
-        gGCDEndMs = 0;
-        gCasting = false;
-        gChanneling = false;
-        gChannelDuration = 0;
-        gChannelCastCount = 0;
+        gCastData.castEndMs = 0;
+        gCastData.gcdEndMs = 0;
+        gCastData.channeling = false;
+        gCastData.channelDuration = 0;
+        gCastData.channelCastCount = 0;
     }
 
     int *ISceneEndHook(hadesmem::PatchDetourBase *detour, uintptr_t *ptr) {
         auto const iSceneEnd = detour->GetTrampolineT<ISceneEndT>();
 
-        if (lastDetour && gSpellQueued) {
-            auto currentTime = GetTime();
+        if(!gCastData.channeling) {
+            if (gCastData.nonGcdSpellQueued) {
+                auto currentTime = GetTime();
 
-            // get max of cooldown and gcd
-            auto delay = gCastEndMs > gGCDEndMs ? gCastEndMs : gGCDEndMs;
+                if (gCastData.castEndMs < currentTime) {
+                    CastQueuedNonGcdSpell();
+                }
+            } else if (gCastData.normalSpellQueued) {
+                auto currentTime = GetTime();
 
-            if (lastCastTime == 0) {
-                delay += gBufferTimeMs;
-            }
+                // get max of cooldown and gcd
+                auto delay = gCastData.castEndMs > gCastData.gcdEndMs ? gCastData.castEndMs : gCastData.gcdEndMs;
 
-            if (delay <= currentTime) {
-                // if more than 5 seconds have passed since the last cast, ignore
-                if (currentTime - gLastCast < MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE) {
-                    DEBUG_LOG("triggering queued cast for " << game::GetSpellName(lastSpellId));
-                    gNormalQueueTriggered = true;
-
-                    // call cast spell again
-                    CastSpellHook(lastDetour, lastUnit, lastSpellId, lastItem, lastGuid);
-
-                    gSpellQueued = false;
-                    gNormalQueueTriggered = false;
-                    gLastSpellQueued = true;
-
-                    return iSceneEnd(ptr);
-                } else {
-                    DEBUG_LOG("ignoring queued cast of " << game::GetSpellName(lastSpellId)
-                                                         << " due to max time since last cast");
-                    gSpellQueued = false;
-                    lastDetour = nullptr;
+                if (delay <= currentTime) {
+                    // if more than 5 seconds have passed since the last cast, ignore
+                    if (currentTime - gLastCastData.startTimeMs < MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE) {
+                        CastQueuedNormalSpell();
+                        return iSceneEnd(ptr);
+                    } else {
+                        DEBUG_LOG("Ignoring queued cast of " << game::GetSpellName(gLastNormalCastParams.spellId)
+                                                             << " due to max time since last cast");
+                        gCastData.normalSpellQueued = false;
+                    }
                 }
             }
         }
@@ -191,45 +149,50 @@ namespace Nampower {
 
     void update_from_cvar(const char *cvar, const char *value) {
         if (strcmp(cvar, "NP_QueueCastTimeSpells") == 0) {
-            gQueueCastTimeSpells = atoi(value) != 0;
-            DEBUG_LOG("Set NP_QueueCastTimeSpells to " << gQueueCastTimeSpells);
+            gUserSettings.queueCastTimeSpells = atoi(value) != 0;
+            DEBUG_LOG("Set NP_QueueCastTimeSpells to " << gUserSettings.queueCastTimeSpells);
         } else if (strcmp(cvar, "NP_QueueInstantSpells") == 0) {
-            gQueueInstantSpells = atoi(value) != 0;
-            DEBUG_LOG("Set NP_QueueInstantSpells to " << gQueueInstantSpells);
+            gUserSettings.queueInstantSpells = atoi(value) != 0;
+            DEBUG_LOG("Set NP_QueueInstantSpells to " << gUserSettings.queueInstantSpells);
         } else if (strcmp(cvar, "NP_QueueOnSwingSpells") == 0) {
-            gQueueOnSwingSpells = atoi(value) != 0;
-            DEBUG_LOG("Set NP_QueueOnSwingSpells to " << gQueueOnSwingSpells);
+            gUserSettings.queueOnSwingSpells = atoi(value) != 0;
+            DEBUG_LOG("Set NP_QueueOnSwingSpells to " << gUserSettings.queueOnSwingSpells);
         } else if (strcmp(cvar, "NP_QueueChannelingSpells") == 0) {
-            gQueueChannelingSpells = atoi(value) != 0;
-            DEBUG_LOG("Set NP_QueueChannelingSpells to " << gQueueChannelingSpells);
+            gUserSettings.queueChannelingSpells = atoi(value) != 0;
+            DEBUG_LOG("Set NP_QueueChannelingSpells to " << gUserSettings.queueChannelingSpells);
         } else if (strcmp(cvar, "NP_QueueTargetingSpells") == 0) {
-            gQueueTargetingSpells = atoi(value) != 0;
-            DEBUG_LOG("Set NP_QueueTargetingSpells to " << gQueueTargetingSpells);
+            gUserSettings.queueTargetingSpells = atoi(value) != 0;
+            DEBUG_LOG("Set NP_QueueTargetingSpells to " << gUserSettings.queueTargetingSpells);
 
+        } else if ((strcmp(cvar, "NP_RetryServerRejectedSpells") == 0)) {
+            gUserSettings.retryServerRejectedSpells = atoi(value) != 0;
+            DEBUG_LOG("Set NP_RetryServerRejectedSpells to " << gUserSettings.retryServerRejectedSpells);
         } else if (strcmp(cvar, "NP_QuickcastTargetingSpells") == 0) {
-            gQuickcastTargetingSpells = atoi(value) != 0;
-            DEBUG_LOG("Set NP_QuickcastTargetingSpells to " << gQuickcastTargetingSpells);
-
+            gUserSettings.quickcastTargetingSpells = atoi(value) != 0;
+            DEBUG_LOG("Set NP_QuickcastTargetingSpells to " << gUserSettings.quickcastTargetingSpells);
 
         } else if (strcmp(cvar, "NP_MinBufferTimeMs") == 0) {
-            gMinBufferTimeMs = atoi(value);
-            DEBUG_LOG("Set NP_MinBufferTimeMs to " << gMinBufferTimeMs);
+            gUserSettings.minBufferTimeMs = atoi(value);
+            DEBUG_LOG("Set NP_MinBufferTimeMs to " << gUserSettings.minBufferTimeMs);
+        } else if (strcmp(cvar, "NP_NonGcdBufferTimeMs") == 0) {
+            gUserSettings.nonGcdBufferTimeMs = atoi(value);
+            DEBUG_LOG("Set NP_NonGcdBufferTimeMs to " << gUserSettings.nonGcdBufferTimeMs);
         } else if (strcmp(cvar, "NP_MaxBufferIncreaseMs") == 0) {
-            gMaxBufferIncrease = atoi(value);
-            DEBUG_LOG("Set NP_MaxBufferIncreaseMs to " << gMaxBufferIncrease);
+            gUserSettings.maxBufferIncreaseMs = atoi(value);
+            DEBUG_LOG("Set NP_MaxBufferIncreaseMs to " << gUserSettings.maxBufferIncreaseMs);
 
         } else if (strcmp(cvar, "NP_SpellQueueWindowMs") == 0) {
-            gSpellQueueWindowMs = atoi(value);
-            DEBUG_LOG("Set NP_SpellQueueWindowMs to " << gSpellQueueWindowMs);
+            gUserSettings.spellQueueWindowMs = atoi(value);
+            DEBUG_LOG("Set NP_SpellQueueWindowMs to " << gUserSettings.spellQueueWindowMs);
         } else if (strcmp(cvar, "NP_OnSwingBufferCooldownMs") == 0) {
-            gOnSwingBufferCooldownMs = atoi(value);
-            DEBUG_LOG("Set NP_OnSwingBufferCooldownMs to " << gOnSwingBufferCooldownMs);
+            gUserSettings.onSwingBufferCooldownMs = atoi(value);
+            DEBUG_LOG("Set NP_OnSwingBufferCooldownMs to " << gUserSettings.onSwingBufferCooldownMs);
         } else if (strcmp(cvar, "NP_ChannelQueueWindowMs") == 0) {
-            gChannelQueueWindowMs = atoi(value);
-            DEBUG_LOG("Set NP_ChannelQueueWindowMs to " << gChannelQueueWindowMs);
+            gUserSettings.channelQueueWindowMs = atoi(value);
+            DEBUG_LOG("Set NP_ChannelQueueWindowMs to " << gUserSettings.channelQueueWindowMs);
         } else if (strcmp(cvar, "NP_TargetingQueueWindowMs") == 0) {
-            gTargetingQueueWindowMs = atoi(value);
-            DEBUG_LOG("Set NP_TargetingQueueWindowMs to " << gTargetingQueueWindowMs);
+            gUserSettings.targetingQueueWindowMs = atoi(value);
+            DEBUG_LOG("Set NP_TargetingQueueWindowMs to " << gUserSettings.targetingQueueWindowMs);
         }
     }
 
@@ -271,25 +234,27 @@ namespace Nampower {
     }
 
     void load_config() {
-        gStartTime = static_cast<DWORD>(std::chrono::duration_cast<std::chrono::milliseconds>(
+        gStartTime = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::high_resolution_clock::now().time_since_epoch()).count());
 
         // default values
-        gQueueCastTimeSpells = true;
-        gQueueInstantSpells = true;
-        gQueueOnSwingSpells = true;
-        gQueueChannelingSpells = true;
-        gQueueTargetingSpells = true;
+        gUserSettings.queueCastTimeSpells = true;
+        gUserSettings.queueInstantSpells = true;
+        gUserSettings.queueOnSwingSpells = true;
+        gUserSettings.queueChannelingSpells = true;
+        gUserSettings.queueTargetingSpells = true;
 
-        gQuickcastTargetingSpells = false;
+        gUserSettings.retryServerRejectedSpells = true;
+        gUserSettings.quickcastTargetingSpells = false;
 
-        gMinBufferTimeMs = 55; // time in ms to buffer cast to minimize server failure
-        gMaxBufferIncrease = 30;
+        gUserSettings.minBufferTimeMs = 55; // time in ms to buffer cast to minimize server failure
+        gUserSettings.nonGcdBufferTimeMs = 75; // time in ms to buffer non-GCD spells to minimize server failure
+        gUserSettings.maxBufferIncreaseMs = 30;
 
-        gSpellQueueWindowMs = 500; // time in ms before cast to allow queuing spells
-        gOnSwingBufferCooldownMs = 500; // time in ms to wait before queuing on swing spell after a swing
-        gChannelQueueWindowMs = 1500; // time in ms before channel ends to allow queuing spells
-        gTargetingQueueWindowMs = 500; // time in ms before cast to allow targeting
+        gUserSettings.spellQueueWindowMs = 500; // time in ms before cast to allow queuing spells
+        gUserSettings.onSwingBufferCooldownMs = 500; // time in ms to wait before queuing on swing spell after a swing
+        gUserSettings.channelQueueWindowMs = 1500; // time in ms before channel ends to allow queuing spells
+        gUserSettings.targetingQueueWindowMs = 500; // time in ms before cast to allow targeting
 
         char defaultTrue[] = "1";
         char defaultFalse[] = "0";
@@ -299,121 +264,141 @@ namespace Nampower {
         // register cvars
         auto const CVarRegister = hadesmem::detail::AliasCast<CVarRegisterT>(Offsets::RegisterCVar);
 
-        char name1[] = "NP_QueueCastTimeSpells";
-        CVarRegister(name1, // name
+        char NP_QueueCastTimeSpells[] = "NP_QueueCastTimeSpells";
+        CVarRegister(NP_QueueCastTimeSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     defaultTrue, // default value address
+                     gUserSettings.queueCastTimeSpells ? defaultTrue: defaultFalse, // default value address
                      nullptr, // callback
                      5, // category
                      0,  // unk2
                      0); // unk3
 
-        char name2[] = "NP_QueueInstantSpells";
-        CVarRegister(name2, // name
+        char NP_QueueInstantSpells[] = "NP_QueueInstantSpells";
+        CVarRegister(NP_QueueInstantSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     defaultTrue, // default value address
+                     gUserSettings.queueInstantSpells ? defaultTrue: defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
                      0); // unk3
 
-        char name3[] = "NP_QueueOnSwingSpells";
-        CVarRegister(name3, // name
+        char NP_QueueOnSwingSpells[] = "NP_QueueOnSwingSpells";
+        CVarRegister(NP_QueueOnSwingSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     defaultTrue, // default value address
+                     gUserSettings.queueOnSwingSpells ? defaultTrue: defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
                      0); // unk3
 
-        char name4[] = "NP_QueueChannelingSpells";
-        CVarRegister(name4, // name
+        char NP_QueueChannelingSpells[] = "NP_QueueChannelingSpells";
+        CVarRegister(NP_QueueChannelingSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     defaultTrue, // default value address
+                     gUserSettings.queueChannelingSpells ? defaultTrue: defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
                      0); // unk3
 
-        char name5[] = "NP_QueueTargetingSpells";
-        CVarRegister(name5, // name
+        char NP_QueueTargetingSpells[] = "NP_QueueTargetingSpells";
+        CVarRegister(NP_QueueTargetingSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     defaultTrue, // default value address
+                     gUserSettings.queueTargetingSpells ? defaultTrue: defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
                      0); // unk3
 
-        char name6[] = "NP_QuickcastTargetingSpells";
-        CVarRegister(name6, // name
+        char NP_RetryServerRejectedSpells[] = "NP_RetryServerRejectedSpells";
+        CVarRegister(NP_RetryServerRejectedSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     defaultFalse, // default value address
+                     gUserSettings.retryServerRejectedSpells ? defaultTrue: defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
                      0); // unk3
 
-        char name7[] = "NP_MinBufferTimeMs";
-        CVarRegister(name7, // name
+        char NP_QuickcastTargetingSpells[] = "NP_QuickcastTargetingSpells";
+        CVarRegister(NP_QuickcastTargetingSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     std::to_string(gMinBufferTimeMs).c_str(), // default value address
+                     gUserSettings.quickcastTargetingSpells ? defaultTrue: defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
                      0); // unk3
 
-        char name8[] = "NP_MaxBufferIncreaseMs";
-        CVarRegister(name8, // name
+        char NP_MinBufferTimeMs[] = "NP_MinBufferTimeMs";
+        CVarRegister(NP_MinBufferTimeMs, // name
                      nullptr, // help
                      0,  // unk1
-                     std::to_string(gMaxBufferIncrease).c_str(), // default value address
+                     std::to_string(gUserSettings.minBufferTimeMs).c_str(), // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
                      0); // unk3
 
-        char name9[] = "NP_SpellQueueWindowMs";
-        CVarRegister(name9, // name
+        char NP_NonGcdBufferTimeMs[] = "NP_NonGcdBufferTimeMs";
+        CVarRegister(NP_NonGcdBufferTimeMs, // name
                      nullptr, // help
                      0,  // unk1
-                     std::to_string(gSpellQueueWindowMs).c_str(), // default value address
+                     std::to_string(gUserSettings.nonGcdBufferTimeMs).c_str(), // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
                      0); // unk3
 
-        char name10[] = "NP_ChannelQueueWindowMs";
-        CVarRegister(name10, // name
+        char NP_MaxBufferIncreaseMs[] = "NP_MaxBufferIncreaseMs";
+        CVarRegister(NP_MaxBufferIncreaseMs, // name
                      nullptr, // help
                      0,  // unk1
-                     std::to_string(gChannelQueueWindowMs).c_str(), // default value address
+                     std::to_string(gUserSettings.maxBufferIncreaseMs).c_str(), // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
                      0); // unk3
 
-        char name11[] = "NP_TargetingQueueWindowMs";
-        CVarRegister(name11, // name
+        char NP_SpellQueueWindowMs[] = "NP_SpellQueueWindowMs";
+        CVarRegister(NP_SpellQueueWindowMs, // name
                      nullptr, // help
                      0,  // unk1
-                     std::to_string(gTargetingQueueWindowMs).c_str(), // default value address
+                     std::to_string(gUserSettings.spellQueueWindowMs).c_str(), // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
                      0); // unk3
 
-        char name12[] = "NP_OnSwingBufferCooldownMs";
-        CVarRegister(name12, // name
+        char NP_ChannelQueueWindowMs[] = "NP_ChannelQueueWindowMs";
+        CVarRegister(NP_ChannelQueueWindowMs, // name
                      nullptr, // help
                      0,  // unk1
-                     std::to_string(gOnSwingBufferCooldownMs).c_str(), // default value address
+                     std::to_string(gUserSettings.channelQueueWindowMs).c_str(), // default value address
+                     nullptr, // callback
+                     1, // category
+                     0,  // unk2
+                     0); // unk3
+
+        char NP_TargetingQueueWindowMs[] = "NP_TargetingQueueWindowMs";
+        CVarRegister(NP_TargetingQueueWindowMs, // name
+                     nullptr, // help
+                     0,  // unk1
+                     std::to_string(gUserSettings.targetingQueueWindowMs).c_str(), // default value address
+                     nullptr, // callback
+                     1, // category
+                     0,  // unk2
+                     0); // unk3
+
+        char NP_OnSwingBufferCooldownMs[] = "NP_OnSwingBufferCooldownMs";
+        CVarRegister(NP_OnSwingBufferCooldownMs, // name
+                     nullptr, // help
+                     0,  // unk1
+                     std::to_string(gUserSettings.onSwingBufferCooldownMs).c_str(), // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
@@ -426,9 +411,11 @@ namespace Nampower {
         load_user_var("NP_QueueChannelingSpells");
         load_user_var("NP_QueueTargetingSpells");
 
+        load_user_var("NP_RetryServerRejectedSpells");
         load_user_var("NP_QuickcastTargetingSpells");
 
         load_user_var("NP_MinBufferTimeMs");
+        load_user_var("NP_NonGcdBufferTimeMs");
         load_user_var("NP_MaxBufferIncreaseMs");
 
         load_user_var("NP_SpellQueueWindowMs");
@@ -436,7 +423,7 @@ namespace Nampower {
         load_user_var("NP_TargetingQueueWindowMs");
         load_user_var("NP_OnSwingBufferCooldownMs");
 
-        gBufferTimeMs = gMinBufferTimeMs;
+        gBufferTimeMs = gUserSettings.minBufferTimeMs;
     }
 
     void init_hooks() {
@@ -548,7 +535,7 @@ namespace Nampower {
 
 }
 
-extern "C" __declspec(dllexport) DWORD Load() {
+extern "C" __declspec(dllexport) uint32_t Load() {
     Nampower::load();
     return EXIT_SUCCESS;
 }

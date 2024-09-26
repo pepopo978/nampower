@@ -41,8 +41,8 @@ namespace Nampower {
             auto const currentTime = GetTime();
 
             // if we are casting a spell and it was delayed, update our own state so we do not allow a cast too soon
-            if (currentTime < gCastEndMs) {
-                gCastEndMs += delay;
+            if (currentTime < gCastData.castEndMs) {
+                gCastData.castEndMs += delay;
             }
         }
 
@@ -62,7 +62,11 @@ namespace Nampower {
             auto const guid = getGUIDFromName(unitName);
             if (guid) {
                 DEBUG_LOG("Spell target unit " << unitName << " guid " << guid);
-                lastGuid = guid;
+                // update all cast params so we don't have to figure out which one to use
+                gLastNormalCastParams.guid = guid;
+                gLastOnSwingCastParams.guid = guid;
+                gLastNormalCastParams.guid = guid;
+                gLastNonGcdCastParams.guid = guid;
             }
         }
 
@@ -74,16 +78,18 @@ namespace Nampower {
         auto const spellFailed = detour->GetTrampolineT<Spell_C_SpellFailedT>();
         spellFailed(spellId, spellResult, unk1, unk2, unk3);
 
-        if (lastDetour &&
-            (spellResult == game::SpellCastResult::SPELL_FAILED_NOT_READY ||
+        if ((spellResult == game::SpellCastResult::SPELL_FAILED_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_ITEM_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_SPELL_IN_PROGRESS)
                 ) {
             auto const currentTime = GetTime();
 
+            if(!gUserSettings.retryServerRejectedSpells) {
+                DEBUG_LOG("Cast failed code " << int(spellResult) << " not queuing retry due to retryServerRejectedSpells=false");
+                return;
+            }
             // ignore error spam
-            if (currentTime - gLastErrorTimeMs < 200) {
-                lastDetour = nullptr; // reset the last detour
+            else if (currentTime - gLastErrorTimeMs < 200) {
                 DEBUG_LOG("Cast failed code " << int(spellResult) << ", not queuing retry due to recent error at "
                                               << gLastErrorTimeMs);
                 return;
@@ -91,18 +97,18 @@ namespace Nampower {
                 DEBUG_LOG("Cast failed code " << int(spellResult) << ", queuing a retry");
             }
             gLastErrorTimeMs = currentTime;
-            gSpellQueued = true;
+            gCastData.normalSpellQueued = true;  // this is fine even for non GCD spells as nothing will be casting or queued
 
             // check if we should increase the buffer time
             if (currentTime - gLastBufferIncreaseTimeMs > BUFFER_INCREASE_FREQUENCY) {
                 // check if gBufferTimeMs is already at max
-                if (gBufferTimeMs - gMinBufferTimeMs < gMaxBufferIncrease) {
+                if (gBufferTimeMs - gUserSettings.minBufferTimeMs < gUserSettings.maxBufferIncreaseMs) {
                     gBufferTimeMs += DYNAMIC_BUFFER_INCREMENT;
                     DEBUG_LOG("Increasing buffer to " << gBufferTimeMs);
                     gLastBufferIncreaseTimeMs = currentTime;
                 }
             }
-        } else if (lastDetour) {
+        } else if (gCastData.normalSpellQueued) {
             DEBUG_LOG("Cast failed code " << int(spellResult) << " ignored");
         }
     }

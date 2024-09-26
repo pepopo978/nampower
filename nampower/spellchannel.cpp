@@ -7,11 +7,11 @@
 
 namespace Nampower {
     int SpellChannelStartHandlerHook(hadesmem::PatchDetourBase *detour, int channelStart, game::CDataStore *dataPtr) {
-        gLastChannelStartTime = GetTime();
+        gLastCastData.channelStartTimeMs = GetTime();
         DEBUG_LOG("Channel start " << channelStart);
         if (channelStart) {
-            gChanneling = true;
-            gChannelCastCount = 0;
+            gCastData.channeling = true;
+            gCastData.channelCastCount = 0;
         }
 
         auto const spellChannelStartHandler = detour->GetTrampolineT<SpellChannelStartHandlerT>();
@@ -19,19 +19,18 @@ namespace Nampower {
     }
 
     int SpellChannelUpdateHandlerHook(hadesmem::PatchDetourBase *detour, int channelUpdate, game::CDataStore *dataPtr) {
-        auto const elapsed = 500 + GetTime() - gLastChannelStartTime;
-        DEBUG_LOG("Channel update elapsed " << elapsed << " duration " << gChannelDuration);
+        auto const elapsed = 500 + GetTime() - gLastCastData.channelStartTimeMs;
+        DEBUG_LOG("Channel update elapsed " << elapsed << " duration " << gCastData.channelDuration);
 
-        if (elapsed > gChannelDuration) {
+        if (elapsed > gCastData.channelDuration) {
             DEBUG_LOG("Channel done");
-            gChanneling = false;
-            gChannelCastCount = 0;
+            gCastData.channeling = false;
+            gCastData.channelCastCount = 0;
 
-            if (gChannelQueued) {
-                gChannelQueued = false;
-                DEBUG_LOG("Channeling ended, triggering queued cast");
-                CastSpellHook(lastDetour, lastUnit, lastSpellId, lastItem, lastGuid);
-                gLastSpellQueued = true;
+            DEBUG_LOG("Channel done queued:" << IsNonSwingSpellQueued());
+
+            if (IsNonSwingSpellQueued()) {
+                CastQueuedSpells();
             }
         }
 

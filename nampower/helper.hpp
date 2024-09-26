@@ -8,9 +8,11 @@
 
 namespace Nampower {
 
-    bool SpellIsOnGCD(const game::SpellRec *spell);
+    bool SpellIsOnGcd(const game::SpellRec *spell);
 
     bool SpellIsChanneling(const game::SpellRec *spell);
+
+    bool SpellIsTargeting(const game::SpellRec *spell);
 
     bool SpellIsOnSwing(const game::SpellRec *spell);
 }
