@@ -65,6 +65,10 @@ To compensate for what seems to be a 50ms server tick the default buffer in namp
 you can experiment with lowering this value.  You will occasionally get errors but if they are infrequent enough for you
 the time saved will be worth it.  
 
+Non gcd spells also seem to be affected by this.  I suspect that only one spell can be processed per server tick.  
+This means that if you try to cast 2 non gcd spells in the same server tick only one will be processed.  
+To avoid this happening there is NP_NonGcdBufferTimeMs which is added after each non gcd spell.  
+
 # Pepo v1.0.0 Changes
 
 Now looks for a nampower.cfg file in the same directory with two lines:
