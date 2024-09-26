@@ -33,7 +33,7 @@ SET NP_TargetingQueueWindowMs "1000"
 
 
 - `NP_MinBufferTimeMs` - The minimum buffer delay in ms added to each cast (covered more below).  The dynamic buffer adjustments will not go below this value. Default is 55.
-- `NP_NonGcdBufferTimeMs` - The buffer delay in ms added AFTER each cast that is not tied to the gcd. Default is 0.
+- `NP_NonGcdBufferTimeMs` - The buffer delay in ms added AFTER each cast that is not tied to the gcd. Default is 75.
 - `NP_MaxBufferIncreaseMs` - The maximum amount of time in ms to increase the buffer by when the server rejects a cast. This prevents getting too long of a buffer if you happen to get a ton of rejections in a row. Default is 30.
 
 
