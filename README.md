@@ -67,7 +67,8 @@ the time saved will be worth it.
 
 Non gcd spells also seem to be affected by this.  I suspect that only one spell can be processed per server tick.  
 This means that if you try to cast 2 non gcd spells in the same server tick only one will be processed.  
-To avoid this happening there is NP_NonGcdBufferTimeMs which is added after each non gcd spell.  
+To avoid this happening there is NP_NonGcdBufferTimeMs which is added after each non gcd spell.  There might be more to
+it than this as using the normal buffer of 55ms was still resulting in skipped casts for me.  I found 75ms to be a good value.
 
 # Pepo v1.0.0 Changes
 
