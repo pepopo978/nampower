@@ -33,7 +33,7 @@ SET NP_TargetingQueueWindowMs "1000"
 
 
 - `NP_MinBufferTimeMs` - The minimum buffer delay in ms added to each cast (covered more below).  The dynamic buffer adjustments will not go below this value. Default is 55.
-- `NP_NonGcdBufferTimeMs` - The buffer delay in ms added AFTER each cast that is not tied to the gcd. Default is 75.
+- `NP_NonGcdBufferTimeMs` - The buffer delay in ms added AFTER each cast that is not tied to the gcd. Default is 100.
 - `NP_MaxBufferIncreaseMs` - The maximum amount of time in ms to increase the buffer by when the server rejects a cast. This prevents getting too long of a buffer if you happen to get a ton of rejections in a row. Default is 30.
 
 
@@ -68,7 +68,7 @@ the time saved will be worth it.
 Non gcd spells also seem to be affected by this.  I suspect that only one spell can be processed per server tick.  
 This means that if you try to cast 2 non gcd spells in the same server tick only one will be processed.  
 To avoid this happening there is NP_NonGcdBufferTimeMs which is added after each non gcd spell.  There might be more to
-it than this as using the normal buffer of 55ms was still resulting in skipped casts for me.  I found 75ms to be a good value.
+it than this as using the normal buffer of 55ms was still resulting in skipped casts for me.  I found 100ms to be a safe value.
 
 # Pepo v1.0.0 Changes
 

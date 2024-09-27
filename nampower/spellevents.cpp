@@ -73,10 +73,15 @@ namespace Nampower {
         return spellTargetUnit(unitStr);
     }
 
-    void Spell_C_SpellFailedHook(hadesmem::PatchDetourBase *detour, int spellId,
+    void Spell_C_SpellFailedHook(hadesmem::PatchDetourBase *detour, uint32_t spellId,
                                  game::SpellCastResult spellResult, int unk1, int unk2, char unk3) {
         auto const spellFailed = detour->GetTrampolineT<Spell_C_SpellFailedT>();
         spellFailed(spellId, spellResult, unk1, unk2, unk3);
+
+        if(gCastData.cancellingSpell) {
+            DEBUG_LOG("Ignoring spell failed event due to cancelling spell");
+            return;
+        }
 
         if ((spellResult == game::SpellCastResult::SPELL_FAILED_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_ITEM_NOT_READY ||

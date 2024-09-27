@@ -40,12 +40,12 @@ enum class Offsets : std::uint32_t {
     SpellDb = 0xC0D788,
     CursorMode = 0xBE2C4C,
     SpellIsTargeting = 0xCECAC0,
+    CastingSpellId = 0xCECA88,
 
     CancelSpell = 0x6E4940,
     SpellDelayed = 0x6E74F0,
     SignalEvent = 0x703E50,
     SignalEventParam = 0x703F50,
-    CastingSpellId = 0xCECA88,
     ISceneEndPtr = 0x5A17A0,
     SpellGo = 0x006E7A70,
     SpellChannelStartHandler = 0x006E7550,

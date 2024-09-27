@@ -105,6 +105,9 @@ namespace Nampower {
         return gCastData.nonGcdSpellQueued || gCastData.normalSpellQueued;
     }
 
+    uint32_t EffectiveCastEndMs() {
+        return max(gCastData.castEndMs, gCastData.delayEndMs);
+    }
 
     void ResetCastFlags() {
         gCastData.castEndMs = 0;
@@ -117,18 +120,19 @@ namespace Nampower {
     int *ISceneEndHook(hadesmem::PatchDetourBase *detour, uintptr_t *ptr) {
         auto const iSceneEnd = detour->GetTrampolineT<ISceneEndT>();
 
-        if(!gCastData.channeling) {
+        if (!gCastData.channeling) {
             if (gCastData.nonGcdSpellQueued) {
                 auto currentTime = GetTime();
 
-                if (gCastData.castEndMs < currentTime) {
+                if (EffectiveCastEndMs() < currentTime) {
                     CastQueuedNonGcdSpell();
                 }
             } else if (gCastData.normalSpellQueued) {
                 auto currentTime = GetTime();
 
+                auto effectiveCastEndMs = EffectiveCastEndMs();
                 // get max of cooldown and gcd
-                auto delay = gCastData.castEndMs > gCastData.gcdEndMs ? gCastData.castEndMs : gCastData.gcdEndMs;
+                auto delay = effectiveCastEndMs > gCastData.gcdEndMs ? effectiveCastEndMs : gCastData.gcdEndMs;
 
                 if (delay <= currentTime) {
                     // if more than 5 seconds have passed since the last cast, ignore
@@ -248,7 +252,7 @@ namespace Nampower {
         gUserSettings.quickcastTargetingSpells = false;
 
         gUserSettings.minBufferTimeMs = 55; // time in ms to buffer cast to minimize server failure
-        gUserSettings.nonGcdBufferTimeMs = 75; // time in ms to buffer non-GCD spells to minimize server failure
+        gUserSettings.nonGcdBufferTimeMs = 100; // time in ms to buffer non-GCD spells to minimize server failure
         gUserSettings.maxBufferIncreaseMs = 30;
 
         gUserSettings.spellQueueWindowMs = 500; // time in ms before cast to allow queuing spells
@@ -268,7 +272,7 @@ namespace Nampower {
         CVarRegister(NP_QueueCastTimeSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     gUserSettings.queueCastTimeSpells ? defaultTrue: defaultFalse, // default value address
+                     gUserSettings.queueCastTimeSpells ? defaultTrue : defaultFalse, // default value address
                      nullptr, // callback
                      5, // category
                      0,  // unk2
@@ -278,7 +282,7 @@ namespace Nampower {
         CVarRegister(NP_QueueInstantSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     gUserSettings.queueInstantSpells ? defaultTrue: defaultFalse, // default value address
+                     gUserSettings.queueInstantSpells ? defaultTrue : defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
@@ -288,7 +292,7 @@ namespace Nampower {
         CVarRegister(NP_QueueOnSwingSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     gUserSettings.queueOnSwingSpells ? defaultTrue: defaultFalse, // default value address
+                     gUserSettings.queueOnSwingSpells ? defaultTrue : defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
@@ -298,7 +302,7 @@ namespace Nampower {
         CVarRegister(NP_QueueChannelingSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     gUserSettings.queueChannelingSpells ? defaultTrue: defaultFalse, // default value address
+                     gUserSettings.queueChannelingSpells ? defaultTrue : defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
@@ -308,7 +312,7 @@ namespace Nampower {
         CVarRegister(NP_QueueTargetingSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     gUserSettings.queueTargetingSpells ? defaultTrue: defaultFalse, // default value address
+                     gUserSettings.queueTargetingSpells ? defaultTrue : defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
@@ -318,7 +322,7 @@ namespace Nampower {
         CVarRegister(NP_RetryServerRejectedSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     gUserSettings.retryServerRejectedSpells ? defaultTrue: defaultFalse, // default value address
+                     gUserSettings.retryServerRejectedSpells ? defaultTrue : defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
@@ -328,7 +332,7 @@ namespace Nampower {
         CVarRegister(NP_QuickcastTargetingSpells, // name
                      nullptr, // help
                      0,  // unk1
-                     gUserSettings.quickcastTargetingSpells ? defaultTrue: defaultFalse, // default value address
+                     gUserSettings.quickcastTargetingSpells ? defaultTrue : defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2

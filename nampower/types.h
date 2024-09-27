@@ -47,6 +47,7 @@ struct LastCastData {
 };
 
 struct CastData {
+    uint32_t delayEndMs; // can't be reset by looking at CastingSpellId
     uint32_t castEndMs;
     uint32_t gcdEndMs;
     uint32_t attemptedCastTimeMs; // this ignoring on swing spells as they are independent
@@ -58,6 +59,7 @@ struct CastData {
 
     bool castingQueuedSpell;
 
+    bool cancellingSpell;
     bool channeling;
     uint32_t channelDuration;
     uint32_t channelCastCount;

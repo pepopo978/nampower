@@ -76,7 +76,7 @@ namespace Nampower {
     using SpellStartHandlerT = void (__fastcall *)(int, int, int, game::CDataStore *);
     using SpellChannelStartHandlerT = int (__stdcall *)(int, game::CDataStore *);
     using SpellChannelUpdateHandlerT = int (__stdcall *)(int, game::CDataStore *);
-    using Spell_C_SpellFailedT = void (__fastcall *)(int, game::SpellCastResult, int, int, char unk3);
+    using Spell_C_SpellFailedT = void (__fastcall *)(uint32_t, game::SpellCastResult, int, int, char unk3);
     using Spell_C_GetAutoRepeatingSpellT = int (__cdecl *)();
     using SpellFailedHandlerT = void (__fastcall *)(int, game::CDataStore *);
     using CastResultHandlerT = bool (__fastcall *)(std::uint64_t, game::CDataStore *);
@@ -100,12 +100,11 @@ namespace Nampower {
                                               void *callbackPtr,
                                               int category, char unk2, int unk3);
 
-    using CVarCallback = void (*)(char *);
-
-
     void LuaCall(const char *code);
 
     bool IsNonSwingSpellQueued();
 
     void ResetCastFlags();
+
+    uint32_t EffectiveCastEndMs();
 }

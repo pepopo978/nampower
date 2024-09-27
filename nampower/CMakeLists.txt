@@ -4,6 +4,7 @@ include_directories(Include ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR})
 
 set(SOURCE_FILES
         types.h
+        castqueue.h
         game.hpp
         game.cpp
         main.hpp

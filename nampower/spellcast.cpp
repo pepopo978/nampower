@@ -38,7 +38,7 @@ namespace Nampower {
                                    << gBufferTimeMs << " Gcd: " << gcd
                                    << " time since last cast " << currentTime - gLastCastData.startTimeMs);
         } else {
-            gCastData.castEndMs = currentTime +
+            gCastData.delayEndMs = currentTime +
                                   gUserSettings.nonGcdBufferTimeMs; // set small "cast time" to avoid attempting next spell too fast
             DEBUG_LOG("BeginCast " << game::GetSpellName(spell->Id)
                                    << " cast time: " << castTime << " buffer: "
@@ -58,7 +58,7 @@ namespace Nampower {
     }
 
     void CastQueuedNonGcdSpell() {
-        if (gCastData.nonGcdSpellQueued) {
+        if (gCastData.nonGcdSpellQueued && gLastNonGcdCastParams.spellId > 0) {
             DEBUG_LOG("Triggering queued non gcd cast of " << game::GetSpellName(gLastNonGcdCastParams.spellId));
 
             gCastData.castingQueuedSpell = true;
@@ -69,22 +69,27 @@ namespace Nampower {
 
             gCastData.castingQueuedSpell = false;
             gLastCastData.wasQueued = true;
+        } else if (gLastNormalCastParams.spellId == 0) {
+            gCastData.nonGcdSpellQueued = false;
+            gCastData.castingQueuedSpell = false;
+            gLastCastData.wasQueued = false;
         }
     }
 
     void CastQueuedNormalSpell() {
-        gCastData.castingQueuedSpell = true;
-
-        if (gCastData.normalSpellQueued) {
+        if (gCastData.normalSpellQueued && gLastNormalCastParams.spellId > 0) {
             DEBUG_LOG("Triggering queued cast of " << game::GetSpellName(gLastNormalCastParams.spellId));
-
+            gCastData.castingQueuedSpell = true;
             CastSpellHook(castSpellDetour, gLastNormalCastParams.unit, gLastNormalCastParams.spellId,
                           gLastNormalCastParams.item, gLastNormalCastParams.guid);
             gCastData.normalSpellQueued = false;
+            gCastData.castingQueuedSpell = false;
+            gLastCastData.wasQueued = true;
+        } else if (gLastNormalCastParams.spellId == 0) {
+            gCastData.normalSpellQueued = false;
+            gCastData.castingQueuedSpell = false;
+            gLastCastData.wasQueued = false;
         }
-
-        gCastData.castingQueuedSpell = false;
-        gLastCastData.wasQueued = true;
     }
 
     void CastQueuedSpells() {
@@ -168,12 +173,14 @@ namespace Nampower {
         gCastData.attemptedCastTimeMs = castTime;
 
         auto const castSpell = detour->GetTrampolineT<CastSpellT>();
-        auto remainingCastTime = (gCastData.castEndMs > currentTime) ? gCastData.castEndMs - currentTime : 0;
+
+        auto effectiveCastEndMs = EffectiveCastEndMs();
+        auto remainingEffectiveCastTime = (effectiveCastEndMs > currentTime) ? effectiveCastEndMs - currentTime : 0;
         auto remainingGcd = (gCastData.gcdEndMs > currentTime) ? gCastData.gcdEndMs - currentTime : 0;
 
-        auto remainingCD = (remainingCastTime > remainingGcd) ? remainingCastTime : remainingGcd;
+        auto remainingCD = (remainingEffectiveCastTime > remainingGcd) ? remainingEffectiveCastTime : remainingGcd;
 
-        auto inSpellQueueWindow = InSpellQueueWindow(remainingCastTime, remainingGcd, spellIsTargeting);
+        auto inSpellQueueWindow = InSpellQueueWindow(remainingEffectiveCastTime, remainingGcd, spellIsTargeting);
 
         if (spellIsTargeting) {
             SaveCastParams(&gLastNormalCastParams, unit, spellId, item, guid);
@@ -191,13 +198,14 @@ namespace Nampower {
                             DEBUG_LOG("Queuing instant cast targeting for after cooldown: " << remainingCD << "ms "
                                                                                             << spellName);
                             gCastData.normalSpellQueued = true;
-                        } else {
+                            return false;
+                        } else if (remainingEffectiveCastTime > 0) {
                             DEBUG_LOG("Queuing instant cast non GCD targeting for after cooldown: " << remainingCD
                                                                                                     << "ms "
                                                                                                     << spellName);
                             gCastData.nonGcdSpellQueued = true;
+                            return false;
                         }
-                        return false;
                     }
                 }
             }
@@ -216,20 +224,21 @@ namespace Nampower {
 
                     DEBUG_LOG("Queuing instant cast for after cooldown: " << remainingCD << "ms " << spellName);
                     gCastData.normalSpellQueued = true;
-                } else {
+                    return false;
+                } else if (remainingEffectiveCastTime > 0) {
                     SaveCastParams(&gLastNonGcdCastParams, unit, spellId, item, guid);
 
                     DEBUG_LOG("Queuing instant cast non GCD for after cooldown: " << remainingCD << "ms "
                                                                                   << spellName);
                     gCastData.nonGcdSpellQueued = true;
+                    return false;
                 }
-                return false;
             }
         }
 
         // is there a cast? (ignore for on swing spells)
-        if (remainingCastTime) {
-            DEBUG_LOG("Cooldown active " << remainingCastTime << "ms remaining");
+        if (remainingEffectiveCastTime) {
+            DEBUG_LOG("Cooldown active " << remainingEffectiveCastTime << "ms remaining");
             return false;
         } else {
             gCastData.castEndMs = 0;
@@ -262,32 +271,24 @@ namespace Nampower {
 
                 //JT: Suggest replacing CancelSpell with InterruptSpell (the API called when moving during casting).
                 // The address of InterruptSpell needs to be dug out. It could possibly fix the sometimes broken animations.
+                gCastData.cancellingSpell = true;
                 auto const cancelSpell = reinterpret_cast<CancelSpellT>(Offsets::CancelSpell);
                 cancelSpell(true, false, game::SPELL_FAILED_INTERRUPTED);
+                gCastData.cancellingSpell = false;
+
 
                 // try again now that cast bar is gone
                 ret = castSpell(unit, spellId, item, guid);
 
+                auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
                 if (ret) {
                     gCastData.normalSpellQueued = false;
+                } else if (!(spell->Attributes & game::SPELL_ATTR_RANGED) && cursorMode != 2) {
+                    DEBUG_LOG("Retry cast after cancel failed");
                 }
             } else {
                 DEBUG_LOG("Initial cast failed, not canceling spell cast due to targeting");
             }
-        }
-
-        //JT: cursorMode == 2 is for clickcasting
-        if (!ret && !(spell->Attributes & game::SPELL_ATTR_RANGED)) {
-            auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
-
-            if (cursorMode == 2) {
-                DEBUG_LOG("Spell " << spellName << " began targeting");
-            } else {
-                DEBUG_LOG(
-                        "Spell cast start failed for " << spellName <<
-                                                       " isRanged " << !(spell->Attributes & game::SPELL_ATTR_RANGED));
-            }
-
         }
 
         return ret;
@@ -324,7 +325,7 @@ namespace Nampower {
             if (spell->Attributes & game::SPELL_ATTR_ON_NEXT_SWING_1) {
                 gLastCastData.onSwingStartTimeMs = GetTime();
 
-                if(gCastData.onSwingQueued) {
+                if (gCastData.onSwingQueued) {
                     DEBUG_LOG("On swing spell " << game::GetSpellName(spellId) <<
                                                 " resolved, casting queued on swing spell "
                                                 << game::GetSpellName(gLastOnSwingCastParams.spellId));
