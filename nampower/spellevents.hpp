@@ -10,11 +10,12 @@ namespace Nampower {
 
     void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId);
 
-    int SpellDelayedHook(hadesmem::PatchDetourBase *detour, int opCode, game::CDataStore *packet);
+    int SpellDelayedHook(hadesmem::PatchDetourBase *detour,  uint32_t* opCode, game::CDataStore *packet);
 
     bool SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *unitStr);
 
     void Spell_C_SpellFailedHook(hadesmem::PatchDetourBase *detour, uint32_t spellId,
                                  game::SpellCastResult spellResult, int unk1, int unk2, char unk3);
 
+    int CastResultHandlerHook(hadesmem::PatchDetourBase *detour,  uint32_t* opCode, game::CDataStore *packet);
 }

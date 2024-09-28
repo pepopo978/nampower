@@ -67,7 +67,10 @@ namespace Nampower {
 
     CastSpellParams gLastNormalCastParams;
     CastSpellParams gLastOnSwingCastParams;
-    CastSpellParams gLastNonGcdCastParams;
+
+    CastQueue gNonGcdCastQueue = CastQueue();
+
+    CastQueue gCastHistory = CastQueue();
 
     std::unique_ptr<hadesmem::PatchDetour<SetCVarT>> gSetCVarDetour;
     std::unique_ptr<hadesmem::PatchDetour<CastSpellT>> gCastDetour;
@@ -82,7 +85,7 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<SpellStartHandlerT>> gSpellStartHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellChannelStartHandlerT>> gSpellChannelStartHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellChannelUpdateHandlerT>> gSpellChannelUpdateHandlerDetour;
-    std::unique_ptr<hadesmem::PatchDetour<CastResultHandlerT>> gCastResultHandlerDetour;
+    std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gCastResultHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellFailedHandlerT>> gSpellFailedHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_GetAutoRepeatingSpellT>> gSpell_C_GetAutoRepeatingSpellDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellGoT>> gSpellGoDetour;
@@ -110,6 +113,7 @@ namespace Nampower {
     }
 
     void ResetCastFlags() {
+        // don't reset delayEndMs
         gCastData.castEndMs = 0;
         gCastData.gcdEndMs = 0;
         gCastData.channeling = false;
@@ -452,6 +456,11 @@ namespace Nampower {
                                                                                     &CancelSpellHook);
         gCancelSpellDetour->Apply();
 
+        auto const castResultHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::CastResultHandler);
+        gCastResultHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process, castResultHandlerOrig,
+                                                                                           &CastResultHandlerHook);
+        gCastResultHandlerDetour->Apply();
+
         auto const spellChannelStartHandlerOrig = hadesmem::detail::AliasCast<SpellChannelStartHandlerT>(
                 Offsets::SpellChannelStartHandler);
         gSpellChannelStartHandlerDetour =
@@ -467,12 +476,6 @@ namespace Nampower {
                                                                                      spellChannelUpdateHandlerOrig,
                                                                                      &SpellChannelUpdateHandlerHook);
         gSpellChannelUpdateHandlerDetour->Apply();
-
-        // this hook will alter cast bar behavior based on events from the game
-        auto const signalEventOrig = hadesmem::detail::AliasCast<SignalEventT>(Offsets::SignalEvent);
-        gSignalEventDetour = std::make_unique<hadesmem::PatchDetour<SignalEventT >>(process, signalEventOrig,
-                                                                                    &SignalEventHook);
-        gSignalEventDetour->Apply();
 
         auto const spellFailedOrig = hadesmem::detail::AliasCast<Spell_C_SpellFailedT>(Offsets::Spell_C_SpellFailed);
         gSpellFailedDetour =
@@ -522,7 +525,7 @@ namespace Nampower {
 
     void load() {
         std::call_once(load_flag, []() {
-                           DEBUG_LOG("Loading nampower v1.9.0");
+                           DEBUG_LOG("Loading nampower v1.9.1");
 
                            // hook spell visuals initialize
                            const hadesmem::Process process(::GetCurrentProcessId());

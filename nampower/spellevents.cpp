@@ -6,49 +6,6 @@
 #include "offsets.hpp"
 
 namespace Nampower {
-    // events without parameters go here
-    void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId) {
-        // SPELLCAST_FAILED means the attempt was rejected by either the client or the server,
-        // depending on the value of gNotifyServer.  if it was rejected by the server, this
-        // could mean that our latency has decreased since the previous cast.  when that happens
-        // the server perceives too little time as having passed to allow another cast.  i dont
-        // think there is anything we can do about this except to honor the servers request to
-        // abort the cast.  reset our cooldown and allow
-        if (eventId == game::Events::SPELLCAST_FAILED ||
-            eventId ==
-            game::Events::SPELLCAST_INTERRUPTED) //JT: moving to cancel the spell sends "SPELLCAST_INTERRUPTED"
-        {
-            ResetCastFlags();
-        }
-
-        auto const signalEvent = detour->GetTrampolineT<SignalEventT>();
-        signalEvent(eventId);
-    }
-
-    int SpellDelayedHook(hadesmem::PatchDetourBase *detour, int opCode, game::CDataStore *packet) {
-        auto const spellDelayed = detour->GetTrampolineT<PacketHandlerT>();
-
-        auto const rpos = packet->m_read;
-
-        auto const guid = packet->Get<std::uint64_t>();
-        auto const delay = packet->Get<std::uint32_t>();
-
-        packet->m_read = rpos;
-
-        auto const activePlayer = game::ClntObjMgrGetActivePlayer();
-
-        if (guid == activePlayer) {
-            auto const currentTime = GetTime();
-
-            // if we are casting a spell and it was delayed, update our own state so we do not allow a cast too soon
-            if (currentTime < gCastData.castEndMs) {
-                gCastData.castEndMs += delay;
-            }
-        }
-
-        return spellDelayed(opCode, packet);
-    }
-
     bool SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *unitStr) {
         auto const spellTargetUnit = detour->GetTrampolineT<SpellTargetUnitT>();
 
@@ -65,8 +22,9 @@ namespace Nampower {
                 // update all cast params so we don't have to figure out which one to use
                 gLastNormalCastParams.guid = guid;
                 gLastOnSwingCastParams.guid = guid;
-                gLastNormalCastParams.guid = guid;
-                gLastNonGcdCastParams.guid = guid;
+
+                auto nonGcdCastParams = gNonGcdCastQueue.peek();
+                nonGcdCastParams->guid = guid;
             }
         }
 
@@ -78,8 +36,9 @@ namespace Nampower {
         auto const spellFailed = detour->GetTrampolineT<Spell_C_SpellFailedT>();
         spellFailed(spellId, spellResult, unk1, unk2, unk3);
 
-        if(gCastData.cancellingSpell) {
-            DEBUG_LOG("Ignoring spell failed event due to cancelling spell");
+        ResetCastFlags();
+
+        if (gCastData.castingQueuedSpell || gCastData.cancellingSpell) {
             return;
         }
 
@@ -89,20 +48,53 @@ namespace Nampower {
                 ) {
             auto const currentTime = GetTime();
 
-            if(!gUserSettings.retryServerRejectedSpells) {
-                DEBUG_LOG("Cast failed code " << int(spellResult) << " not queuing retry due to retryServerRejectedSpells=false");
+            if (!gUserSettings.retryServerRejectedSpells) {
+                DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
+                                             << " code " << int(spellResult)
+                                             << " not queuing retry due to retryServerRejectedSpells=false");
                 return;
             }
-            // ignore error spam
-            else if (currentTime - gLastErrorTimeMs < 200) {
-                DEBUG_LOG("Cast failed code " << int(spellResult) << ", not queuing retry due to recent error at "
-                                              << gLastErrorTimeMs);
+                // ignore error spam
+            else if (currentTime - gLastErrorTimeMs < 100) {
+                DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
+                                             << " code " << int(spellResult)
+                                             << ", not queuing retry due to recent error at " << gLastErrorTimeMs);
                 return;
-            } else {
-                DEBUG_LOG("Cast failed code " << int(spellResult) << ", queuing a retry");
             }
             gLastErrorTimeMs = currentTime;
-            gCastData.normalSpellQueued = true;  // this is fine even for non GCD spells as nothing will be casting or queued
+
+            // try to find the cast params for the spellId that failureRetry in spellhistory
+            auto castParams = gCastHistory.find(spellId);
+            // if we find non retried cast params and the original cast time is within the last 500ms, retry the cast
+            if (castParams && castParams->castTimeMs > currentTime - 500) {
+                if(!castParams->failureRetry) {
+                    if (castParams->castType == CastType::NON_GCD ||
+                        castParams->castType == CastType::TARGETING_NON_GCD) {
+                        DEBUG_LOG("Cast failed for non gcd " << game::GetSpellName(spellId)
+                                                             << " code " << int(spellResult)
+                                                             << ", retrying");
+                        gCastData.delayEndMs = currentTime + gBufferTimeMs; // retry after buffer delay
+                        gCastData.nonGcdSpellQueued = true;
+                        castParams->failureRetry = true; // mark as retried
+                        gNonGcdCastQueue.push(*castParams);
+                    } else {
+                        DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
+                                                     << " code " << int(spellResult)
+                                                     << ", retrying");
+                        gCastData.normalSpellQueued = true;
+                        gLastNormalCastParams = *castParams;
+                    }
+                } else {
+                    DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
+                                                 << " code " << int(spellResult)
+                                                 << ", not retrying as it has already been retried");
+                }
+            } else {
+                DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
+                                             << " code " << int(spellResult)
+                                             << ", no recent cast params found in history");
+            }
+
 
             // check if we should increase the buffer time
             if (currentTime - gLastBufferIncreaseTimeMs > BUFFER_INCREASE_FREQUENCY) {
@@ -116,5 +108,35 @@ namespace Nampower {
         } else if (gCastData.normalSpellQueued) {
             DEBUG_LOG("Cast failed code " << int(spellResult) << " ignored");
         }
+    }
+
+    int SpellDelayedHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, game::CDataStore *packet) {
+        auto const spellDelayed = detour->GetTrampolineT<PacketHandlerT>();
+
+        auto const rpos = packet->m_read;
+
+        auto const guid = packet->Get<std::uint64_t>();
+        auto const delay = packet->Get<std::uint32_t>();
+
+        packet->m_read = rpos;
+
+        auto const activePlayer = game::ClntObjMgrGetActivePlayer();
+
+        if (guid == activePlayer) {
+            auto const currentTime = GetTime();
+
+            // if we are casting a spell, and it was delayed, update our own state so we do not allow a cast too soon
+            if (currentTime < gCastData.castEndMs) {
+                gCastData.castEndMs += delay;
+            }
+        }
+
+        return spellDelayed(opCode, packet);
+    }
+
+
+    int CastResultHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, game::CDataStore *packet) {
+        auto const castResultHandler = detour->GetTrampolineT<PacketHandlerT>();
+        return castResultHandler(opCode, packet);
     }
 }

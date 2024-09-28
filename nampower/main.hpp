@@ -20,6 +20,7 @@
 
 #include "game.hpp"
 #include "types.h"
+#include "castqueue.h"
 
 namespace Nampower {
     extern std::ofstream debugLogFile;
@@ -64,13 +65,15 @@ namespace Nampower {
 
     extern CastSpellParams gLastNormalCastParams;
     extern CastSpellParams gLastOnSwingCastParams;
-    extern CastSpellParams gLastNonGcdCastParams;
+
+    extern CastQueue gNonGcdCastQueue;
+    extern CastQueue gCastHistory;
 
     using CastSpellT = bool (__fastcall *)(void *, uint32_t, void *, std::uint64_t);
     using SendCastT = void (__fastcall *)(game::SpellCast *, char unk);
     using CancelSpellT = void (__fastcall *)(bool, bool, game::SpellCastResult);
     using SignalEventT = void (__fastcall *)(game::Events);
-    using PacketHandlerT = int (__stdcall *)(int, game::CDataStore *);
+    using PacketHandlerT = int (__stdcall *)(uint32_t *opCode, game::CDataStore *packet);
     using ISceneEndT = int *(__fastcall *)(uintptr_t *unk);
     using EndSceneT = int (__fastcall *)(uintptr_t *unk);
     using SpellStartHandlerT = void (__fastcall *)(int, int, int, game::CDataStore *);
@@ -79,7 +82,6 @@ namespace Nampower {
     using Spell_C_SpellFailedT = void (__fastcall *)(uint32_t, game::SpellCastResult, int, int, char unk3);
     using Spell_C_GetAutoRepeatingSpellT = int (__cdecl *)();
     using SpellFailedHandlerT = void (__fastcall *)(int, game::CDataStore *);
-    using CastResultHandlerT = bool (__fastcall *)(std::uint64_t, game::CDataStore *);
     using SpellGoT = void (__fastcall *)(uint64_t *, uint64_t *, uint32_t, game::CDataStore *);
     using SpellTargetUnitT = bool (__fastcall *)(uintptr_t *unitStr);
     using Spell_C_HandleSpriteClickT = bool (__fastcall *)(game::CSpriteClickEvent *event);

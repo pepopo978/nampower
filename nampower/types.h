@@ -28,11 +28,23 @@ struct UserSettings {
 
 };
 
+enum CastType {
+    NORMAL,
+    NON_GCD,
+    ON_SWING,
+    CHANNEL,
+    TARGETING,
+    TARGETING_NON_GCD
+};
+
 struct CastSpellParams {
     void *unit;
     uint32_t spellId;
     void *item;
     uint64_t guid;
+    uint64_t castTimeMs;
+    CastType castType;
+    bool failureRetry;
 };
 
 struct LastCastData {
@@ -58,6 +70,7 @@ struct CastData {
     bool nonGcdSpellQueued;
 
     bool castingQueuedSpell;
+    bool retryingFailedSpell;
 
     bool cancellingSpell;
     bool channeling;

@@ -12,7 +12,6 @@ namespace Nampower {
         auto bufferTime = castTime == 0 ? 0 : gBufferTimeMs;
 
         gLastCastData.castTimeMs = castTime;
-        gLastCastData.startTimeMs = currentTime;
 
         gCastData.channeling = SpellIsChanneling(spell);
         gLastCastData.wasQueued = false; // reset the last spell queued flag
@@ -39,7 +38,7 @@ namespace Nampower {
                                    << " time since last cast " << currentTime - gLastCastData.startTimeMs);
         } else {
             gCastData.delayEndMs = currentTime +
-                                  gUserSettings.nonGcdBufferTimeMs; // set small "cast time" to avoid attempting next spell too fast
+                                   gUserSettings.nonGcdBufferTimeMs; // set small "cast time" to avoid attempting next spell too fast
             DEBUG_LOG("BeginCast " << game::GetSpellName(spell->Id)
                                    << " cast time: " << castTime << " buffer: "
                                    << gBufferTimeMs << " NO Gcd"
@@ -55,40 +54,47 @@ namespace Nampower {
 
             gLastBufferDecreaseTimeMs = currentTime; // update the last error time to prevent lowering buffer too often
         }
+
+        gLastCastData.startTimeMs = currentTime;
     }
 
     void CastQueuedNonGcdSpell() {
-        if (gCastData.nonGcdSpellQueued && gLastNonGcdCastParams.spellId > 0) {
-            DEBUG_LOG("Triggering queued non gcd cast of " << game::GetSpellName(gLastNonGcdCastParams.spellId));
+        if (gCastData.nonGcdSpellQueued) {
+            auto nonGcdCastParams = gNonGcdCastQueue.pop();
+            if (nonGcdCastParams.spellId > 0) {
+                DEBUG_LOG("Triggering queued non gcd cast of " << game::GetSpellName(nonGcdCastParams.spellId));
 
-            gCastData.castingQueuedSpell = true;
-
-            CastSpellHook(castSpellDetour, gLastNonGcdCastParams.unit, gLastNonGcdCastParams.spellId,
-                          gLastNonGcdCastParams.item, gLastNonGcdCastParams.guid);
-            gCastData.nonGcdSpellQueued = false;
-
+                gCastData.castingQueuedSpell = true;
+                gCastData.retryingFailedSpell = nonGcdCastParams.failureRetry;
+                CastSpellHook(castSpellDetour, nonGcdCastParams.unit, nonGcdCastParams.spellId,
+                              nonGcdCastParams.item, nonGcdCastParams.guid);
+                gLastCastData.wasQueued = true;
+            } else {
+                DEBUG_LOG("Ignoring queued non gcd cast, no spell id");
+                gLastCastData.wasQueued = false;
+            }
+            gCastData.nonGcdSpellQueued = !gNonGcdCastQueue.isEmpty();
             gCastData.castingQueuedSpell = false;
-            gLastCastData.wasQueued = true;
-        } else if (gLastNormalCastParams.spellId == 0) {
-            gCastData.nonGcdSpellQueued = false;
-            gCastData.castingQueuedSpell = false;
-            gLastCastData.wasQueued = false;
+            gCastData.retryingFailedSpell = false;
         }
     }
 
     void CastQueuedNormalSpell() {
-        if (gCastData.normalSpellQueued && gLastNormalCastParams.spellId > 0) {
-            DEBUG_LOG("Triggering queued cast of " << game::GetSpellName(gLastNormalCastParams.spellId));
-            gCastData.castingQueuedSpell = true;
-            CastSpellHook(castSpellDetour, gLastNormalCastParams.unit, gLastNormalCastParams.spellId,
-                          gLastNormalCastParams.item, gLastNormalCastParams.guid);
+        if (gCastData.normalSpellQueued) {
+            if (gLastNormalCastParams.spellId > 0) {
+                DEBUG_LOG("Triggering queued cast of " << game::GetSpellName(gLastNormalCastParams.spellId));
+                gCastData.castingQueuedSpell = true;
+                gCastData.retryingFailedSpell = gLastNormalCastParams.failureRetry;
+                CastSpellHook(castSpellDetour, gLastNormalCastParams.unit, gLastNormalCastParams.spellId,
+                              gLastNormalCastParams.item, gLastNormalCastParams.guid);
+                gLastCastData.wasQueued = true;
+            } else {
+                DEBUG_LOG("Ignoring queued cast, no spell id");
+                gLastCastData.wasQueued = false;
+            }
             gCastData.normalSpellQueued = false;
             gCastData.castingQueuedSpell = false;
-            gLastCastData.wasQueued = true;
-        } else if (gLastNormalCastParams.spellId == 0) {
-            gCastData.normalSpellQueued = false;
-            gCastData.castingQueuedSpell = false;
-            gLastCastData.wasQueued = false;
+            gCastData.retryingFailedSpell = false;
         }
     }
 
@@ -203,6 +209,8 @@ namespace Nampower {
                             DEBUG_LOG("Queuing instant cast non GCD targeting for after cooldown: " << remainingCD
                                                                                                     << "ms "
                                                                                                     << spellName);
+
+                            gNonGcdCastQueue.push({unit, spellId, item, guid, currentTime, CastType::NON_GCD, false});
                             gCastData.nonGcdSpellQueued = true;
                             return false;
                         }
@@ -226,10 +234,10 @@ namespace Nampower {
                     gCastData.normalSpellQueued = true;
                     return false;
                 } else if (remainingEffectiveCastTime > 0) {
-                    SaveCastParams(&gLastNonGcdCastParams, unit, spellId, item, guid);
-
                     DEBUG_LOG("Queuing instant cast non GCD for after cooldown: " << remainingCD << "ms "
                                                                                   << spellName);
+
+                    gNonGcdCastQueue.push({unit, spellId, item, guid, currentTime, CastType::NON_GCD, false});
                     gCastData.nonGcdSpellQueued = true;
                     return false;
                 }
@@ -252,6 +260,27 @@ namespace Nampower {
             gCastData.gcdEndMs = 0;
         }
 
+        // try clearing current casting spell id
+        if (gLastCastData.wasQueued) {
+            auto const clearCastingSpellId = reinterpret_cast<uint32_t *>(Offsets::CastingSpellId);
+            *clearCastingSpellId = 0;
+        }
+
+        // add to cast history
+        auto castType = CastType::NORMAL;
+        if (spellIsChanneling) {
+            castType = CastType::CHANNEL;
+        } else if (spellIsTargeting) {
+            if (spellOnGcd) {
+                castType = CastType::TARGETING;
+            } else {
+                castType = CastType::TARGETING_NON_GCD;
+            }
+        } else if (!spellOnGcd) {
+            castType = CastType::NON_GCD;
+        }
+
+        gCastHistory.pushFront({unit, spellId, item, guid, currentTime, castType, gCastData.retryingFailedSpell});
         auto ret = castSpell(unit, spellId, item, guid);
 
         // if this is a trade skill or item enchant, do nothing further
@@ -273,7 +302,7 @@ namespace Nampower {
                 // The address of InterruptSpell needs to be dug out. It could possibly fix the sometimes broken animations.
                 gCastData.cancellingSpell = true;
                 auto const cancelSpell = reinterpret_cast<CancelSpellT>(Offsets::CancelSpell);
-                cancelSpell(true, false, game::SPELL_FAILED_INTERRUPTED);
+                cancelSpell(false, false, game::SPELL_FAILED_INTERRUPTED);
                 gCastData.cancellingSpell = false;
 
 
@@ -281,13 +310,11 @@ namespace Nampower {
                 ret = castSpell(unit, spellId, item, guid);
 
                 auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
-                if (ret) {
-                    gCastData.normalSpellQueued = false;
-                } else if (!(spell->Attributes & game::SPELL_ATTR_RANGED) && cursorMode != 2) {
-                    DEBUG_LOG("Retry cast after cancel failed");
+                if (!ret && !(spell->Attributes & game::SPELL_ATTR_RANGED) && cursorMode != 2) {
+                    DEBUG_LOG("Retry cast after cancel failureRetry");
                 }
             } else {
-                DEBUG_LOG("Initial cast failed, not canceling spell cast due to targeting");
+                DEBUG_LOG("Initial cast failureRetry, not canceling spell cast due to targeting");
             }
         }
 
@@ -374,13 +401,13 @@ namespace Nampower {
     void
     CancelSpellHook(hadesmem::PatchDetourBase *detour, bool failed, bool notifyServer,
                     game::SpellCastResult reason) {
-        DEBUG_LOG(
-                "Cancel spell cast failed:" << failed << " notifyServer:" << notifyServer << " reason:"
-                                            << int(reason));
-
         // triggered by us, reset the cast bar
         if (notifyServer) {
             ResetCastFlags();
+        } else if (failed) {
+            DEBUG_LOG(
+                    "Cancel spell cast failureRetry:" << failed << " notifyServer:" << notifyServer << " reason:"
+                                                << int(reason));
         }
 
         auto const cancelSpell = detour->GetTrampolineT<CancelSpellT>();
