@@ -52,6 +52,7 @@ enum class Offsets : std::uint32_t {
     SpellChannelStartHandler = 0x006E7550,
     SpellChannelUpdateHandler = 0x006E75F0,
     SpellFailedHandler = 0x006E8D80,
+    SpellFailedOtherHandler = 0X006E8E40,
     CastResultHandler = 0x006E7330,
     CooldownEvent = 0x006E9670,
     SendCast = 0x6E54F0,

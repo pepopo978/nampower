@@ -5,6 +5,7 @@
 #include "spellcast.hpp"
 #include "helper.hpp"
 #include "offsets.hpp"
+#include "logging.hpp"
 
 namespace Nampower {
     void BeginCast(std::uint32_t castTime, const game::SpellRec *spell) {
@@ -206,11 +207,16 @@ namespace Nampower {
                             gCastData.normalSpellQueued = true;
                             return false;
                         } else if (remainingEffectiveCastTime > 0) {
-                            DEBUG_LOG("Queuing instant cast non GCD targeting for after cooldown: " << remainingCD
-                                                                                                    << "ms "
-                                                                                                    << spellName);
+                            DEBUG_LOG("Queuing instant cast non GCD targeting for after cooldown: "
+                                              << remainingCD << "ms " << spellName << " gcd category "
+                                              << spell->StartRecoveryCategory);
 
-                            gNonGcdCastQueue.push({unit, spellId, item, guid, currentTime, CastType::NON_GCD, false});
+                            gNonGcdCastQueue.push({unit, spellId, item, guid,
+                                                   spell->StartRecoveryTime,
+                                                   castTime,
+                                                   0,
+                                                   ::NON_GCD,
+                                                   false}, gUserSettings.replaceMatchingNonGcdCategory);
                             gCastData.nonGcdSpellQueued = true;
                             return false;
                         }
@@ -234,10 +240,16 @@ namespace Nampower {
                     gCastData.normalSpellQueued = true;
                     return false;
                 } else if (remainingEffectiveCastTime > 0) {
-                    DEBUG_LOG("Queuing instant cast non GCD for after cooldown: " << remainingCD << "ms "
-                                                                                  << spellName);
+                    DEBUG_LOG("Queuing instant cast non GCD for after cooldown: "
+                                      << remainingCD << "ms " << spellName << " gcd category "
+                                      << spell->StartRecoveryCategory);
 
-                    gNonGcdCastQueue.push({unit, spellId, item, guid, currentTime, CastType::NON_GCD, false});
+                    gNonGcdCastQueue.push({unit, spellId, item, guid,
+                                           spell->StartRecoveryTime,
+                                           castTime,
+                                           0,
+                                           ::NON_GCD,
+                                           false}, gUserSettings.replaceMatchingNonGcdCategory);
                     gCastData.nonGcdSpellQueued = true;
                     return false;
                 }
@@ -280,7 +292,12 @@ namespace Nampower {
             castType = CastType::NON_GCD;
         }
 
-        gCastHistory.pushFront({unit, spellId, item, guid, currentTime, castType, gCastData.retryingFailedSpell});
+        gCastHistory.pushFront({unit, spellId, item, guid,
+                                spell->StartRecoveryCategory,
+                                castTime,
+                                currentTime,
+                                castType,
+                                gCastData.retryingFailedSpell});
         auto ret = castSpell(unit, spellId, item, guid);
 
         // if this is a trade skill or item enchant, do nothing further
@@ -301,8 +318,10 @@ namespace Nampower {
                 //JT: Suggest replacing CancelSpell with InterruptSpell (the API called when moving during casting).
                 // The address of InterruptSpell needs to be dug out. It could possibly fix the sometimes broken animations.
                 gCastData.cancellingSpell = true;
+
                 auto const cancelSpell = reinterpret_cast<CancelSpellT>(Offsets::CancelSpell);
-                cancelSpell(false, false, game::SPELL_FAILED_INTERRUPTED);
+                cancelSpell(false, false, game::SPELL_FAILED_ERROR);
+
                 gCastData.cancellingSpell = false;
 
 
@@ -311,10 +330,10 @@ namespace Nampower {
 
                 auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
                 if (!ret && !(spell->Attributes & game::SPELL_ATTR_RANGED) && cursorMode != 2) {
-                    DEBUG_LOG("Retry cast after cancel failureRetry");
+                    DEBUG_LOG("Retry cast after cancel still failed");
                 }
             } else {
-                DEBUG_LOG("Initial cast failureRetry, not canceling spell cast due to targeting");
+                DEBUG_LOG("Initial cast failed, not canceling spell cast due to targeting");
             }
         }
 
@@ -405,9 +424,8 @@ namespace Nampower {
         if (notifyServer) {
             ResetCastFlags();
         } else if (failed) {
-            DEBUG_LOG(
-                    "Cancel spell cast failureRetry:" << failed << " notifyServer:" << notifyServer << " reason:"
-                                                << int(reason));
+            DEBUG_LOG("Cancel spell cast failed:" << failed <<
+                                                  " notifyServer:" << notifyServer << " reason:" << int(reason));
         }
 
         auto const cancelSpell = detour->GetTrampolineT<CancelSpellT>();

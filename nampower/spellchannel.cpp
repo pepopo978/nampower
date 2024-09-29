@@ -4,6 +4,7 @@
 
 #include "spellchannel.hpp"
 #include "spellcast.hpp"
+#include "logging.hpp"
 
 namespace Nampower {
     int SpellChannelStartHandlerHook(hadesmem::PatchDetourBase *detour, int channelStart, game::CDataStore *dataPtr) {

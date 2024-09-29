@@ -16,6 +16,7 @@ struct UserSettings {
 
     bool retryServerRejectedSpells;
     bool quickcastTargetingSpells;
+    bool replaceMatchingNonGcdCategory;
 
     uint32_t spellQueueWindowMs;
     uint32_t onSwingBufferCooldownMs;
@@ -38,11 +39,17 @@ enum CastType {
 };
 
 struct CastSpellParams {
+    /* Original cast spell function arguments */
     void *unit;
     uint32_t spellId;
     void *item;
     uint64_t guid;
-    uint64_t castTimeMs;
+    /* *********************** */
+
+    /* Additional data */
+    uint32_t gcDCategory; // comes from spell->StartRecoveryCategory
+    uint32_t castTimeMs;
+    uint32_t castStartTimeMs;
     CastType castType;
     bool failureRetry;
 };

@@ -27,6 +27,7 @@
     either expressed or implied, of the FreeBSD Project.
 */
 
+#include "logging.hpp"
 #include "offsets.hpp"
 #include "game.hpp"
 #include "main.hpp"
@@ -34,24 +35,16 @@
 #include "spellcast.hpp"
 #include "spellchannel.hpp"
 
-#include <Windows.h>
-
 #include <cstdint>
 #include <memory>
 #include <atomic>
 
 #include <chrono>
-#include <thread>
 #include <iostream>
-#include <fstream>
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
 namespace Nampower {
-    std::ofstream debugLogFile("nampower_debug.log");
-
-    uint32_t gStartTime;
-
     uint32_t gLastErrorTimeMs;
     uint32_t gLastBufferIncreaseTimeMs;
     uint32_t gLastBufferDecreaseTimeMs;
@@ -178,6 +171,9 @@ namespace Nampower {
         } else if (strcmp(cvar, "NP_QuickcastTargetingSpells") == 0) {
             gUserSettings.quickcastTargetingSpells = atoi(value) != 0;
             DEBUG_LOG("Set NP_QuickcastTargetingSpells to " << gUserSettings.quickcastTargetingSpells);
+        } else if (strcmp(cvar, "NP_ReplaceMatchingNonGcdCategory") == 0) {
+            gUserSettings.replaceMatchingNonGcdCategory = atoi(value) != 0;
+            DEBUG_LOG("Set NP_ReplaceMatchingNonGcdCategory to " << gUserSettings.replaceMatchingNonGcdCategory);
 
         } else if (strcmp(cvar, "NP_MinBufferTimeMs") == 0) {
             gUserSettings.minBufferTimeMs = atoi(value);
@@ -254,6 +250,7 @@ namespace Nampower {
 
         gUserSettings.retryServerRejectedSpells = true;
         gUserSettings.quickcastTargetingSpells = false;
+        gUserSettings.replaceMatchingNonGcdCategory = false;
 
         gUserSettings.minBufferTimeMs = 55; // time in ms to buffer cast to minimize server failure
         gUserSettings.nonGcdBufferTimeMs = 100; // time in ms to buffer non-GCD spells to minimize server failure
@@ -412,6 +409,16 @@ namespace Nampower {
                      0,  // unk2
                      0); // unk3
 
+         char NP_ReplaceMatchingNonGcdCategory[] = "NP_ReplaceMatchingNonGcdCategory";
+        CVarRegister(NP_ReplaceMatchingNonGcdCategory, // name
+                     nullptr, // help
+                     0,  // unk1
+                     gUserSettings.replaceMatchingNonGcdCategory ? defaultTrue : defaultFalse, // default value address
+                     nullptr, // callback
+                     1, // category
+                     0,  // unk2
+                     0); // unk3
+
         // update from cvars
         load_user_var("NP_QueueCastTimeSpells");
         load_user_var("NP_QueueInstantSpells");
@@ -421,6 +428,7 @@ namespace Nampower {
 
         load_user_var("NP_RetryServerRejectedSpells");
         load_user_var("NP_QuickcastTargetingSpells");
+        load_user_var("NP_ReplaceMatchingNonGcdCategory");
 
         load_user_var("NP_MinBufferTimeMs");
         load_user_var("NP_NonGcdBufferTimeMs");
@@ -456,10 +464,10 @@ namespace Nampower {
                                                                                     &CancelSpellHook);
         gCancelSpellDetour->Apply();
 
-        auto const castResultHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::CastResultHandler);
-        gCastResultHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process, castResultHandlerOrig,
-                                                                                           &CastResultHandlerHook);
-        gCastResultHandlerDetour->Apply();
+//        auto const castResultHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::CastResultHandler);
+//        gCastResultHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process, castResultHandlerOrig,
+//                                                                                           &CastResultHandlerHook);
+//        gCastResultHandlerDetour->Apply();
 
         auto const spellChannelStartHandlerOrig = hadesmem::detail::AliasCast<SpellChannelStartHandlerT>(
                 Offsets::SpellChannelStartHandler);

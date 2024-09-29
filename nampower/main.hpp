@@ -21,29 +21,9 @@
 #include "game.hpp"
 #include "types.h"
 #include "castqueue.h"
+#include "cdatastore.hpp"
 
 namespace Nampower {
-    extern std::ofstream debugLogFile;
-
-    extern uint32_t gStartTime;
-
-    extern uint32_t GetTime();
-
-#ifndef DEBUG_LOG_H
-#define DEBUG_LOG_H
-
-// TODO uncomment once ready for release
-//#ifdef _DEBUG
-//std::ofstream debugLogFile("nampower_debug.log");
-//#define DEBUG_LOG(msg) debugLogFile << "[DEBUG]" << GetTime() << ": " << msg << std::endl
-//#else
-//#define DEBUG_LOG(msg) // No-op in release mode
-//#endif
-
-#define DEBUG_LOG(msg) debugLogFile << "[DEBUG]" << GetTime() << ": " << msg << std::endl
-
-#endif  // DEBUG_LOG_H
-
     constexpr uint32_t MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE = 10000; // time limit in ms after which queued casts are ignored in errors
     constexpr uint32_t DYNAMIC_BUFFER_INCREMENT = 5; // amount to adjust buffer in ms on errors/lack of errors
     constexpr uint32_t BUFFER_INCREASE_FREQUENCY = 5000; // time in ms between changes to raise buffer

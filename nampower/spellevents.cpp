@@ -4,6 +4,7 @@
 
 #include "spellevents.hpp"
 #include "offsets.hpp"
+#include "logging.hpp"
 
 namespace Nampower {
     bool SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *unitStr) {
@@ -24,7 +25,9 @@ namespace Nampower {
                 gLastOnSwingCastParams.guid = guid;
 
                 auto nonGcdCastParams = gNonGcdCastQueue.peek();
-                nonGcdCastParams->guid = guid;
+                if (nonGcdCastParams) {
+                    nonGcdCastParams->guid = guid;
+                }
             }
         }
 
@@ -64,10 +67,10 @@ namespace Nampower {
             gLastErrorTimeMs = currentTime;
 
             // try to find the cast params for the spellId that failureRetry in spellhistory
-            auto castParams = gCastHistory.find(spellId);
+            auto castParams = gCastHistory.findSpellId(spellId);
             // if we find non retried cast params and the original cast time is within the last 500ms, retry the cast
-            if (castParams && castParams->castTimeMs > currentTime - 500) {
-                if(!castParams->failureRetry) {
+            if (castParams && castParams->castStartTimeMs > currentTime - 500) {
+                if (!castParams->failureRetry) {
                     if (castParams->castType == CastType::NON_GCD ||
                         castParams->castType == CastType::TARGETING_NON_GCD) {
                         DEBUG_LOG("Cast failed for non gcd " << game::GetSpellName(spellId)
@@ -76,7 +79,7 @@ namespace Nampower {
                         gCastData.delayEndMs = currentTime + gBufferTimeMs; // retry after buffer delay
                         gCastData.nonGcdSpellQueued = true;
                         castParams->failureRetry = true; // mark as retried
-                        gNonGcdCastQueue.push(*castParams);
+                        gNonGcdCastQueue.push(*castParams, gUserSettings.replaceMatchingNonGcdCategory);
                     } else {
                         DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
                                                      << " code " << int(spellResult)
@@ -115,8 +118,11 @@ namespace Nampower {
 
         auto const rpos = packet->m_read;
 
-        auto const guid = packet->Get<std::uint64_t>();
-        auto const delay = packet->Get<std::uint32_t>();
+        uint64_t guid;
+        packet->Get(guid);
+
+        uint32_t delay;
+        packet->Get(delay);
 
         packet->m_read = rpos;
 
@@ -137,6 +143,30 @@ namespace Nampower {
 
     int CastResultHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, game::CDataStore *packet) {
         auto const castResultHandler = detour->GetTrampolineT<PacketHandlerT>();
+
+        auto const rpos = packet->m_read;
+
+        uint32_t spellId;
+        packet->Get(spellId);
+
+        uint8_t status;
+        packet->Get(status);
+
+        uint8_t spellCastResult;
+
+        if (status != 0) {
+            packet->Get(spellCastResult);
+        } else {
+            spellCastResult = 0;
+        }
+
+        packet->Get(spellCastResult);
+
+        packet->m_read = rpos;
+
+        DEBUG_LOG("Cast result opcode:" << opCode << " for " << game::GetSpellName(spellId) << " status " << int(status)
+                                        << " result " << int(spellCastResult));
+
         return castResultHandler(opCode, packet);
     }
 }

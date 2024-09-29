@@ -39,6 +39,7 @@ SET NP_TargetingQueueWindowMs "1000"
 
 - `NP_RetryServerRejectedSpells` - Whether to retry spells that are rejected by the server for these reasons: SPELL_FAILED_ITEM_NOT_READY, SPELL_FAILED_NOT_READY, SPELL_FAILED_SPELL_IN_PROGRESS.  0 to disable, 1 to enable. Default is 1.
 - `NP_QuickcastTargetingSpells` - Whether to enable quick casting for ALL spells with terrain targeting.  This will cause the spell to instantly cast on your cursor without waiting for you to confirm the targeting circle.  Queuing targeting spells will use quickcasting regardless of this value (couldn't get it to work without doing this).  0 to disable, 1 to enable. Default is 0.
+- `NP_ReplaceMatchingNonGcdCategory` - Whether to replace any queued non gcd spell when a new non gcd spell with the same StartRecoveryCategory is cast (more explanation below).  0 to disable, 1 to enable. Default is 0.
 
 ### Bug Reporting
 If you encounter any bugs please report them in the issues tab.  Please include the nampower_debug.txt file in the same directory as your WoW.exe to help me diagnose the issue.  If you are able to reproduce the bug please include the steps to reproduce it.  In a future version once bugs are ironed out I'll make logging optional.
@@ -52,6 +53,19 @@ There are separate configurable queue windows for:
 - On swing spells (the window functions as a cooldown instead where you cannot immediately double queue on swing spells so that I don't have to track swing timers)
 - Channeling spells
 - Spells with terrain targeting
+
+Only one gcd spell can be queued at a time.  Pressing a new gcd spell will replace any existing queued gcd spell.
+
+Non gcd spells have special handling.  You can queue up to 5 non gcd spells, 
+and they will execute in the order queued with `NP_NonGcdBufferTimeMs` delay after each of them to help avoid server rejection.  
+The non gcd queue always has priority over queued normal spells.
+
+`NP_ReplaceMatchingNonGcdCategory` will cause non gcd spells with the same StartRecoveryCategory to replace each other in the queue.  
+The vast majority of spells not on the gcd have category '0' so enabling this setting will cause them to all replace each other.  
+One notable exception is shaman totems on TWoW that were changed to have separate categories according to their elements.
+
+This can be useful if you want to change your mind about the non gcd spell you have queued.  For example, if you queue a mana potion and decide you want to use LIP instead last minute.
+However, this will also prevent using certain cooldowns together with trinkets, such as Combustion followed by Mind Quickening Gem.  Decide what works best for you.
 
 ### Why do I need a buffer?
 From my own testing it seems that a buffer is required on spells to avoid "This ability isn't ready yet"/"Another action in progress" errors.  
@@ -67,7 +81,7 @@ the time saved will be worth it.
 
 Non gcd spells also seem to be affected by this.  I suspect that only one spell can be processed per server tick.  
 This means that if you try to cast 2 non gcd spells in the same server tick only one will be processed.  
-To avoid this happening there is NP_NonGcdBufferTimeMs which is added after each non gcd spell.  There might be more to
+To avoid this happening there is `NP_NonGcdBufferTimeMs` which is added after each non gcd spell.  There might be more to
 it than this as using the normal buffer of 55ms was still resulting in skipped casts for me.  I found 100ms to be a safe value.
 
 # Pepo v1.0.0 Changes
@@ -75,7 +89,7 @@ it than this as using the normal buffer of 55ms was still resulting in skipped c
 Now looks for a nampower.cfg file in the same directory with two lines:
 
 1.  The first line should contain the "buffer" time between each cast.  This is the amount of time to delay casts to ensure you don't try to cast again too early due to server/packet lag and get rejected by the server with a "This ability isn't ready yet" error.  For 150ms I found 30ms to be a reasonable buffer.
-2.  The second line is the window in ms before each cast during which nampower will delay cast attempts to send them to the server at the perfect time.  So 300 would mean if you cast anytime in the 300ms window before your next optimal cast your cast will be sent at the idea time.  This means you don't have to spam cast as aggressively.  This feature will cause a small stutter because it is pausing your UI (I couldn't find a better way to do this but I'm sure one exists now with superwow) so if you don't like that set this to 0.
+2.  The second line is the window in ms before each cast during which nampower will delay cast attempts to send them to the server at the perfect time.  So 300 would mean if you cast anytime in the 300ms window before your next optimal cast your cast will be sent at the idea time.  This means you don't have to spam cast as aggressively.  This feature will cause a small stutter because it is pausing your UI (I couldn't findSpellId a better way to do this but I'm sure one exists now with superwow) so if you don't like that set this to 0.
 
 **Please consider donating if you use this tool. - Namreeb**
 

@@ -34,61 +34,59 @@
 
 #include <cstdint>
 
-namespace game
-{
-void *GetObjectPtr(std::uint64_t guid)
-{
-    void *(__stdcall *getObjectPtr)(std::uint64_t) = hadesmem::detail::AliasCast<decltype(getObjectPtr)>(Offsets::GetObjectPtr);
+namespace game {
+    void *GetObjectPtr(std::uint64_t guid) {
+        void *(__stdcall *getObjectPtr)(std::uint64_t) = hadesmem::detail::AliasCast<decltype(getObjectPtr)>(
+                Offsets::GetObjectPtr);
 
-    return getObjectPtr(guid);
-}
-
-std::uint32_t GetCastTime(void *unit, uint32_t spellId)
-{
-    auto const vmt = *reinterpret_cast<std::uint8_t **>(unit);
-    int(__thiscall *getSpellCastingTime)(void *, uint32_t) = *reinterpret_cast<decltype(&getSpellCastingTime)>(vmt + 4 * static_cast<std::uint32_t>(Offsets::GetCastingTimeIndex));
-
-    return getSpellCastingTime(unit, spellId);
-}
-
-CDuration* GetDurationObject(uint32_t durationIndex)
-{
-    auto const durationListPtr = *reinterpret_cast<std::uint32_t *>(Offsets::GetDurationObject);
-    if(durationListPtr){
-        auto const durationObjectPtr = *reinterpret_cast<std::uint32_t *>(durationListPtr + durationIndex * 4);
-        if(durationObjectPtr){
-            return reinterpret_cast<CDuration *>(durationObjectPtr);
-        }
+        return getObjectPtr(guid);
     }
-    return nullptr;
-}
 
-const SpellRec *GetSpellInfo(uint32_t spellId)
-{
-    auto const spellDb = reinterpret_cast<WowClientDB<SpellRec> *>(Offsets::SpellDb);
+    std::uint32_t GetCastTime(void *unit, uint32_t spellId) {
+        auto const vmt = *reinterpret_cast<std::uint8_t **>(unit);
+        int
+        (__thiscall *getSpellCastingTime)(void *, uint32_t) = *reinterpret_cast<decltype(&getSpellCastingTime)>(vmt +
+                                                                                                                4 *
+                                                                                                                static_cast<std::uint32_t>(Offsets::GetCastingTimeIndex));
 
-    if (spellId > spellDb->m_maxID)
+        return getSpellCastingTime(unit, spellId);
+    }
+
+    CDuration *GetDurationObject(uint32_t durationIndex) {
+        auto const durationListPtr = *reinterpret_cast<std::uint32_t *>(Offsets::GetDurationObject);
+        if (durationListPtr) {
+            auto const durationObjectPtr = *reinterpret_cast<std::uint32_t *>(durationListPtr + durationIndex * 4);
+            if (durationObjectPtr) {
+                return reinterpret_cast<CDuration *>(durationObjectPtr);
+            }
+        }
         return nullptr;
+    }
 
-    return spellDb->m_recordsById[spellId];
-}
+    const SpellRec *GetSpellInfo(uint32_t spellId) {
+        auto const spellDb = reinterpret_cast<WowClientDB<SpellRec> *>(Offsets::SpellDb);
 
-const char *GetSpellName(uint32_t spellId)
-{
-    auto const spell = GetSpellInfo(spellId);
+        if (spellId > spellDb->m_maxID)
+            return nullptr;
 
-    if (!spell || spell->AttributesEx3 & SPELL_ATTR_EX3_HIDE_NAME)
-        return "";
+        return spellDb->m_recordsById[spellId];
+    }
 
-    auto const language = *reinterpret_cast<std::uint32_t *>(Offsets::Language);
+    const char *GetSpellName(uint32_t spellId) {
+        auto const spell = GetSpellInfo(spellId);
 
-    return spell->SpellName[language];
-}
+        if (!spell || spell->AttributesEx3 & SPELL_ATTR_EX3_HIDE_NAME)
+            return "";
 
-std::uint64_t ClntObjMgrGetActivePlayer()
-{
-    auto const getActivePlayer = hadesmem::detail::AliasCast<decltype(&ClntObjMgrGetActivePlayer)>(Offsets::GetActivePlayer);
+        auto const language = *reinterpret_cast<std::uint32_t *>(Offsets::Language);
 
-    return getActivePlayer();
-}
+        return spell->SpellName[language];
+    }
+
+    std::uint64_t ClntObjMgrGetActivePlayer() {
+        auto const getActivePlayer = hadesmem::detail::AliasCast<decltype(&ClntObjMgrGetActivePlayer)>(
+                Offsets::GetActivePlayer);
+
+        return getActivePlayer();
+    }
 }
