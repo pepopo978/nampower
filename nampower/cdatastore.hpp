@@ -4,10 +4,12 @@
 
 #pragma once
 
-#include <assert.h>
-#include <stdlib.h>
+#include <cassert>
+#include <cstdlib>
+#include <cstdint>
+#include <logging.hpp>
 
-namespace game {
+namespace Nampower {
 
     class CDataStore {
     public:
@@ -67,48 +69,50 @@ namespace game {
 
         class CDataStore &GetDataInSitu(void *&, unsigned int);
 
+        void CDataStore::GetPackedGuid(uint64_t &val);
+
         template<typename T>
-        CDataStore &Set(unsigned int pos, T val) {
+        void Set(unsigned int pos, T val) {
             if ((pos < m_base) || (pos + sizeof(T) > m_alloc + m_base)) {
                 InternalFetchWrite(pos, sizeof(val), m_buffer, m_base, m_alloc);
             }
             *(T *) (m_buffer - m_base + pos) = val;
-            return *this;
         }
 
         template<typename T>
-        CDataStore &Put(T val) {
+        void Put(T val) {
             if ((m_size < m_base) || (m_size + sizeof(T) > m_alloc + m_base)) {
                 // make sure we can write sizeof(T) data
-                AssertFetchWrite(m_size, sizeof(T));
+                if (!AssertFetchWrite(m_size, sizeof(T))) {
+                    return;
+                }
             }
             T *pos = (T *) (m_buffer - m_base + m_size);
             *pos = val;
+
             m_size += sizeof(T);
-            return *this;
         }
 
         template<typename T>
-        CDataStore &Get(T &val) {
+        void Get(T &val) {
             unsigned int bytes = m_read + sizeof(T);
             if (bytes > m_size) {
                 m_read = m_size + 1;
-                return *this;
+                return;
             }
 
             if ((m_read < m_base) || (bytes > m_alloc + m_base)) {
                 if (!AssertFetchRead(m_read, sizeof(T))) {
                     m_read = m_alloc + 1;
-                    return *this;
+                    return;
                 }
             }
             val = *(T *) (m_buffer - m_base + m_read);
             m_read += sizeof(T);
-            return *this;
         }
 
         template<typename T>
-        CDataStore &PutArray(const T *pVal, unsigned int count) {
+        void PutArray(const T *pVal, unsigned int count) {
             count *= sizeof(T);
             unsigned int pos = count;
 
@@ -137,12 +141,10 @@ namespace game {
                     count -= pos;
                 }
             }
-
-            return *this;
         }
 
         template<typename T>
-        CDataStore &GetArray(T *pVal, unsigned int count) {
+        void GetArray(T *pVal, unsigned int count) {
             // total amount to be copied
             unsigned int total = count;
             if ((pVal != 0) && (m_read <= m_size) && (count != 0)) {
@@ -175,7 +177,6 @@ namespace game {
                     total -= len;
                 } while (total > 0);
             }
-            return *this;
         }
 
         template<typename T>

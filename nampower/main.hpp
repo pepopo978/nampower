@@ -53,16 +53,15 @@ namespace Nampower {
     using SendCastT = void (__fastcall *)(game::SpellCast *, char unk);
     using CancelSpellT = void (__fastcall *)(bool, bool, game::SpellCastResult);
     using SignalEventT = void (__fastcall *)(game::Events);
-    using PacketHandlerT = int (__stdcall *)(uint32_t *opCode, game::CDataStore *packet);
+    using PacketHandlerT = int (__stdcall *)(uint32_t *opCode, CDataStore *packet);
+    using FastCallPacketHandlerT = int (__fastcall *)(uint32_t unk, uint32_t opCode, uint32_t unk2,  CDataStore *packet);
     using ISceneEndT = int *(__fastcall *)(uintptr_t *unk);
     using EndSceneT = int (__fastcall *)(uintptr_t *unk);
-    using SpellStartHandlerT = void (__fastcall *)(int, int, int, game::CDataStore *);
-    using SpellChannelStartHandlerT = int (__stdcall *)(int, game::CDataStore *);
-    using SpellChannelUpdateHandlerT = int (__stdcall *)(int, game::CDataStore *);
+    using SpellChannelStartHandlerT = int (__stdcall *)(int, CDataStore *);
+    using SpellChannelUpdateHandlerT = int (__stdcall *)(int, CDataStore *);
     using Spell_C_SpellFailedT = void (__fastcall *)(uint32_t, game::SpellCastResult, int, int, char unk3);
     using Spell_C_GetAutoRepeatingSpellT = int (__cdecl *)();
-    using SpellFailedHandlerT = void (__fastcall *)(int, game::CDataStore *);
-    using SpellGoT = void (__fastcall *)(uint64_t *, uint64_t *, uint32_t, game::CDataStore *);
+    using SpellGoT = void (__fastcall *)(uint64_t *, uint64_t *, uint32_t, CDataStore *);
     using SpellTargetUnitT = bool (__fastcall *)(uintptr_t *unitStr);
     using Spell_C_HandleSpriteClickT = bool (__fastcall *)(game::CSpriteClickEvent *event);
     using Spell_C_TargetSpellT = bool (__fastcall *)(
@@ -70,6 +69,7 @@ namespace Nampower {
             uint32_t *spellId,
             uint32_t unk3,
             float unk4);
+    using Spell_C_CooldownEventTriggeredT = void (__fastcall *)(uint32_t spellId,int param_2,int param_3,int clearCooldowns);
     using Script_GetGUIDFromNameT = std::uint64_t (__fastcall *)(const char *);
     using lua_isstringT = bool (__fastcall *)(uintptr_t *, int);
     using lua_tostringT = const char *(__fastcall *)(uintptr_t *, int);

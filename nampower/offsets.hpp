@@ -32,6 +32,8 @@
 #include <cstdint>
 
 enum class Offsets : std::uint32_t {
+    StartSpellVisualCheck = 0X006E79B5,
+
     GetObjectPtr = 0x464870,
     GetActivePlayer = 0x468550,
     GetDurationObject = 0x00C0D828,
@@ -41,6 +43,7 @@ enum class Offsets : std::uint32_t {
     CursorMode = 0xBE2C4C,
     SpellIsTargeting = 0xCECAC0,
     CastingSpellId = 0xCECA88,
+    VisualSpellId = 0X00CEAC58,
     CastResultCDataStore = 0x0019FDDC,
 
     CancelSpell = 0x6E4940,
@@ -48,19 +51,24 @@ enum class Offsets : std::uint32_t {
     SignalEvent = 0x703E50,
     SignalEventParam = 0x703F50,
     ISceneEndPtr = 0x5A17A0,
+    SpellStart = 0X006E7700,
     SpellGo = 0x006E7A70,
+    CooldownEvent = 0x006E9670,
+    SendCast = 0x6E54F0,
+    CreateCastbar = 0x6E7A53,
+    CheckAndReportSpellInhibitFlags = 0x006094f0,
+
+    SpellVisualsHandleCastStart = 0X006EC220,
+
     SpellChannelStartHandler = 0x006E7550,
     SpellChannelUpdateHandler = 0x006E75F0,
     SpellFailedHandler = 0x006E8D80,
     SpellFailedOtherHandler = 0X006E8E40,
     CastResultHandler = 0x006E7330,
-    CooldownEvent = 0x006E9670,
-    SendCast = 0x6E54F0,
-    CreateCastbar = 0x6E7A53,
     SpellStartHandler = 0x006E7640,
-    CheckAndReportSpellInhibitFlags = 0x006094f0,
 
     Spell_C_CastSpell = 0x6E4B60,
+    Spell_C_CooldownEventTriggered = 0X006E3050,
     Spell_C_SpellFailed = 0x006E1A00,
     Spell_C_CastSpellByID = 0x6E5A90,
     Spell_C_GetAutoRepeatingSpell = 0x006E9FD0,

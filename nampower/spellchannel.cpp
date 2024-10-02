@@ -7,7 +7,7 @@
 #include "logging.hpp"
 
 namespace Nampower {
-    int SpellChannelStartHandlerHook(hadesmem::PatchDetourBase *detour, int channelStart, game::CDataStore *dataPtr) {
+    int SpellChannelStartHandlerHook(hadesmem::PatchDetourBase *detour, int channelStart, CDataStore *dataPtr) {
         gLastCastData.channelStartTimeMs = GetTime();
         DEBUG_LOG("Channel start " << channelStart);
         if (channelStart) {
@@ -19,7 +19,7 @@ namespace Nampower {
         return spellChannelStartHandler(channelStart, dataPtr);
     }
 
-    int SpellChannelUpdateHandlerHook(hadesmem::PatchDetourBase *detour, int channelUpdate, game::CDataStore *dataPtr) {
+    int SpellChannelUpdateHandlerHook(hadesmem::PatchDetourBase *detour, int channelUpdate, CDataStore *dataPtr) {
         auto const elapsed = 500 + GetTime() - gLastCastData.channelStartTimeMs;
         DEBUG_LOG("Channel update elapsed " << elapsed << " duration " << gCastData.channelDuration);
 

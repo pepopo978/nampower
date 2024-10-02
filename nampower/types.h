@@ -51,7 +51,7 @@ struct CastSpellParams {
     uint32_t castTimeMs;
     uint32_t castStartTimeMs;
     CastType castType;
-    bool failureRetry;
+    uint32_t numRetries;
 };
 
 struct LastCastData {
@@ -77,7 +77,7 @@ struct CastData {
     bool nonGcdSpellQueued;
 
     bool castingQueuedSpell;
-    bool retryingFailedSpell;
+    uint32_t numRetries;
 
     bool cancellingSpell;
     bool channeling;

@@ -26,6 +26,7 @@ namespace Nampower {
 //#endif
 
 #define DEBUG_LOG(msg) debugLogFile << "[DEBUG]" << GetTime() << ": " << msg << std::endl
+#define DEBUG_LOG2(msg) debugLogFile << msg
 
 #endif  // DEBUG_LOG_H
 }

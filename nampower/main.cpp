@@ -70,21 +70,23 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<SendCastT>> gSendCastDetour;
     std::unique_ptr<hadesmem::PatchDetour<CancelSpellT>> gCancelSpellDetour;
     std::unique_ptr<hadesmem::PatchDetour<SignalEventT>> gSignalEventDetour;
-    std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellDelayedDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_SpellFailedT>> gSpellFailedDetour;
     std::unique_ptr<hadesmem::PatchRaw> gCastbarPatch;
     std::unique_ptr<hadesmem::PatchDetour<ISceneEndT>> gIEndSceneDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellVisualsInitializeT >> gSpellVisualsInitDetour;
-    std::unique_ptr<hadesmem::PatchDetour<SpellStartHandlerT>> gSpellStartHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellChannelStartHandlerT>> gSpellChannelStartHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellChannelUpdateHandlerT>> gSpellChannelUpdateHandlerDetour;
-    std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gCastResultHandlerDetour;
-    std::unique_ptr<hadesmem::PatchDetour<SpellFailedHandlerT>> gSpellFailedHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_GetAutoRepeatingSpellT>> gSpell_C_GetAutoRepeatingSpellDetour;
+    std::unique_ptr<hadesmem::PatchDetour<Spell_C_CooldownEventTriggeredT >> gSpell_C_CooldownEventTriggeredDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellGoT>> gSpellGoDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellTargetUnitT>> gSpellTargetUnitDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_HandleSpriteClickT>> gSpell_C_HandleSpriteClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_TargetSpellT>> gSpell_C_TargetSpellDetour;
+
+    std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellDelayedDetour;
+    std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gCastResultHandlerDetour;
+    std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellFailedHandlerDetour;
+    std::unique_ptr<hadesmem::PatchDetour<FastCallPacketHandlerT>> gSpellStartHandlerDetour;
 
     uint32_t GetTime() {
         return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -469,6 +471,18 @@ namespace Nampower {
 //                                                                                           &CastResultHandlerHook);
 //        gCastResultHandlerDetour->Apply();
 
+//        auto const spellFailedHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::SpellFailedHandler);
+//        gSpellFailedHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT>>(process,
+//                                                                                             spellFailedHandlerOrig,
+//                                                                                             &SpellFailedHandlerHook);
+//        gSpellFailedHandlerDetour->Apply();
+//
+        auto const spellStartHandlerOrig = hadesmem::detail::AliasCast<FastCallPacketHandlerT>(Offsets::SpellStartHandler);
+        gSpellStartHandlerDetour = std::make_unique<hadesmem::PatchDetour<FastCallPacketHandlerT>>(process,
+                                                                                             spellStartHandlerOrig,
+                                                                                             &SpellStartHandlerHook);
+        gSpellStartHandlerDetour->Apply();
+
         auto const spellChannelStartHandlerOrig = hadesmem::detail::AliasCast<SpellChannelStartHandlerT>(
                 Offsets::SpellChannelStartHandler);
         gSpellChannelStartHandlerDetour =
@@ -513,6 +527,12 @@ namespace Nampower {
                                                                                                     &Spell_C_TargetSpellHook);
         gSpell_C_TargetSpellDetour->Apply();
 
+        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
+                Offsets::Spell_C_CooldownEventTriggered);
+        gSpell_C_CooldownEventTriggeredDetour = std::make_unique<hadesmem::PatchDetour<Spell_C_CooldownEventTriggeredT >>(
+                process, spell_C_CoolDownEventTriggeredOrig, &Spell_C_CooldownEventTriggeredHook);
+        gSpell_C_CooldownEventTriggeredDetour->Apply();
+
 
         // Hook the ISceneEnd function to get the EndScene function pointer
         auto const iEndSceneOrig = hadesmem::detail::AliasCast<ISceneEndT>(Offsets::ISceneEndPtr);
@@ -533,7 +553,7 @@ namespace Nampower {
 
     void load() {
         std::call_once(load_flag, []() {
-                           DEBUG_LOG("Loading nampower v1.9.1");
+                           DEBUG_LOG("Loading nampower v1.9.2");
 
                            // hook spell visuals initialize
                            const hadesmem::Process process(::GetCurrentProcessId());

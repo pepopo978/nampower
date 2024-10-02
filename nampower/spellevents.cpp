@@ -58,7 +58,7 @@ namespace Nampower {
                 return;
             }
                 // ignore error spam
-            else if (currentTime - gLastErrorTimeMs < 100) {
+            else if (currentTime - gLastErrorTimeMs < 50) {
                 DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
                                              << " code " << int(spellResult)
                                              << ", not queuing retry due to recent error at " << gLastErrorTimeMs);
@@ -66,31 +66,33 @@ namespace Nampower {
             }
             gLastErrorTimeMs = currentTime;
 
-            // try to find the cast params for the spellId that failureRetry in spellhistory
+            // try to find the cast params for the spellId that numRetries in spellhistory
             auto castParams = gCastHistory.findSpellId(spellId);
             // if we find non retried cast params and the original cast time is within the last 500ms, retry the cast
             if (castParams && castParams->castStartTimeMs > currentTime - 500) {
-                if (!castParams->failureRetry) {
+                // allow 2 retries
+                if (castParams->numRetries < 2) {
+                    castParams->numRetries++; // mark as retried
+
                     if (castParams->castType == CastType::NON_GCD ||
                         castParams->castType == CastType::TARGETING_NON_GCD) {
                         DEBUG_LOG("Cast failed for non gcd " << game::GetSpellName(spellId)
                                                              << " code " << int(spellResult)
-                                                             << ", retrying");
+                                                             << ", retry " << castParams->numRetries);
                         gCastData.delayEndMs = currentTime + gBufferTimeMs; // retry after buffer delay
                         gCastData.nonGcdSpellQueued = true;
-                        castParams->failureRetry = true; // mark as retried
                         gNonGcdCastQueue.push(*castParams, gUserSettings.replaceMatchingNonGcdCategory);
                     } else {
                         DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
                                                      << " code " << int(spellResult)
-                                                     << ", retrying");
+                                                     << ", retry " << castParams->numRetries);
                         gCastData.normalSpellQueued = true;
                         gLastNormalCastParams = *castParams;
                     }
                 } else {
                     DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
                                                  << " code " << int(spellResult)
-                                                 << ", not retrying as it has already been retried");
+                                                 << ", not retrying as it has already been retried twice");
                 }
             } else {
                 DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
@@ -113,7 +115,19 @@ namespace Nampower {
         }
     }
 
-    int SpellDelayedHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, game::CDataStore *packet) {
+    void Spell_C_CooldownEventTriggeredHook(hadesmem::PatchDetourBase *detour,
+                                            uint32_t spellId,
+                                            int param_2,
+                                            int param_3,
+                                            int clearCooldowns) {
+        auto const cooldownEventTriggered = detour->GetTrampolineT<Spell_C_CooldownEventTriggeredT>();
+        cooldownEventTriggered(spellId, param_2, param_3, clearCooldowns);
+
+        DEBUG_LOG("Cooldown event triggered for " << game::GetSpellName(spellId) << " " << param_2 << " " << param_3
+                                                  << " " << clearCooldowns);
+    }
+
+    int SpellDelayedHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, CDataStore *packet) {
         auto const spellDelayed = detour->GetTrampolineT<PacketHandlerT>();
 
         auto const rpos = packet->m_read;
@@ -141,7 +155,7 @@ namespace Nampower {
     }
 
 
-    int CastResultHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, game::CDataStore *packet) {
+    int CastResultHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, CDataStore *packet) {
         auto const castResultHandler = detour->GetTrampolineT<PacketHandlerT>();
 
         auto const rpos = packet->m_read;
@@ -168,5 +182,92 @@ namespace Nampower {
                                         << " result " << int(spellCastResult));
 
         return castResultHandler(opCode, packet);
+    }
+
+    int SpellFailedHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, CDataStore *packet) {
+        auto const spellFailedHandler = detour->GetTrampolineT<PacketHandlerT>();
+
+        auto const rpos = packet->m_read;
+
+        uint64_t guid;
+        packet->Get(guid);
+
+        uint32_t spellId;
+        packet->Get(spellId);
+
+        packet->m_read = rpos;
+
+        DEBUG_LOG("Spell failed opcode:" << opCode << " for " << game::GetSpellName(spellId) << " guid " << guid);
+
+        return spellFailedHandler(opCode, packet);
+    }
+
+    int SpellStartHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t unk, uint32_t opCode, uint32_t unk2,
+                              CDataStore *packet) {
+        auto const spellStartHandler = detour->GetTrampolineT<FastCallPacketHandlerT>();
+
+        auto const rpos = packet->m_read;
+
+        uint32_t previousVisualSpellId = 0;
+
+        if (opCode == 0x131) {
+            // 8 + 8 + 4 + 2 + 4 but first 2 guids are packed
+            uint64_t itemGuid;
+            packet->GetPackedGuid(itemGuid);
+
+            uint64_t casterGuid;
+            packet->GetPackedGuid(casterGuid);
+
+            if (casterGuid == game::ClntObjMgrGetActivePlayer()) {
+                uint32_t spellId;
+                packet->Get(spellId);
+
+                uint16_t castFlags;
+                packet->Get(castFlags);
+
+                uint32_t castTime;
+                packet->Get(castTime);
+
+                packet->m_read = rpos;
+
+                // check if cast time differed from what we expected, ignore haste rounding errors
+                if (gLastNormalCastParams.spellId == spellId && gLastNormalCastParams.castTimeMs - castTime > 5) {
+                    if (castTime > gLastNormalCastParams.castTimeMs) {
+                        auto castTimeDifference = castTime - gLastNormalCastParams.castTimeMs;
+                        gCastData.castEndMs += castTimeDifference;
+                        DEBUG_LOG("Server cast time for " << game::GetSpellName(spellId) << " increased by "
+                                                          << castTimeDifference << "ms.  Updated cast end time to "
+                                                          << gCastData.castEndMs);
+                    } else {
+                        auto castTimeDifference = gLastNormalCastParams.castTimeMs - castTime;
+                        gCastData.castEndMs -= castTimeDifference;
+                        DEBUG_LOG("Server cast time for " << game::GetSpellName(spellId) << " decreased by "
+                                                          << castTimeDifference << "ms.  Updated cast end time to "
+                                                          << gCastData.castEndMs);
+                    }
+                }
+
+                // spell start successful, reset gLastNormalCastParams.numRetries
+                gLastNormalCastParams.numRetries = 0;
+
+                if (castTime > 0) {
+                    auto currentSpellId = reinterpret_cast<uint32_t *>(Offsets::VisualSpellId);
+                    if (*currentSpellId == spellId) {
+                        *currentSpellId = 0;
+
+                        previousVisualSpellId = spellId;
+                    }
+                }
+            }
+        }
+
+        auto result = spellStartHandler(unk, opCode, unk2, packet);
+
+        if (previousVisualSpellId > 0) {
+            auto currentSpellId = reinterpret_cast<uint32_t *>(Offsets::VisualSpellId);
+            *currentSpellId = previousVisualSpellId;
+        }
+
+        return result;
     }
 }

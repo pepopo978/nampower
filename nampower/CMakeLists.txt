@@ -6,6 +6,8 @@ set(SOURCE_FILES
         types.h
         logging.hpp
         logging.cpp
+        cdatastore.hpp
+        cdatastore.cpp
         castqueue.h
         game.hpp
         game.cpp
@@ -20,8 +22,6 @@ set(SOURCE_FILES
         spellchannel.cpp
         spellevents.hpp
         spellevents.cpp
-        cdatastore.cpp
-        cdatastore.hpp
 )
 
 add_library(${DLL_NAME} SHARED ${SOURCE_FILES})

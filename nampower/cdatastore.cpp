@@ -3,7 +3,7 @@
 #include <memory.h>
 #include <cstring>
 
-namespace game {
+namespace Nampower {
 
     void CDataStore::InternalInitialize(unsigned char *&data, unsigned int &base, unsigned int &alloc) {
     }
@@ -118,12 +118,33 @@ namespace game {
         return true;
     }
 
-    class CDataStore &CDataStore::GetData(void *data, unsigned int length) {
-        return GetArray((unsigned char *) data, length);
-    }
+    void CDataStore::GetPackedGuid(uint64_t &val) {
+        unsigned int bytes = m_read + sizeof(val);
+        if (bytes > m_size) {
+            m_read = m_size + 1;
+            return;
+        }
+        if ((m_read < m_base) || (bytes > m_alloc + m_base)) {
+            if (!AssertFetchRead(m_read, sizeof(val))) {
+                m_read = m_alloc + 1;
+                return;
+            }
+        }
 
-    class CDataStore &CDataStore::PutData(const void *data, unsigned int length) {
-        return PutArray((unsigned char *) data, length);
+        uint64_t guid = 0;
+        uint8_t mask; // Read the bitmap
+        Get(mask);
+
+        for (uint8_t i = 0; i < 8; ++i) {
+            if (mask & (1 << i)) {
+                uint8_t byte;
+                Get(byte);
+
+                guid |= static_cast<uint64_t>(byte) << (i * 8);
+            }
+        }
+
+        val = guid; // final result seems to be shifted right by 2 bits
     }
 
     class CDataStore &CDataStore::PutString(char const *pStr) {
@@ -197,4 +218,5 @@ namespace game {
             }
         }
     }
+
 }

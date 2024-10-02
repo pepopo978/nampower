@@ -54,8 +54,12 @@ There are separate configurable queue windows for:
 - Channeling spells
 - Spells with terrain targeting
 
+There are 3 separate queues for the following types of spells: GCD(max size:1), non GCD(max size:5), and on-hit(max size:1).
+
+#### GCD Spells
 Only one gcd spell can be queued at a time.  Pressing a new gcd spell will replace any existing queued gcd spell.
 
+#### Non GCD Spells
 Non gcd spells have special handling.  You can queue up to 5 non gcd spells, 
 and they will execute in the order queued with `NP_NonGcdBufferTimeMs` delay after each of them to help avoid server rejection.  
 The non gcd queue always has priority over queued normal spells.
@@ -66,6 +70,10 @@ One notable exception is shaman totems on TWoW that were changed to have separat
 
 This can be useful if you want to change your mind about the non gcd spell you have queued.  For example, if you queue a mana potion and decide you want to use LIP instead last minute.
 However, this will also prevent using certain cooldowns together with trinkets, such as Combustion followed by Mind Quickening Gem.  Decide what works best for you.
+
+#### On hit Spells
+Only one on hit spell can be queued at a time.  Pressing a new on hit spell will replace any existing queued on hit spell.  
+On hit spells have no effect on the gcd or non gcd queues as they are handled entirely separately and are resolved by your auto attack.
 
 ### Why do I need a buffer?
 From my own testing it seems that a buffer is required on spells to avoid "This ability isn't ready yet"/"Another action in progress" errors.  
