@@ -54,7 +54,7 @@ namespace Nampower {
     using CancelSpellT = void (__fastcall *)(bool, bool, game::SpellCastResult);
     using SignalEventT = void (__fastcall *)(game::Events);
     using PacketHandlerT = int (__stdcall *)(uint32_t *opCode, CDataStore *packet);
-    using FastCallPacketHandlerT = int (__fastcall *)(uint32_t unk, uint32_t opCode, uint32_t unk2,  CDataStore *packet);
+    using FastCallPacketHandlerT = int (__fastcall *)(uint32_t unk, uint32_t opCode, uint32_t unk2, CDataStore *packet);
     using ISceneEndT = int *(__fastcall *)(uintptr_t *unk);
     using EndSceneT = int (__fastcall *)(uintptr_t *unk);
     using SpellChannelStartHandlerT = int (__stdcall *)(int, CDataStore *);
@@ -69,10 +69,14 @@ namespace Nampower {
             uint32_t *spellId,
             uint32_t unk3,
             float unk4);
-    using Spell_C_CooldownEventTriggeredT = void (__fastcall *)(uint32_t spellId,int param_2,int param_3,int clearCooldowns);
     using Script_GetGUIDFromNameT = std::uint64_t (__fastcall *)(const char *);
     using lua_isstringT = bool (__fastcall *)(uintptr_t *, int);
     using lua_tostringT = const char *(__fastcall *)(uintptr_t *, int);
+
+    using Spell_C_CooldownEventTriggeredT = void (__fastcall *)(uint32_t spellId,
+                                                                uint64_t *targetGUID,
+                                                                int param_3,
+                                                                int clearCooldowns);
 
     using SpellVisualsInitializeT = void (__stdcall *)(void);
 

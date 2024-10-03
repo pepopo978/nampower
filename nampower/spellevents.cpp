@@ -115,16 +115,39 @@ namespace Nampower {
         }
     }
 
+    int SpellCooldownHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, CDataStore *packet) {
+        auto const spellCooldownHandler = detour->GetTrampolineT<PacketHandlerT>();
+
+        auto const rpos = packet->m_read;
+
+        if(packet->m_size == 16){
+            uint64_t targetGuid;
+            packet->Get(targetGuid);
+
+            uint32_t spellId;
+            packet->Get(spellId);
+
+            uint32_t cooldown;
+            packet->Get(cooldown);
+
+            packet->m_read = rpos;
+
+            DEBUG_LOG("Spell cooldown opcode:" << opCode << " for " << game::GetSpellName(spellId) << " cooldown " << cooldown);
+        }
+
+        return spellCooldownHandler(opCode, packet);
+    }
+
     void Spell_C_CooldownEventTriggeredHook(hadesmem::PatchDetourBase *detour,
                                             uint32_t spellId,
-                                            int param_2,
+                                            uint64_t *targetGUID,
                                             int param_3,
                                             int clearCooldowns) {
-        auto const cooldownEventTriggered = detour->GetTrampolineT<Spell_C_CooldownEventTriggeredT>();
-        cooldownEventTriggered(spellId, param_2, param_3, clearCooldowns);
-
-        DEBUG_LOG("Cooldown event triggered for " << game::GetSpellName(spellId) << " " << param_2 << " " << param_3
+        DEBUG_LOG("Cooldown event triggered for " << game::GetSpellName(spellId) << " " << targetGUID << " " << param_3
                                                   << " " << clearCooldowns);
+
+        auto const cooldownEventTriggered = detour->GetTrampolineT<Spell_C_CooldownEventTriggeredT>();
+        cooldownEventTriggered(spellId, targetGUID, param_3, clearCooldowns);
     }
 
     int SpellDelayedHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, CDataStore *packet) {
@@ -240,10 +263,13 @@ namespace Nampower {
                                                           << gCastData.castEndMs);
                     } else {
                         auto castTimeDifference = gLastNormalCastParams.castTimeMs - castTime;
-                        gCastData.castEndMs -= castTimeDifference;
-                        DEBUG_LOG("Server cast time for " << game::GetSpellName(spellId) << " decreased by "
-                                                          << castTimeDifference << "ms.  Updated cast end time to "
-                                                          << gCastData.castEndMs);
+
+                        if(gCastData.castEndMs > castTimeDifference) {
+                            gCastData.castEndMs -= castTimeDifference;
+                            DEBUG_LOG("Server cast time for " << game::GetSpellName(spellId) << " decreased by "
+                                                              << castTimeDifference << "ms.  Updated cast end time to "
+                                                              << gCastData.castEndMs);
+                        }
                     }
                 }
 

@@ -83,6 +83,7 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_HandleSpriteClickT>> gSpell_C_HandleSpriteClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_TargetSpellT>> gSpell_C_TargetSpellDetour;
 
+    std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellCooldownDetour;
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellDelayedDetour;
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gCastResultHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellFailedHandlerDetour;
@@ -527,11 +528,16 @@ namespace Nampower {
                                                                                                     &Spell_C_TargetSpellHook);
         gSpell_C_TargetSpellDetour->Apply();
 
-        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
-                Offsets::Spell_C_CooldownEventTriggered);
-        gSpell_C_CooldownEventTriggeredDetour = std::make_unique<hadesmem::PatchDetour<Spell_C_CooldownEventTriggeredT >>(
-                process, spell_C_CoolDownEventTriggeredOrig, &Spell_C_CooldownEventTriggeredHook);
-        gSpell_C_CooldownEventTriggeredDetour->Apply();
+//        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
+//                Offsets::Spell_C_CooldownEventTriggered);
+//        gSpell_C_CooldownEventTriggeredDetour = std::make_unique<hadesmem::PatchDetour<Spell_C_CooldownEventTriggeredT >>(
+//                process, spell_C_CoolDownEventTriggeredOrig, &Spell_C_CooldownEventTriggeredHook);
+//        gSpell_C_CooldownEventTriggeredDetour->Apply();
+//
+//        auto const spellCooldownOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::SpellCooldownHandler);
+//        gSpellCooldownDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process, spellCooldownOrig,
+//                                                                                       &SpellCooldownHandlerHook);
+//        gSpellCooldownDetour->Apply();
 
 
         // Hook the ISceneEnd function to get the EndScene function pointer
@@ -552,7 +558,7 @@ namespace Nampower {
 
     void load() {
         std::call_once(load_flag, []() {
-                           DEBUG_LOG("Loading nampower v1.9.2");
+                           DEBUG_LOG("Loading nampower v1.9.3");
 
                            // hook spell visuals initialize
                            const hadesmem::Process process(::GetCurrentProcessId());
