@@ -251,8 +251,6 @@ namespace Nampower {
                 uint32_t castTime;
                 packet->Get(castTime);
 
-                packet->m_read = rpos;
-
                 // check if cast time differed from what we expected, ignore haste rounding errors
                 if (gLastNormalCastParams.spellId == spellId && gLastNormalCastParams.castTimeMs - castTime > 5) {
                     if (castTime > gLastNormalCastParams.castTimeMs) {
@@ -286,6 +284,8 @@ namespace Nampower {
                 }
             }
         }
+
+        packet->m_read = rpos;
 
         auto result = spellStartHandler(unk, opCode, unk2, packet);
 

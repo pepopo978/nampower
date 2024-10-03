@@ -558,7 +558,7 @@ namespace Nampower {
 
     void load() {
         std::call_once(load_flag, []() {
-                           DEBUG_LOG("Loading nampower v1.9.3");
+                           DEBUG_LOG("Loading nampower v1.9.4");
 
                            // hook spell visuals initialize
                            const hadesmem::Process process(::GetCurrentProcessId());
