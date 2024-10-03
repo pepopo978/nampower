@@ -542,7 +542,6 @@ namespace Nampower {
     }
 
     void SpellVisualsInitializeHook(hadesmem::PatchDetourBase *detour) {
-        DEBUG_LOG("SpellVisualsInitializeHook");
         auto const spellVisualsInitialize = detour->GetTrampolineT<SpellVisualsInitializeT>();
         spellVisualsInitialize();
         load_config();

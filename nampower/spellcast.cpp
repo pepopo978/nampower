@@ -79,7 +79,7 @@ namespace Nampower {
             }
             gCastData.nonGcdSpellQueued = !gNonGcdCastQueue.isEmpty();
             gCastData.castingQueuedSpell = false;
-            gCastData.numRetries = false;
+            gCastData.numRetries = 0;
         }
     }
 
@@ -98,7 +98,7 @@ namespace Nampower {
             }
             gCastData.normalSpellQueued = false;
             gCastData.castingQueuedSpell = false;
-            gCastData.numRetries = false;
+            gCastData.numRetries = 0;
         }
     }
 
