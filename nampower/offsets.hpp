@@ -47,6 +47,7 @@ enum class Offsets : std::uint32_t {
     CastResultCDataStore = 0x0019FDDC,
 
     CancelSpell = 0x6E4940,
+    CancelAutoRepeatSpell = 0X006EA080,
     SpellDelayed = 0x6E74F0,
     SignalEvent = 0x703E50,
     SignalEventParam = 0x703F50,

@@ -52,6 +52,7 @@ namespace Nampower {
     using CastSpellT = bool (__fastcall *)(void *, uint32_t, void *, std::uint64_t);
     using SendCastT = void (__fastcall *)(game::SpellCast *, char unk);
     using CancelSpellT = void (__fastcall *)(bool, bool, game::SpellCastResult);
+    using CancelAutoRepeatSpellT = void (__stdcall *)();
     using SignalEventT = void (__fastcall *)(game::Events);
     using PacketHandlerT = int (__stdcall *)(uint32_t *opCode, CDataStore *packet);
     using FastCallPacketHandlerT = int (__fastcall *)(uint32_t unk, uint32_t opCode, uint32_t unk2, CDataStore *packet);

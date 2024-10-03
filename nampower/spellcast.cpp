@@ -28,14 +28,15 @@ namespace Nampower {
         gCastData.castEndMs = castTime ? currentTime + castTime + gBufferTimeMs : 0;
 
         if (spellOnGcd) {
-            auto gcd = spell->StartRecoveryTime;
-            if (gcd == 0) {
-                gcd = 1500;
+            auto gcdTime = spell->StartRecoveryTime;
+            // some spells have 0 but the server will set to 1500 if category is 133
+            if (gcdTime == 0) {
+                gcdTime = 1500;
             }
-            gCastData.gcdEndMs = currentTime + spell->StartRecoveryTime + gBufferTimeMs;
+            gCastData.gcdEndMs = currentTime + gcdTime + gBufferTimeMs;
             DEBUG_LOG("BeginCast " << game::GetSpellName(spell->Id)
                                    << " cast time: " << castTime << " buffer: "
-                                   << gBufferTimeMs << " Gcd: " << gcd
+                                   << gBufferTimeMs << " Gcd: " << gcdTime
                                    << " time since last cast " << currentTime - gLastCastData.startTimeMs);
         } else {
             gCastData.delayEndMs = currentTime +
@@ -232,7 +233,7 @@ namespace Nampower {
                                               << spell->StartRecoveryCategory);
 
                             gNonGcdCastQueue.push({unit, spellId, item, guid,
-                                                   spell->StartRecoveryTime,
+                                                   spell->StartRecoveryCategory,
                                                    castTime,
                                                    0,
                                                    ::NON_GCD,
@@ -267,7 +268,7 @@ namespace Nampower {
                                       << spell->StartRecoveryCategory);
 
                     gNonGcdCastQueue.push({unit, spellId, item, guid,
-                                           spell->StartRecoveryTime,
+                                           spell->StartRecoveryCategory,
                                            castTime,
                                            0,
                                            ::NON_GCD,
@@ -365,6 +366,8 @@ namespace Nampower {
     void
     SpellGoHook(hadesmem::PatchDetourBase *detour, uint64_t *casterGUID, uint64_t *targetGUID, uint32_t spellId,
                 CDataStore *spellData) {
+        auto const spellGo = detour->GetTrampolineT<SpellGoT>();
+        spellGo(casterGUID, targetGUID, spellId, spellData);
 
         auto const castByActivePlayer = game::ClntObjMgrGetActivePlayer() == *casterGUID;
 
@@ -406,8 +409,6 @@ namespace Nampower {
             }
         }
 
-        auto const spellGo = detour->GetTrampolineT<SpellGoT>();
-        spellGo(casterGUID, targetGUID, spellId, spellData);
     }
 
     bool Spell_C_TargetSpellHook(hadesmem::PatchDetourBase *detour,
