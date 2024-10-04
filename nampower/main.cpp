@@ -244,6 +244,15 @@ namespace Nampower {
         gStartTime = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::high_resolution_clock::now().time_since_epoch()).count());
 
+        // remove/rename previous logs
+        remove("nampower_debug.log.3");
+        rename("nampower_debug.log.2", "nampower_debug.log.3");
+        rename("nampower_debug.log.1", "nampower_debug.log.2");
+        rename("nampower_debug.log", "nampower_debug.log.1");
+
+        // open new log file
+        debugLogFile.open("nampower_debug.log");
+
         // default values
         gUserSettings.queueCastTimeSpells = true;
         gUserSettings.queueInstantSpells = true;
@@ -412,7 +421,7 @@ namespace Nampower {
                      0,  // unk2
                      0); // unk3
 
-         char NP_ReplaceMatchingNonGcdCategory[] = "NP_ReplaceMatchingNonGcdCategory";
+        char NP_ReplaceMatchingNonGcdCategory[] = "NP_ReplaceMatchingNonGcdCategory";
         CVarRegister(NP_ReplaceMatchingNonGcdCategory, // name
                      nullptr, // help
                      0,  // unk1
@@ -453,8 +462,9 @@ namespace Nampower {
         gSetCVarDetour->Apply();
 
         // activate spellbar and our own internal cooldown on a successful cast attempt (result from server not available yet)
-        auto const castSpellOrig = hadesmem::detail::AliasCast<CastSpellT>(Offsets::Spell_C_CastSpell);
-        gCastDetour = std::make_unique<hadesmem::PatchDetour<CastSpellT >>(process, castSpellOrig, &CastSpellHook);
+        auto const spell_C_CastSpellOrig = hadesmem::detail::AliasCast<CastSpellT>(Offsets::Spell_C_CastSpell);
+        gCastDetour = std::make_unique<hadesmem::PatchDetour<CastSpellT >>(process, spell_C_CastSpellOrig,
+                                                                           &Spell_C_CastSpellHook);
         gCastDetour->Apply();
 
         auto const sendCastOrig = hadesmem::detail::AliasCast<SendCastT>(Offsets::SendCast);
@@ -478,10 +488,11 @@ namespace Nampower {
 //                                                                                             &SpellFailedHandlerHook);
 //        gSpellFailedHandlerDetour->Apply();
 //
-        auto const spellStartHandlerOrig = hadesmem::detail::AliasCast<FastCallPacketHandlerT>(Offsets::SpellStartHandler);
+        auto const spellStartHandlerOrig = hadesmem::detail::AliasCast<FastCallPacketHandlerT>(
+                Offsets::SpellStartHandler);
         gSpellStartHandlerDetour = std::make_unique<hadesmem::PatchDetour<FastCallPacketHandlerT>>(process,
-                                                                                             spellStartHandlerOrig,
-                                                                                             &SpellStartHandlerHook);
+                                                                                                   spellStartHandlerOrig,
+                                                                                                   &SpellStartHandlerHook);
         gSpellStartHandlerDetour->Apply();
 
         auto const spellChannelStartHandlerOrig = hadesmem::detail::AliasCast<SpellChannelStartHandlerT>(
@@ -558,7 +569,7 @@ namespace Nampower {
 
     void load() {
         std::call_once(load_flag, []() {
-                           DEBUG_LOG("Loading nampower v1.9.4");
+                           DEBUG_LOG("Loading nampower v1.9.5");
 
                            // hook spell visuals initialize
                            const hadesmem::Process process(::GetCurrentProcessId());

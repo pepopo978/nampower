@@ -71,8 +71,8 @@ namespace Nampower {
 
                 gCastData.castingQueuedSpell = true;
                 gCastData.numRetries = nonGcdCastParams.numRetries;
-                CastSpellHook(castSpellDetour, nonGcdCastParams.unit, nonGcdCastParams.spellId,
-                              nonGcdCastParams.item, nonGcdCastParams.guid);
+                Spell_C_CastSpellHook(castSpellDetour, nonGcdCastParams.playerUnit, nonGcdCastParams.spellId,
+                                      nonGcdCastParams.item, nonGcdCastParams.guid);
                 gLastCastData.wasQueued = true;
             } else {
                 DEBUG_LOG("Ignoring queued non gcd cast, no spell id");
@@ -90,8 +90,8 @@ namespace Nampower {
                 DEBUG_LOG("Triggering queued cast of " << game::GetSpellName(gLastNormalCastParams.spellId));
                 gCastData.castingQueuedSpell = true;
                 gCastData.numRetries = gLastNormalCastParams.numRetries;
-                CastSpellHook(castSpellDetour, gLastNormalCastParams.unit, gLastNormalCastParams.spellId,
-                              gLastNormalCastParams.item, gLastNormalCastParams.guid);
+                Spell_C_CastSpellHook(castSpellDetour, gLastNormalCastParams.playerUnit, gLastNormalCastParams.spellId,
+                                      gLastNormalCastParams.item, gLastNormalCastParams.guid);
                 gLastCastData.wasQueued = true;
             } else {
                 DEBUG_LOG("Ignoring queued cast, no spell id");
@@ -112,7 +112,7 @@ namespace Nampower {
     }
 
     void SaveCastParams(CastSpellParams *params,
-                        void *unit,
+                        uint32_t *playerUnit,
                         uint32_t spellId,
                         void *item,
                         std::uint64_t guid,
@@ -121,7 +121,7 @@ namespace Nampower {
                         uint32_t castStartTimeMs,
                         CastType castType,
                         uint32_t numRetries) {
-        params->unit = unit;
+        params->playerUnit = playerUnit;
         params->spellId = spellId;
         params->item = item;
         params->guid = guid;
@@ -157,7 +157,7 @@ namespace Nampower {
     }
 
     bool
-    CastSpellHook(hadesmem::PatchDetourBase *detour, void *unit, uint32_t spellId, void *item, std::uint64_t guid) {
+    Spell_C_CastSpellHook(hadesmem::PatchDetourBase *detour, uint32_t *playerUnit, uint32_t spellId, void *item, std::uint64_t guid) {
         // save the detour to allow quickly calling this hook
         castSpellDetour = detour;
 
@@ -165,7 +165,7 @@ namespace Nampower {
         auto const spellIsOnSwing = SpellIsOnSwing(spell);
         auto const spellName = game::GetSpellName(spellId);
         auto currentTime = GetTime();
-        auto const castTime = game::GetCastTime(unit, spellId);
+        auto const castTime = game::GetCastTime(playerUnit, spellId);
         auto const spellOnGcd = SpellIsOnGcd(spell);
         auto const spellIsChanneling = SpellIsChanneling(spell);
         auto const spellIsTargeting = SpellIsTargeting(spell);
@@ -176,12 +176,12 @@ namespace Nampower {
 
         // on swing spells are independent of cast bar / gcd, handle them separately
         if (spellIsOnSwing) {
-            SaveCastParams(&gLastOnSwingCastParams, unit, spellId, item, guid, spell->StartRecoveryCategory, castTime,
+            SaveCastParams(&gLastOnSwingCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory, castTime,
                            currentTime, ON_SWING, 0);
 
             // try to cast the spell
             auto const castSpell = detour->GetTrampolineT<CastSpellT>();
-            auto ret = castSpell(unit, spellId, item, guid);
+            auto ret = castSpell(playerUnit, spellId, item, guid);
 
             if (!ret && gUserSettings.queueOnSwingSpells) {
                 // if not in cooldown window
@@ -210,7 +210,7 @@ namespace Nampower {
         auto inSpellQueueWindow = InSpellQueueWindow(remainingEffectiveCastTime, remainingGcd, spellIsTargeting);
 
         if (spellIsTargeting) {
-            SaveCastParams(&gLastNormalCastParams, unit, spellId, item, guid, spell->StartRecoveryCategory, castTime,
+            SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory, castTime,
                            currentTime, TARGETING, 0);
 
             if (gUserSettings.queueTargetingSpells) {
@@ -232,7 +232,7 @@ namespace Nampower {
                                               << remainingCD << "ms " << spellName << " gcd category "
                                               << spell->StartRecoveryCategory);
 
-                            gNonGcdCastQueue.push({unit, spellId, item, guid,
+                            gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
                                                    spell->StartRecoveryCategory,
                                                    castTime,
                                                    0,
@@ -245,7 +245,7 @@ namespace Nampower {
                 }
             }
         } else if (castTime > 0 && inSpellQueueWindow) {
-            SaveCastParams(&gLastNormalCastParams, unit, spellId, item, guid, spell->StartRecoveryCategory, castTime,
+            SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory, castTime,
                            currentTime, NORMAL, 0);
 
             if (gUserSettings.queueCastTimeSpells) {
@@ -256,7 +256,7 @@ namespace Nampower {
         } else if (inSpellQueueWindow) {
             if (gUserSettings.queueInstantSpells) {
                 if (spellOnGcd) {
-                    SaveCastParams(&gLastNormalCastParams, unit, spellId, item, guid, spell->StartRecoveryCategory, castTime,
+                    SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory, castTime,
                                    currentTime, NORMAL, 0);
 
                     DEBUG_LOG("Queuing instant cast for after cooldown: " << remainingCD << "ms " << spellName);
@@ -267,7 +267,7 @@ namespace Nampower {
                                       << remainingCD << "ms " << spellName << " gcd category "
                                       << spell->StartRecoveryCategory);
 
-                    gNonGcdCastQueue.push({unit, spellId, item, guid,
+                    gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
                                            spell->StartRecoveryCategory,
                                            castTime,
                                            0,
@@ -315,13 +315,13 @@ namespace Nampower {
             castType = CastType::NON_GCD;
         }
 
-        gCastHistory.pushFront({unit, spellId, item, guid,
+        gCastHistory.pushFront({playerUnit, spellId, item, guid,
                                 spell->StartRecoveryCategory,
                                 castTime,
                                 currentTime,
                                 castType,
                                 gCastData.numRetries});
-        auto ret = castSpell(unit, spellId, item, guid);
+        auto ret = castSpell(playerUnit, spellId, item, guid);
 
         // if this is a trade skill or item enchant, do nothing further
         if (spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_TRADE_SKILL ||
@@ -349,7 +349,7 @@ namespace Nampower {
 
 
                 // try again now that cast bar is gone
-                ret = castSpell(unit, spellId, item, guid);
+                ret = castSpell(playerUnit, spellId, item, guid);
 
                 auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
                 if (!ret && !(spell->Attributes & game::SPELL_ATTR_RANGED) && cursorMode != 2) {
@@ -402,8 +402,8 @@ namespace Nampower {
                                                 << game::GetSpellName(gLastOnSwingCastParams.spellId));
 
 
-                    CastSpellHook(castSpellDetour, gLastOnSwingCastParams.unit, gLastOnSwingCastParams.spellId,
-                                  gLastOnSwingCastParams.item, gLastOnSwingCastParams.guid);
+                    Spell_C_CastSpellHook(castSpellDetour, gLastOnSwingCastParams.playerUnit, gLastOnSwingCastParams.spellId,
+                                          gLastOnSwingCastParams.item, gLastOnSwingCastParams.guid);
                     gCastData.onSwingQueued = false;
                 }
             }

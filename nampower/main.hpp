@@ -49,7 +49,7 @@ namespace Nampower {
     extern CastQueue gNonGcdCastQueue;
     extern CastQueue gCastHistory;
 
-    using CastSpellT = bool (__fastcall *)(void *, uint32_t, void *, std::uint64_t);
+    using CastSpellT = bool (__fastcall *)(uint32_t *, uint32_t, void *, std::uint64_t);
     using SendCastT = void (__fastcall *)(game::SpellCast *, char unk);
     using CancelSpellT = void (__fastcall *)(bool, bool, game::SpellCastResult);
     using CancelAutoRepeatSpellT = void (__stdcall *)();

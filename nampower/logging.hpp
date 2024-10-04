@@ -11,7 +11,6 @@ namespace Nampower {
     extern std::ofstream debugLogFile;
 
     extern uint32_t gStartTime;
-
     extern uint32_t GetTime();
 
 #ifndef DEBUG_LOG_H

@@ -2,6 +2,6 @@
 #include <logging.hpp>
 
 namespace Nampower {
-    std::ofstream debugLogFile("nampower_debug.log");
+    std::ofstream debugLogFile;
     uint32_t gStartTime;
 }

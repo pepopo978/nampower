@@ -40,7 +40,7 @@ enum CastType {
 
 struct CastSpellParams {
     /* Original cast spell function arguments */
-    void *unit;
+    uint32_t *playerUnit;
     uint32_t spellId;
     void *item;
     uint64_t guid;

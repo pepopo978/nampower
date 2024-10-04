@@ -46,6 +46,7 @@ enum class Offsets : std::uint32_t {
     VisualSpellId = 0X00CEAC58,
     CastResultCDataStore = 0x0019FDDC,
 
+    IsSpellInRangeOfUnit = 0X004E56F0,
     CancelSpell = 0x6E4940,
     CancelAutoRepeatSpell = 0X006EA080,
     SpellDelayed = 0x6E74F0,
