@@ -3,8 +3,11 @@
 Added spell queuing, automatic retry on error, and quickcasting with lots of customization.  
 
 ### Configuration
+
+#### Configure with addon
 There is a companion addon to make it easy to check/change the settings in game.  You can download it [here](https://github.com/pepopo978/nampowersettings).
 
+#### Manual Configuration
 The following CVars control the behavior of the spell queuing system:
 
 You can access CVars in game with `/run DEFAULT_CHAT_FRAME:AddMessage(GetCVar("CVarName"))`<br>
