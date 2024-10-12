@@ -150,10 +150,15 @@ namespace Nampower {
             queueWindow = gUserSettings.spellQueueWindowMs;
         }
 
-        auto remainingCastTimeInQueueWindow = remainingCastTime > 0 && remainingCastTime < queueWindow;
-        auto remainingGcdInQueueWindow = remainingGcd > 0 && remainingGcd < queueWindow;
+        if(remainingCastTime > 0){
+            return remainingCastTime < queueWindow;
+        }
 
-        return remainingCastTimeInQueueWindow || remainingGcdInQueueWindow;
+        if(remainingGcd > 0){
+            return remainingGcd < queueWindow;
+        }
+
+        return false;
     }
 
     bool
