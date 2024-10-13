@@ -21,4 +21,11 @@ namespace Nampower {
     bool SpellIsOnSwing(const game::SpellRec *spell) {
         return spell->Attributes & game::SPELL_ATTR_ON_NEXT_SWING_1;
     }
+
+    bool SpellIsTradeskillOrEnchant(const game::SpellRec *spell) {
+        return (spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_TRADE_SKILL ||
+                spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_ENCHANT_ITEM ||
+                spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY ||
+                spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_CREATE_ITEM);
+    }
 }

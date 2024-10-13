@@ -9,8 +9,6 @@
 #include "main.hpp"
 
 namespace Nampower {
-    void BeginCast(uint32_t currentTime, std::uint32_t castTime, const game::SpellRec *spell);
-
     void CastQueuedNonGcdSpell();
 
     void CastQueuedNormalSpell();

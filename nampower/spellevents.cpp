@@ -277,8 +277,12 @@ namespace Nampower {
                 // spell start successful, reset gLastNormalCastParams.numRetries
                 gLastNormalCastParams.numRetries = 0;
 
-                if (castTime > 0) {
+                // avoid clearing visual spell id as much as possible as it can cause weird sound/animation issues
+                // only do it for normal gcd spells with a cast time
+                if (castTime > 0 && gLastCastData.wasQueued && gLastCastData.wasOnGcd && !gLastCastData.wasItem) {
                     auto currentSpellId = reinterpret_cast<uint32_t *>(Offsets::VisualSpellId);
+                    // only clear if the current visual spell id is the same as the spell we are casting
+                    // as that seems to be when cast animation breaks
                     if (*currentSpellId == spellId) {
                         *currentSpellId = 0;
 

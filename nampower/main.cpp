@@ -44,6 +44,8 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
+const char* VERSION = "v1.9.7";
+
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
     uint32_t gLastBufferIncreaseTimeMs;
@@ -253,6 +255,8 @@ namespace Nampower {
 
         // open new log file
         debugLogFile.open("nampower_debug.log");
+
+        DEBUG_LOG("Loading nampower " << VERSION);
 
         // default values
         gUserSettings.queueCastTimeSpells = true;
@@ -578,8 +582,6 @@ namespace Nampower {
 
     void load() {
         std::call_once(load_flag, []() {
-                           DEBUG_LOG("Loading nampower v1.9.6");
-
                            // hook spell visuals initialize
                            const hadesmem::Process process(::GetCurrentProcessId());
 

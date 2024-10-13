@@ -8,9 +8,8 @@
 #include "logging.hpp"
 
 namespace Nampower {
-    void BeginCast(std::uint32_t castTime, const game::SpellRec *spell) {
+    void BeginCast(uint32_t castTime, const game::SpellRec *spell, const game::SpellCast *cast) {
         auto currentTime = GetTime();
-        auto bufferTime = castTime == 0 ? 0 : gBufferTimeMs;
 
         gLastCastData.castTimeMs = castTime;
 
@@ -24,6 +23,7 @@ namespace Nampower {
 
         auto const spellOnGcd = SpellIsOnGcd(spell);
         gLastCastData.wasOnGcd = spellOnGcd;
+        gLastCastData.wasItem = gCastHistory.peek()->item != nullptr;
 
         gCastData.castEndMs = castTime ? currentTime + castTime + gBufferTimeMs : 0;
 
@@ -185,6 +185,7 @@ namespace Nampower {
         auto const spellOnGcd = SpellIsOnGcd(spell);
         auto const spellIsChanneling = SpellIsChanneling(spell);
         auto const spellIsTargeting = SpellIsTargeting(spell);
+        auto const spellIsTradeSkillOrEnchant = SpellIsTradeskillOrEnchant(spell);
 
 
         DEBUG_LOG("Attempt cast " << spellName << " item " << item << " on guid " << guid
@@ -226,6 +227,11 @@ namespace Nampower {
         auto remainingCD = (remainingEffectiveCastTime > remainingGcd) ? remainingEffectiveCastTime : remainingGcd;
 
         auto inSpellQueueWindow = InSpellQueueWindow(remainingEffectiveCastTime, remainingGcd, spellIsTargeting);
+
+        // don't queue trade skills or enchants
+        if(spellIsTradeSkillOrEnchant) {
+            inSpellQueueWindow = false;
+        }
 
         if (spellIsTargeting) {
             SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory,
@@ -351,11 +357,9 @@ namespace Nampower {
         auto ret = castSpell(playerUnit, spellId, item, guid);
 
         // if this is a trade skill or item enchant, do nothing further
-        if (spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_TRADE_SKILL ||
-            spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_ENCHANT_ITEM ||
-            spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY ||
-            spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_CREATE_ITEM)
+        if (spellIsTradeSkillOrEnchant) {
             return ret;
+        }
 
         // haven't gotten spell result from the previous cast yet, probably due to latency.
         // simulate a cancel to clear the cast bar but only when there should be a cast time
@@ -490,6 +494,6 @@ namespace Nampower {
         sendCast(cast, unk);
 
         auto const spell = game::GetSpellInfo(cast->spellId);
-        BeginCast(gCastData.attemptedCastTimeMs, spell);
+        BeginCast(gCastData.attemptedCastTimeMs, spell, cast);
     }
 }

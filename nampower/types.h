@@ -71,6 +71,7 @@ struct LastCastData {
     uint32_t channelStartTimeMs; // event time in ms
     uint32_t onSwingStartTimeMs; // event time in ms
 
+    bool wasItem;
     bool wasOnGcd;
     bool wasQueued;
 };
