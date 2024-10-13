@@ -278,10 +278,26 @@ namespace Nampower {
                            currentTime, NORMAL, 0);
 
             if (gUserSettings.queueCastTimeSpells) {
-                DEBUG_LOG("Queuing for after cooldown: " << remainingCD << "ms " << spellName);
-                TriggerSpellQueuedEvent(NORMAL_QUEUED, spellId);
-                gCastData.normalSpellQueued = true;
-                return false;
+                if (spellOnGcd) {
+                    DEBUG_LOG("Queuing for after cooldown: " << remainingCD << "ms " << spellName);
+                    TriggerSpellQueuedEvent(NORMAL_QUEUED, spellId);
+                    gCastData.normalSpellQueued = true;
+                    return false;
+                } else if (remainingEffectiveCastTime > 0) {
+                    DEBUG_LOG("Queuing non GCD for after delay: "
+                                      << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
+                                      << spell->StartRecoveryCategory);
+
+                    gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
+                                           spell->StartRecoveryCategory,
+                                           castTime,
+                                           0,
+                                           ::NON_GCD,
+                                           false}, gUserSettings.replaceMatchingNonGcdCategory);
+                    TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
+                    gCastData.nonGcdSpellQueued = true;
+                    return false;
+                }
             }
         } else if (inSpellQueueWindow) {
             if (gUserSettings.queueInstantSpells) {
@@ -295,8 +311,8 @@ namespace Nampower {
                     gCastData.normalSpellQueued = true;
                     return false;
                 } else if (remainingEffectiveCastTime > 0) {
-                    DEBUG_LOG("Queuing instant cast non GCD for after cooldown: "
-                                      << remainingCD << "ms " << spellName << " gcd category "
+                    DEBUG_LOG("Queuing instant cast non GCD for after delay: "
+                                      << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
                                       << spell->StartRecoveryCategory);
 
                     gNonGcdCastQueue.push({playerUnit, spellId, item, guid,

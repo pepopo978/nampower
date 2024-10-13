@@ -26,6 +26,7 @@ namespace Nampower {
         return (spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_TRADE_SKILL ||
                 spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_ENCHANT_ITEM ||
                 spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY ||
-                spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_CREATE_ITEM);
+                spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_CREATE_ITEM ||
+                spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_OPEN_LOCK);
     }
 }
