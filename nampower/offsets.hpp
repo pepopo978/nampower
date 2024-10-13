@@ -93,4 +93,8 @@ enum class Offsets : std::uint32_t {
     lua_pcall = 0x006F41A0,
 
     SpellVisualsInitialize = 0x006ec0e0,
+
+    IntIntParamFormat = 0X00843342,
+    StringIntParamFormat = 0X00847FBC,
+    QueueEventStringPtr = 0X00BE175C, // unused event 369 0x171
 };

@@ -5,6 +5,7 @@
 #include "spellevents.hpp"
 #include "offsets.hpp"
 #include "logging.hpp"
+#include "spellcast.hpp"
 
 namespace Nampower {
     bool SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *unitStr) {
@@ -80,12 +81,14 @@ namespace Nampower {
                                                              << " code " << int(spellResult)
                                                              << ", retry " << castParams->numRetries);
                         gCastData.delayEndMs = currentTime + gBufferTimeMs; // retry after buffer delay
+                        TriggerSpellQueuedEvent(QueueEvents::NON_GCD_QUEUED, spellId);
                         gCastData.nonGcdSpellQueued = true;
                         gNonGcdCastQueue.push(*castParams, gUserSettings.replaceMatchingNonGcdCategory);
                     } else {
                         DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
                                                      << " code " << int(spellResult)
                                                      << ", retry " << castParams->numRetries);
+                        TriggerSpellQueuedEvent(QueueEvents::NORMAL_QUEUED, spellId);
                         gCastData.normalSpellQueued = true;
                         gLastNormalCastParams = *castParams;
                     }

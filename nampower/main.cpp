@@ -142,6 +142,7 @@ namespace Nampower {
                     } else {
                         DEBUG_LOG("Ignoring queued cast of " << game::GetSpellName(gLastNormalCastParams.spellId)
                                                              << " due to max time since last cast");
+                        TriggerSpellQueuedEvent(NORMAL_QUEUE_POPPED, gLastNormalCastParams.spellId);
                         gCastData.normalSpellQueued = false;
                     }
                 }
@@ -457,6 +458,14 @@ namespace Nampower {
     void init_hooks() {
         const hadesmem::Process process(::GetCurrentProcessId());
 
+        auto strPtr = reinterpret_cast<uintptr_t *>(Offsets::QueueEventStringPtr);
+
+        // The new string you want to point to
+        const char* SPELL_QUEUE_EVENT = "SPELL_QUEUE_EVENT";
+
+        // Make 0x00BE175C which is the unused event string ptr point to SPELL_QUEUE_EVENT
+        *strPtr = reinterpret_cast<uintptr_t>(SPELL_QUEUE_EVENT);
+
         auto const setCVarOrig = hadesmem::detail::AliasCast<SetCVarT>(Offsets::Script_SetCVar);
         gSetCVarDetour = std::make_unique<hadesmem::PatchDetour<SetCVarT >>(process, setCVarOrig, &Script_SetCVarHook);
         gSetCVarDetour->Apply();
@@ -551,7 +560,7 @@ namespace Nampower {
 //        gSpellCooldownDetour->Apply();
 
 
-        // Hook the ISceneEnd function to get the EndScene function pointer
+        // Hook the ISceneEnd function to trigger queued spells at the appropriate time
         auto const iEndSceneOrig = hadesmem::detail::AliasCast<ISceneEndT>(Offsets::ISceneEndPtr);
         gIEndSceneDetour = std::make_unique<hadesmem::PatchDetour<ISceneEndT >>(
                 process, iEndSceneOrig, &ISceneEndHook);
@@ -569,7 +578,7 @@ namespace Nampower {
 
     void load() {
         std::call_once(load_flag, []() {
-                           DEBUG_LOG("Loading nampower v1.9.5");
+                           DEBUG_LOG("Loading nampower v1.9.6");
 
                            // hook spell visuals initialize
                            const hadesmem::Process process(::GetCurrentProcessId());

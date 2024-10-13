@@ -38,6 +38,16 @@ enum CastType {
     TARGETING_NON_GCD
 };
 
+enum QueueEvents {
+    ON_SWING_QUEUED,
+    ON_SWING_QUEUE_POPPED,
+    NORMAL_QUEUED,
+    NORMAL_QUEUE_POPPED,
+    NON_GCD_QUEUED,
+    NON_GCD_QUEUE_POPPED,
+    QUEUE_EVENT_COUNT // Keep track of the number of events
+};
+
 struct CastSpellParams {
     /* Original cast spell function arguments */
     uint32_t *playerUnit;

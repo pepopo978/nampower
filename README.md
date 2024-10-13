@@ -46,6 +46,44 @@ SET NP_TargetingQueueWindowMs "1000"
 - `NP_QuickcastTargetingSpells` - Whether to enable quick casting for ALL spells with terrain targeting.  This will cause the spell to instantly cast on your cursor without waiting for you to confirm the targeting circle.  Queuing targeting spells will use quickcasting regardless of this value (couldn't get it to work without doing this).  0 to disable, 1 to enable. Default is 0.
 - `NP_ReplaceMatchingNonGcdCategory` - Whether to replace any queued non gcd spell when a new non gcd spell with the same StartRecoveryCategory is cast (more explanation below).  0 to disable, 1 to enable. Default is 0.
 
+### SPELL_QUEUE_EVENT
+I've added a new event you can register in game to get updates when spells are added and popped from the queue.
+
+The event is `SPELL_QUEUE_EVENT` and has 2 arguments:
+`(int eventCode, int spellId)`
+
+Possible Event codes:
+```
+ ON_SWING_QUEUED = 0
+ ON_SWING_QUEUE_POPPED = 1
+ NORMAL_QUEUED = 2
+ NORMAL_QUEUE_POPPED = 3
+ NON_GCD_QUEUED = 4
+ NON_GCD_QUEUE_POPPED = 5
+```
+
+Example from NampowerSettings:
+```
+local ON_SWING_QUEUED = 0
+local ON_SWING_QUEUE_POPPED = 1
+local NORMAL_QUEUED = 2
+local NORMAL_QUEUE_POPPED = 3
+local NON_GCD_QUEUED = 4
+local NON_GCD_QUEUE_POPPED = 5
+
+local function spellQueueEvent(eventCode, spellId)
+	if eventCode == NORMAL_QUEUED or eventCode == NON_GCD_QUEUED then
+		local _, _, texture = SpellInfo(spellId) -- superwow function
+		Nampower.queued_spell.texture:SetTexture(texture)
+		Nampower.queued_spell:Show()
+	elseif eventCode == NORMAL_QUEUE_POPPED or eventCode == NON_GCD_QUEUE_POPPED then
+		Nampower.queued_spell:Hide()
+	end
+end
+
+NampowerSettings:RegisterEvent("SPELL_QUEUE_EVENT", spellQueueEvent)
+```
+
 ### Bug Reporting
 If you encounter any bugs please report them in the issues tab.  Please include the nampower_debug.txt file in the same directory as your WoW.exe to help me diagnose the issue.  If you are able to reproduce the bug please include the steps to reproduce it.  In a future version once bugs are ironed out I'll make logging optional.
 

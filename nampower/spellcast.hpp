@@ -17,6 +17,8 @@ namespace Nampower {
 
     void CastQueuedSpells();
 
+    void TriggerSpellQueuedEvent(QueueEvents queueEventCode, uint32_t spellId);
+
     bool Spell_C_CastSpellHook(hadesmem::PatchDetourBase *detour, uint32_t *playerUnit, uint32_t spellId, void *item, std::uint64_t guid);
 
     void
