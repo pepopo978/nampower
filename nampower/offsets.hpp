@@ -83,9 +83,17 @@ enum class Offsets : std::uint32_t {
 
     ClientServicesSendMessagePtr = 0X00C28128,
 
+    LoadScriptFunctions = 0x00490250,
+    FrameScript_RegisterFunction = 0x00704120,
+
+    // Existing script functions
+    Script_CastSpellByName = 0x004B4AB0,
     Script_SpellTargetUnit = 0x006E6D90,
     Script_GetGUIDFromName = 0X00515970,
     Script_SetCVar = 0x00488C10,
+
+    // Added script functions
+    Script_QueueSpellByName = 0x004B4B38,  // unused address at the end of Script_CastSpellByName.  Need to be < 0x7FEDAC to avoid Invalid Function Pointer
 
     lua_isstring = 0x006F3510,
     lua_tostring = 0x006F3690,

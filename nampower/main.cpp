@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char* VERSION = "v1.9.8";
+const char *VERSION = "v1.9.9";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -52,6 +52,8 @@ namespace Nampower {
     uint32_t gLastBufferDecreaseTimeMs;
 
     uint32_t gBufferTimeMs;   // adjusts dynamically depending on errors
+
+    bool gForceQueueCast;
 
     hadesmem::PatchDetourBase *castSpellDetour;
 
@@ -67,6 +69,9 @@ namespace Nampower {
 
     CastQueue gCastHistory = CastQueue();
 
+    std::unique_ptr<hadesmem::PatchDetour<SpellVisualsInitializeT >> gSpellVisualsInitDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LoadScriptFunctionsT >> gLoadScriptFunctionsDetour;
+
     std::unique_ptr<hadesmem::PatchDetour<SetCVarT>> gSetCVarDetour;
     std::unique_ptr<hadesmem::PatchDetour<CastSpellT>> gCastDetour;
     std::unique_ptr<hadesmem::PatchDetour<SendCastT>> gSendCastDetour;
@@ -75,13 +80,13 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_SpellFailedT>> gSpellFailedDetour;
     std::unique_ptr<hadesmem::PatchRaw> gCastbarPatch;
     std::unique_ptr<hadesmem::PatchDetour<ISceneEndT>> gIEndSceneDetour;
-    std::unique_ptr<hadesmem::PatchDetour<SpellVisualsInitializeT >> gSpellVisualsInitDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellChannelStartHandlerT>> gSpellChannelStartHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellChannelUpdateHandlerT>> gSpellChannelUpdateHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_GetAutoRepeatingSpellT>> gSpell_C_GetAutoRepeatingSpellDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_CooldownEventTriggeredT >> gSpell_C_CooldownEventTriggeredDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellGoT>> gSpellGoDetour;
-    std::unique_ptr<hadesmem::PatchDetour<SpellTargetUnitT>> gSpellTargetUnitDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gSpellTargetUnitDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gQueueSpellByNameDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_HandleSpriteClickT>> gSpell_C_HandleSpriteClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_TargetSpellT>> gSpell_C_TargetSpellDetour;
 
@@ -100,6 +105,12 @@ namespace Nampower {
         typedef void __fastcall func(const char *code, const char *unused);
         func *function = (func *) Offsets::lua_call;
         function(code, "Unused");
+    }
+
+    void RegisterLuaFunction(char *name, uintptr_t *func) {
+        DEBUG_LOG("Registering " << name << " to " << func);
+        auto const registerFunction = reinterpret_cast<FrameScript_RegisterFunctionT>(Offsets::FrameScript_RegisterFunction);
+        registerFunction(name, func);
     }
 
     bool IsNonSwingSpellQueued() {
@@ -465,7 +476,7 @@ namespace Nampower {
         auto strPtr = reinterpret_cast<uintptr_t *>(Offsets::QueueEventStringPtr);
 
         // The new string you want to point to
-        const char* SPELL_QUEUE_EVENT = "SPELL_QUEUE_EVENT";
+        const char *SPELL_QUEUE_EVENT = "SPELL_QUEUE_EVENT";
 
         // Make 0x00BE175C which is the unused event string ptr point to SPELL_QUEUE_EVENT
         *strPtr = reinterpret_cast<uintptr_t>(SPELL_QUEUE_EVENT);
@@ -540,9 +551,9 @@ namespace Nampower {
                                                                                        &SpellDelayedHook);
         gSpellDelayedDetour->Apply();
 
-        auto const spellTargetUnitOrig = hadesmem::detail::AliasCast<SpellTargetUnitT>(Offsets::Script_SpellTargetUnit);
+        auto const spellTargetUnitOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_SpellTargetUnit);
         gSpellTargetUnitDetour = std::make_unique<hadesmem::PatchDetour<
-                SpellTargetUnitT >>(process, spellTargetUnitOrig, &SpellTargetUnitHook);
+                LuaScriptT >>(process, spellTargetUnitOrig, &SpellTargetUnitHook);
         gSpellTargetUnitDetour->Apply();
 
         auto const spell_C_TargetSpellOrig = hadesmem::detail::AliasCast<Spell_C_TargetSpellT>(
@@ -551,6 +562,12 @@ namespace Nampower {
                                                                                                     spell_C_TargetSpellOrig,
                                                                                                     &Spell_C_TargetSpellHook);
         gSpell_C_TargetSpellDetour->Apply();
+
+        auto const queueSpellByNameOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_QueueSpellByName);
+        gQueueSpellByNameDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process, queueSpellByNameOrig,
+                                                                                       Script_QueueSpellByName);
+        gQueueSpellByNameDetour->Apply();
+
 
 //        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
 //                Offsets::Spell_C_CooldownEventTriggered);
@@ -578,6 +595,16 @@ namespace Nampower {
         init_hooks();
     }
 
+    void LoadScriptFunctionsHook(hadesmem::PatchDetourBase *detour) {
+        auto const loadScriptFunctions = detour->GetTrampolineT<LoadScriptFunctionsT>();
+        loadScriptFunctions();
+
+        // register our own lua functions
+        DEBUG_LOG("Registering Custom Lua functions");
+        char queueSpellByName[] = "QueueSpellByName";
+        RegisterLuaFunction(queueSpellByName, reinterpret_cast<uintptr_t *>(Offsets::Script_QueueSpellByName));
+    }
+
     std::once_flag load_flag;
 
     void load() {
@@ -591,6 +618,13 @@ namespace Nampower {
                                                                                                                        spellVisualsInitOrig,
                                                                                                                        &SpellVisualsInitializeHook);
                            gSpellVisualsInitDetour->Apply();
+
+                           auto const loadScriptFunctionsOrig = hadesmem::detail::AliasCast<LoadScriptFunctionsT>(
+                                   Offsets::LoadScriptFunctions);
+                           gLoadScriptFunctionsDetour = std::make_unique<hadesmem::PatchDetour<LoadScriptFunctionsT >>(process,
+                                                                                                                       loadScriptFunctionsOrig,
+                                                                                                                       &LoadScriptFunctionsHook);
+                           gLoadScriptFunctionsDetour->Apply();
                        }
         );
     }

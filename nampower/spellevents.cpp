@@ -8,14 +8,14 @@
 #include "spellcast.hpp"
 
 namespace Nampower {
-    bool SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *unitStr) {
-        auto const spellTargetUnit = detour->GetTrampolineT<SpellTargetUnitT>();
+    bool SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        auto const spellTargetUnit = detour->GetTrampolineT<LuaScriptT>();
 
         // check if valid string
         auto const lua_isstring = reinterpret_cast<lua_isstringT>(Offsets::lua_isstring);
-        if (lua_isstring(unitStr, 1)) {
+        if (lua_isstring(luaState, 1)) {
             auto const lua_tostring = reinterpret_cast<lua_tostringT>(Offsets::lua_tostring);
-            auto const unitName = lua_tostring(unitStr, 1);
+            auto const unitName = lua_tostring(luaState, 1);
 
             auto const getGUIDFromName = reinterpret_cast<Script_GetGUIDFromNameT>(Offsets::Script_GetGUIDFromName);
             auto const guid = getGUIDFromName(unitName);
@@ -32,7 +32,7 @@ namespace Nampower {
             }
         }
 
-        return spellTargetUnit(unitStr);
+        return spellTargetUnit(luaState);
     }
 
     void Spell_C_SpellFailedHook(hadesmem::PatchDetourBase *detour, uint32_t spellId,

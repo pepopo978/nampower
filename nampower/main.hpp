@@ -35,6 +35,8 @@ namespace Nampower {
 
     extern uint32_t gBufferTimeMs;   // adjusts dynamically depending on errors
 
+    extern bool gForceQueueCast;
+
     extern hadesmem::PatchDetourBase *castSpellDetour;
 
     /* Configurable settings set by user */
@@ -63,13 +65,17 @@ namespace Nampower {
     using Spell_C_SpellFailedT = void (__fastcall *)(uint32_t, game::SpellCastResult, int, int, char unk3);
     using Spell_C_GetAutoRepeatingSpellT = int (__cdecl *)();
     using SpellGoT = void (__fastcall *)(uint64_t *, uint64_t *, uint32_t, CDataStore *);
-    using SpellTargetUnitT = bool (__fastcall *)(uintptr_t *unitStr);
     using Spell_C_HandleSpriteClickT = bool (__fastcall *)(game::CSpriteClickEvent *event);
     using Spell_C_TargetSpellT = bool (__fastcall *)(
             uint32_t *player,
             uint32_t *spellId,
             uint32_t unk3,
             float unk4);
+
+    using LoadScriptFunctionsT = void (__stdcall *)();
+    using FrameScript_RegisterFunctionT = void (__fastcall *)(char *name, uintptr_t *func);
+
+    using LuaScriptT = bool (__fastcall *)(uintptr_t *luaState);
     using Script_GetGUIDFromNameT = std::uint64_t (__fastcall *)(const char *);
     using lua_isstringT = bool (__fastcall *)(uintptr_t *, int);
     using lua_tostringT = const char *(__fastcall *)(uintptr_t *, int);
@@ -86,6 +92,8 @@ namespace Nampower {
     using CVarRegisterT = int *(__fastcall *)(char *name, char *help, int unk1, const char *defaultValuePtr,
                                               void *callbackPtr,
                                               int category, char unk2, int unk3);
+
+    void RegisterLuaFunction(char *, uintptr_t *func);
 
     void LuaCall(const char *code);
 

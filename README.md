@@ -46,6 +46,16 @@ SET NP_TargetingQueueWindowMs "1000"
 - `NP_QuickcastTargetingSpells` - Whether to enable quick casting for ALL spells with terrain targeting.  This will cause the spell to instantly cast on your cursor without waiting for you to confirm the targeting circle.  Queuing targeting spells will use quickcasting regardless of this value (couldn't get it to work without doing this).  0 to disable, 1 to enable. Default is 0.
 - `NP_ReplaceMatchingNonGcdCategory` - Whether to replace any queued non gcd spell when a new non gcd spell with the same StartRecoveryCategory is cast (more explanation below).  0 to disable, 1 to enable. Default is 0.
 
+### Custom Lua Functions
+
+#### QueueSpellByName(spellName)
+Will force queue a spell regardless of the appropriate queue window.  If no spell is currently being cast it will be cast immediately.
+For example can make a macro with 
+```
+/run QueueSpellByName("Frostbolt");QueueSpellByName("Frostbolt")
+```
+to cast 2 frostbolts in a row.  Currently, can only queue 1 GCD spell at a time and 5 non gcd spells.  This means you can't do 3 frostbolts in a row with one macro.
+
 ### SPELL_QUEUE_EVENT
 I've added a new event you can register in game to get updates when spells are added and popped from the queue.
 

@@ -153,11 +153,11 @@ namespace Nampower {
         }
 
         if (remainingCastTime > 0) {
-            return remainingCastTime < queueWindow;
+            return remainingCastTime < queueWindow || gForceQueueCast;
         }
 
         if (remainingGcd > 0) {
-            return remainingGcd < queueWindow;
+            return remainingGcd < queueWindow || gForceQueueCast;
         }
 
         return false;
@@ -169,6 +169,17 @@ namespace Nampower {
                 (char *) Offsets::IntIntParamFormat,
                 queueEventCode,
                 spellId);
+    }
+
+    bool Script_QueueSpellByName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        DEBUG_LOG("Force queuing next cast spell");
+        // turn on forceQueue and then call regular CastSpellByName
+        gForceQueueCast = true;
+        auto const Script_CastSpellByName = reinterpret_cast<LuaScriptT>(Offsets::Script_CastSpellByName);
+        auto result = Script_CastSpellByName(luaState);
+        gForceQueueCast = false;
+
+        return result;
     }
 
     bool
@@ -229,7 +240,7 @@ namespace Nampower {
         auto inSpellQueueWindow = InSpellQueueWindow(remainingEffectiveCastTime, remainingGcd, spellIsTargeting);
 
         // don't queue trade skills or enchants
-        if(spellIsTradeSkillOrEnchant) {
+        if (spellIsTradeSkillOrEnchant) {
             inSpellQueueWindow = false;
         }
 
@@ -328,26 +339,22 @@ namespace Nampower {
             }
         }
 
-        // is there a cast? (ignore for on swing spells)
-        if (remainingEffectiveCastTime) {
-            DEBUG_LOG("Cooldown active " << remainingEffectiveCastTime << "ms remaining");
-            return false;
-        } else {
-            gCastData.castEndMs = 0;
-        }
+        if (!spellIsTradeSkillOrEnchant) {
+            // is there a cast? (ignore for on swing spells)
+            if (remainingEffectiveCastTime) {
+                DEBUG_LOG("Cooldown active " << remainingEffectiveCastTime << "ms remaining");
+                return false;
+            } else {
+                gCastData.castEndMs = 0;
+            }
 
-        // is there a Gcd?
-        if (spellOnGcd && remainingGcd) {
-            DEBUG_LOG("Gcd active " << remainingGcd << "ms remaining");
-            return false;
-        } else {
-            gCastData.gcdEndMs = 0;
-        }
-
-        // try clearing current casting spell id
-        if (gLastCastData.wasQueued) {
-            auto const clearCastingSpellId = reinterpret_cast<uint32_t *>(Offsets::CastingSpellId);
-            *clearCastingSpellId = 0;
+            // is there a Gcd?
+            if (spellOnGcd && remainingGcd) {
+                DEBUG_LOG("Gcd active " << remainingGcd << "ms remaining");
+                return false;
+            } else {
+                gCastData.gcdEndMs = 0;
+            }
         }
 
         // add to cast history
@@ -447,7 +454,6 @@ namespace Nampower {
                     DEBUG_LOG("On swing spell " << game::GetSpellName(spellId) <<
                                                 " resolved, casting queued on swing spell "
                                                 << game::GetSpellName(gLastOnSwingCastParams.spellId));
-
 
 
                     TriggerSpellQueuedEvent(ON_SWING_QUEUE_POPPED, gLastOnSwingCastParams.spellId);
