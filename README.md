@@ -152,11 +152,11 @@ Now looks for a nampower.cfg file in the same directory with two lines:
 1.  The first line should contain the "buffer" time between each cast.  This is the amount of time to delay casts to ensure you don't try to cast again too early due to server/packet lag and get rejected by the server with a "This ability isn't ready yet" error.  For 150ms I found 30ms to be a reasonable buffer.
 2.  The second line is the window in ms before each cast during which nampower will delay cast attempts to send them to the server at the perfect time.  So 300 would mean if you cast anytime in the 300ms window before your next optimal cast your cast will be sent at the idea time.  This means you don't have to spam cast as aggressively.  This feature will cause a small stutter because it is pausing your UI (I couldn't findSpellId a better way to do this but I'm sure one exists now with superwow) so if you don't like that set this to 0.
 
+# Namreeb readme
+
 **Please consider donating if you use this tool. - Namreeb**
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=QFWZUEMC5N3SW)
-  
-# nampower
 
 An auto stop-cast tool for World of Warcraft 1.12.1.5875 (for Windows)
 
@@ -180,10 +180,6 @@ In this scenario, a 1000ms spell takes 1400ms to cast.  This tool will work arou
 design flaw by altering the client behavior to not wait for the server to acknowledge
 anything.
 
-## New In Version 2.0 ##
-
-Previous versions of this tool required custom macros.  This version should "just work".
-
 ## Using ##
 
 If you use my launcher, known as [wowreeb](https://github.com/namreeb/wowreeb), you can add
@@ -195,18 +191,3 @@ the following line to a `<Realm>` block to tell the launcher to include this too
 
 To launch with the built-in launcher, run loader.exe -p c:\path\to\wow.exe (or just loader.exe
 with it inside the main wow folder)
-
-### Account Security ###
-
-While this makes no malicious changes to the WoW client, it could easily be mistaken
-as malicious by the primitive anticheats in use on some vanilla private servers.
-This program contains absolutely no protection against anticheat software.
-
-Having written the anticheat for Elysium and Light's Hope, I can say that they do not
-currently detect this, and are unlikely ever to do so.
-
-Kronos / Twinstar has said that while they do not support client modification, they
-will not specifically target this mod.  Refer to this thread:
-http://forum.twinstar.cz/showthread.php/97154-Planning-to-release-a-wow-mod-Will-it-get-people-banned
-
-USE AT YOUR OWN RISK
