@@ -42,10 +42,6 @@ namespace Nampower {
 
         ResetCastFlags();
 
-        if (gCastData.castingQueuedSpell || gCastData.cancellingSpell) {
-            return;
-        }
-
         if ((spellResult == game::SpellCastResult::SPELL_FAILED_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_ITEM_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_SPELL_IN_PROGRESS)
@@ -58,21 +54,14 @@ namespace Nampower {
                                              << " not queuing retry due to retryServerRejectedSpells=false");
                 return;
             }
-                // ignore error spam
-            else if (currentTime - gLastErrorTimeMs < 50) {
-                DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
-                                             << " code " << int(spellResult)
-                                             << ", not queuing retry due to recent error at " << gLastErrorTimeMs);
-                return;
-            }
             gLastErrorTimeMs = currentTime;
 
             // try to find the cast params for the spellId that numRetries in spellhistory
             auto castParams = gCastHistory.findSpellId(spellId);
             // if we find non retried cast params and the original cast time is within the last 500ms, retry the cast
             if (castParams && castParams->castStartTimeMs > currentTime - 500) {
-                // allow 2 retries
-                if (castParams->numRetries < 2) {
+                // allow 3 retries
+                if (castParams->numRetries < 3) {
                     castParams->numRetries++; // mark as retried
 
                     if (castParams->castType == CastType::NON_GCD ||
@@ -95,7 +84,7 @@ namespace Nampower {
                 } else {
                     DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
                                                  << " code " << int(spellResult)
-                                                 << ", not retrying as it has already been retried twice");
+                                                 << ", not retrying as it has already been retried 3 times");
                 }
             } else {
                 DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
@@ -280,11 +269,11 @@ namespace Nampower {
                 // avoid clearing visual spell id as much as possible as it can cause weird sound/animation issues
                 // only do it for normal gcd spells with a cast time
                 if (castTime > 0 && gLastCastData.wasQueued && gLastCastData.wasOnGcd && !gLastCastData.wasItem) {
-                    auto currentSpellId = reinterpret_cast<uint32_t *>(Offsets::VisualSpellId);
+                    auto visualSpellId = reinterpret_cast<uint32_t *>(Offsets::VisualSpellId);
                     // only clear if the current visual spell id is the same as the spell we are casting
                     // as that seems to be when cast animation breaks
-                    if (*currentSpellId == spellId) {
-                        *currentSpellId = 0;
+                    if (*visualSpellId == spellId) {
+                        *visualSpellId = 0;
 
                         previousVisualSpellId = spellId;
                     }

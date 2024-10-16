@@ -23,10 +23,13 @@ namespace Nampower {
     }
 
     bool SpellIsTradeskillOrEnchant(const game::SpellRec *spell) {
-        return (spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_TRADE_SKILL ||
+        return (
+                spell->Attributes & game::SpellAttributes::SPELL_ATTR_TRADESPELL ||
+                spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_TRADE_SKILL ||
                 spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_ENCHANT_ITEM ||
                 spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY ||
                 spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_CREATE_ITEM ||
-                spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_OPEN_LOCK);
+                spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_OPEN_LOCK ||
+                spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_OPEN_LOCK_ITEM);
     }
 }

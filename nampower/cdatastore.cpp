@@ -144,8 +144,34 @@ namespace Nampower {
             }
         }
 
-        val = guid; // final result seems to be shifted right by 2 bits
+        val = guid;
     }
+
+    void CDataStore::PutPackedGuid(uint64_t guid) {
+        uint8_t mask = 0;  // Bitmap mask to indicate which bytes are non-zero
+        uint8_t bytes[8];  // Array to store non-zero bytes from the GUID
+
+        // Iterate over each byte of the GUID
+        for (uint8_t i = 0; i < 8; ++i) {
+            uint8_t byte = (guid >> (i * 8)) & 0xFF;  // Extract each byte from the GUID
+
+            if (byte != 0) {
+                mask |= (1 << i);  // Set the corresponding bit in the mask if the byte is non-zero
+                bytes[i] = byte;    // Store the non-zero byte
+            }
+        }
+
+        // Write the mask byte first
+        Put(mask);
+
+        // Write the non-zero bytes based on the mask
+        for (uint8_t i = 0; i < 8; ++i) {
+            if (mask & (1 << i)) {
+                Put(bytes[i]);  // Only write bytes that are non-zero according to the mask
+            }
+        }
+    }
+
 
     class CDataStore &CDataStore::PutString(char const *pStr) {
         if (pStr) {

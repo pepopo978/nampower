@@ -182,6 +182,16 @@ namespace Nampower {
         return result;
     }
 
+    void clearCastingSpell() {
+        // clearing current casting spell id if needed
+        // this prevents client from failing to cast spells without a casttime
+        // due to not receiving spell result yet
+        auto const castingSpellId = reinterpret_cast<uint32_t *>(Offsets::CastingSpellId);
+        if (*castingSpellId > 0) {
+            *castingSpellId = 0;
+        }
+    }
+
     bool
     Spell_C_CastSpellHook(hadesmem::PatchDetourBase *detour, uint32_t *playerUnit, uint32_t spellId, void *item,
                           std::uint64_t guid) {
@@ -197,7 +207,6 @@ namespace Nampower {
         auto const spellIsChanneling = SpellIsChanneling(spell);
         auto const spellIsTargeting = SpellIsTargeting(spell);
         auto const spellIsTradeSkillOrEnchant = SpellIsTradeskillOrEnchant(spell);
-
 
         DEBUG_LOG("Attempt cast " << spellName << " item " << item << " on guid " << guid
                                   << ", time since last cast " << currentTime - gLastCastData.startTimeMs);
@@ -357,6 +366,9 @@ namespace Nampower {
             }
         }
 
+        // try clearing current casting spell id
+        clearCastingSpell();
+
         // add to cast history
         auto castType = CastType::NORMAL;
         if (spellIsChanneling) {
@@ -401,6 +413,7 @@ namespace Nampower {
 
                 gCastData.cancellingSpell = false;
 
+                clearCastingSpell();
 
                 // try again now that cast bar is gone
                 ret = castSpell(playerUnit, spellId, item, guid);

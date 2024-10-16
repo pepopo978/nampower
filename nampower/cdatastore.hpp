@@ -71,7 +71,9 @@ namespace Nampower {
 
         void CDataStore::GetPackedGuid(uint64_t &val);
 
-        template<typename T>
+        void CDataStore::PutPackedGuid(uint64_t guid);
+
+            template<typename T>
         void Set(unsigned int pos, T val) {
             if ((pos < m_base) || (pos + sizeof(T) > m_alloc + m_base)) {
                 InternalFetchWrite(pos, sizeof(val), m_buffer, m_base, m_alloc);
