@@ -8,7 +8,7 @@
 #include "spellcast.hpp"
 
 namespace Nampower {
-    bool SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+    bool Script_SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
         auto const spellTargetUnit = detour->GetTrampolineT<LuaScriptT>();
 
         // check if valid string

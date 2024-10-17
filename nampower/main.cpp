@@ -91,6 +91,7 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gSpellTargetUnitDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gQueueSpellByNameDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> qQueueScriptDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gIsSpellInRangeDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_HandleSpriteClickT>> gSpell_C_HandleSpriteClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_TargetSpellT>> gSpell_C_TargetSpellDetour;
 
@@ -139,6 +140,10 @@ namespace Nampower {
                     queuedScript = script;
                     gScriptQueued = true;
                 }
+            } else {
+                DEBUG_LOG("Invalid script");
+                auto const lua_error = reinterpret_cast<lua_errorT>(Offsets::lua_error);
+                lua_error(luaState, "Usage: QueueScript(\"script\")");
             }
         } else {
             // just call regular runscript
@@ -305,7 +310,7 @@ namespace Nampower {
             if (strncmp(cVarName, "NP_", 3) == 0) {
                 update_from_cvar(cVarName, cVarValue);
             }
-        }
+        } // original function handles errors
 
         return cvarSetOrig(luaPtr);
     }
@@ -629,7 +634,7 @@ namespace Nampower {
 
         auto const spellTargetUnitOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_SpellTargetUnit);
         gSpellTargetUnitDetour = std::make_unique<hadesmem::PatchDetour<
-                LuaScriptT >>(process, spellTargetUnitOrig, &SpellTargetUnitHook);
+                LuaScriptT >>(process, spellTargetUnitOrig, &Script_SpellTargetUnitHook);
         gSpellTargetUnitDetour->Apply();
 
         auto const spell_C_TargetSpellOrig = hadesmem::detail::AliasCast<Spell_C_TargetSpellT>(
@@ -648,6 +653,11 @@ namespace Nampower {
         qQueueScriptDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process, queueScriptOrig,
                                                                                   Script_QueueScript);
         qQueueScriptDetour->Apply();
+
+//        auto const isSpellInRangeOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_IsSpellInRange);
+//        gIsSpellInRangeDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process, isSpellInRangeOrig,
+//                                                                                     Script_IsSpellInRange);
+//        gIsSpellInRangeDetour->Apply();
 
 //        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
 //                Offsets::Spell_C_CooldownEventTriggered);
@@ -686,6 +696,9 @@ namespace Nampower {
 
         char queueScript[] = "QueueScript";
         RegisterLuaFunction(queueScript, reinterpret_cast<uintptr_t *>(Offsets::Script_QueueScript));
+
+//        char isSpellInRange[] = "IsSpellInRange";
+//        RegisterLuaFunction(isSpellInRange, reinterpret_cast<uintptr_t *>(Offsets::Script_IsSpellInRange));
     }
 
     std::once_flag load_flag;

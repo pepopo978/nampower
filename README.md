@@ -56,6 +56,16 @@ For example can make a macro with
 ```
 to cast 2 frostbolts in a row.  Currently, can only queue 1 GCD spell at a time and 5 non gcd spells.  This means you can't do 3 frostbolts in a row with one macro.
 
+#### QueueScript(script)
+Queues any arbitrary script using the same logic as a regular spell using NP_SpellQueueWindowMs as the window.  The script will run BEFORE any other queued spells.  If no spell is being cast and you are not on the gcd the script will be run immediately.
+
+Convert slash commands from other addons like `/equip` to their function form `SlashCmdList.EQUIP` to use them inside QueueScript.
+
+For example, you can equip a libram before casting a queued heal using
+```
+/run QueueScript('SlashCmdList.EQUIP("Libram of +heal")')
+```
+
 ### SPELL_QUEUE_EVENT
 I've added a new event you can register in game to get updates when spells are added and popped from the queue.
 

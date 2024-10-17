@@ -81,6 +81,9 @@ namespace Nampower {
     using Script_GetGUIDFromNameT = std::uint64_t (__fastcall *)(const char *);
     using lua_isstringT = bool (__fastcall *)(uintptr_t *, int);
     using lua_tostringT = char *(__fastcall *)(uintptr_t *, int);
+    using lua_errorT = void (__cdecl *)(uintptr_t *, const char *);
+
+    using GetSpellIdFromSpellNameT = int (__fastcall *)(const char *, uint32_t *);
 
     using Spell_C_CooldownEventTriggeredT = void (__fastcall *)(uint32_t spellId,
                                                                 uint64_t *targetGUID,

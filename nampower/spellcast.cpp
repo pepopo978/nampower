@@ -164,6 +164,27 @@ namespace Nampower {
         }
     }
 
+    bool Script_IsSpellInRange(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        DEBUG_LOG("Checking if spell is in range");
+
+        auto const lua_isstring = reinterpret_cast<lua_isstringT>(Offsets::lua_isstring);
+        if (lua_isstring(luaState, 1)) {
+            auto const lua_tostring = reinterpret_cast<lua_tostringT>(Offsets::lua_tostring);
+            auto const spellName = lua_tostring(luaState, 1);
+
+            auto const GetSpellIdFromSpellName = reinterpret_cast<GetSpellIdFromSpellNameT>(Offsets::GetSpellIdFromSpellName);
+            uint32_t spellId;
+            auto result = GetSpellIdFromSpellName(spellName, &spellId);
+
+            DEBUG_LOG(spellId << " " << result << " " << spellName);
+        } else {
+            auto const lua_error = reinterpret_cast<lua_errorT>(Offsets::lua_error);
+            lua_error(luaState, "Usage: IsSpellInRange(spellName)");
+        }
+
+        return false;
+    }
+
     bool
     Spell_C_CastSpellHook(hadesmem::PatchDetourBase *detour, uint32_t *playerUnit, uint32_t spellId, void *item,
                           std::uint64_t guid) {

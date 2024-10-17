@@ -19,6 +19,8 @@ namespace Nampower {
 
     bool Script_QueueSpellByName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
 
+    bool Script_IsSpellInRange(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
+
     bool Spell_C_CastSpellHook(hadesmem::PatchDetourBase *detour, uint32_t *playerUnit, uint32_t spellId, void *item,
                                std::uint64_t guid);
 
