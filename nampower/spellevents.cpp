@@ -42,6 +42,13 @@ namespace Nampower {
 
         ResetCastFlags();
 
+        // try to find the cast params for the spellId that numRetries in spellhistory
+        auto castParams = gCastHistory.findSpellId(spellId);
+        if(castParams) {
+            // Update the cast result even if this was a client failure to allowing casting again if needed
+            castParams->castResult = CastResult::SERVER_FAILURE;
+        }
+
         if ((spellResult == game::SpellCastResult::SPELL_FAILED_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_ITEM_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_SPELL_IN_PROGRESS)
@@ -56,50 +63,50 @@ namespace Nampower {
             }
             gLastErrorTimeMs = currentTime;
 
-            // try to find the cast params for the spellId that numRetries in spellhistory
-            auto castParams = gCastHistory.findSpellId(spellId);
-            // if we find non retried cast params and the original cast time is within the last 500ms, retry the cast
-            if (castParams && castParams->castStartTimeMs > currentTime - 500) {
-                // allow 3 retries
-                if (castParams->numRetries < 3) {
-                    castParams->numRetries++; // mark as retried
+            if (castParams) {
+                // if we find non retried cast params and the original cast time is within the last 500ms, retry the cast
+                if (castParams->castStartTimeMs > currentTime - 500) {
+                    // allow 3 retries
+                    if (castParams->numRetries < 3) {
+                        castParams->numRetries++; // mark as retried
 
-                    if (castParams->castType == CastType::NON_GCD ||
-                        castParams->castType == CastType::TARGETING_NON_GCD) {
-                        DEBUG_LOG("Cast failed for non gcd " << game::GetSpellName(spellId)
-                                                             << " code " << int(spellResult)
-                                                             << ", retry " << castParams->numRetries);
-                        gCastData.delayEndMs = currentTime + gBufferTimeMs; // retry after buffer delay
-                        TriggerSpellQueuedEvent(QueueEvents::NON_GCD_QUEUED, spellId);
-                        gCastData.nonGcdSpellQueued = true;
-                        gNonGcdCastQueue.push(*castParams, gUserSettings.replaceMatchingNonGcdCategory);
+                        if (castParams->castType == CastType::NON_GCD ||
+                            castParams->castType == CastType::TARGETING_NON_GCD) {
+                            DEBUG_LOG("Cast failed for non gcd " << game::GetSpellName(spellId)
+                                                                 << " code " << int(spellResult)
+                                                                 << ", retry " << castParams->numRetries);
+                            gCastData.delayEndMs = currentTime + gBufferTimeMs; // retry after buffer delay
+                            TriggerSpellQueuedEvent(QueueEvents::NON_GCD_QUEUED, spellId);
+                            gCastData.nonGcdSpellQueued = true;
+                            gNonGcdCastQueue.push(*castParams, gUserSettings.replaceMatchingNonGcdCategory);
+                        } else {
+                            DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
+                                                         << " code " << int(spellResult)
+                                                         << ", retry " << castParams->numRetries);
+                            TriggerSpellQueuedEvent(QueueEvents::NORMAL_QUEUED, spellId);
+                            gCastData.normalSpellQueued = true;
+                            gLastNormalCastParams = *castParams;
+                        }
                     } else {
                         DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
                                                      << " code " << int(spellResult)
-                                                     << ", retry " << castParams->numRetries);
-                        TriggerSpellQueuedEvent(QueueEvents::NORMAL_QUEUED, spellId);
-                        gCastData.normalSpellQueued = true;
-                        gLastNormalCastParams = *castParams;
+                                                     << ", not retrying as it has already been retried 3 times");
                     }
                 } else {
                     DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
                                                  << " code " << int(spellResult)
-                                                 << ", not retrying as it has already been retried 3 times");
+                                                 << ", no recent cast params found in history");
                 }
-            } else {
-                DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
-                                             << " code " << int(spellResult)
-                                             << ", no recent cast params found in history");
-            }
 
 
-            // check if we should increase the buffer time
-            if (currentTime - gLastBufferIncreaseTimeMs > BUFFER_INCREASE_FREQUENCY) {
-                // check if gBufferTimeMs is already at max
-                if (gBufferTimeMs - gUserSettings.minBufferTimeMs < gUserSettings.maxBufferIncreaseMs) {
-                    gBufferTimeMs += DYNAMIC_BUFFER_INCREMENT;
-                    DEBUG_LOG("Increasing buffer to " << gBufferTimeMs);
-                    gLastBufferIncreaseTimeMs = currentTime;
+                // check if we should increase the buffer time
+                if (currentTime - gLastBufferIncreaseTimeMs > BUFFER_INCREASE_FREQUENCY) {
+                    // check if gBufferTimeMs is already at max
+                    if (gBufferTimeMs - gUserSettings.minBufferTimeMs < gUserSettings.maxBufferIncreaseMs) {
+                        gBufferTimeMs += DYNAMIC_BUFFER_INCREMENT;
+                        DEBUG_LOG("Increasing buffer to " << gBufferTimeMs);
+                        gLastBufferIncreaseTimeMs = currentTime;
+                    }
                 }
             }
         } else if (gCastData.normalSpellQueued) {
@@ -112,7 +119,7 @@ namespace Nampower {
 
         auto const rpos = packet->m_read;
 
-        if(packet->m_size == 16){
+        if (packet->m_size == 16) {
             uint64_t targetGuid;
             packet->Get(targetGuid);
 
@@ -124,7 +131,8 @@ namespace Nampower {
 
             packet->m_read = rpos;
 
-            DEBUG_LOG("Spell cooldown opcode:" << opCode << " for " << game::GetSpellName(spellId) << " cooldown " << cooldown);
+            DEBUG_LOG("Spell cooldown opcode:" << opCode << " for " << game::GetSpellName(spellId) << " cooldown "
+                                               << cooldown);
         }
 
         return spellCooldownHandler(opCode, packet);
@@ -193,8 +201,14 @@ namespace Nampower {
 
         packet->m_read = rpos;
 
-        DEBUG_LOG("Cast result opcode:" << opCode << " for " << game::GetSpellName(spellId) << " status " << int(status)
-                                        << " result " << int(spellCastResult));
+        DEBUG_LOG("Cast result for " << game::GetSpellName(spellId) << " status " << int(status)
+                                     << " result " << int(spellCastResult));
+
+        // update cast history
+        auto castParams = gCastHistory.findSpellId(spellId);
+        if (castParams) {
+            castParams->castResult = spellCastResult == 0 ? CastResult::SERVER_SUCCESS : CastResult::SERVER_FAILURE;
+        }
 
         return castResultHandler(opCode, packet);
     }
@@ -254,7 +268,7 @@ namespace Nampower {
                     } else {
                         auto castTimeDifference = gLastNormalCastParams.castTimeMs - castTime;
 
-                        if(gCastData.castEndMs > castTimeDifference) {
+                        if (gCastData.castEndMs > castTimeDifference) {
                             gCastData.castEndMs -= castTimeDifference;
                             DEBUG_LOG("Server cast time for " << game::GetSpellName(spellId) << " decreased by "
                                                               << castTimeDifference << "ms.  Updated cast end time to "

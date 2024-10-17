@@ -48,6 +48,12 @@ enum QueueEvents {
     QUEUE_EVENT_COUNT // Keep track of the number of events
 };
 
+enum CastResult {
+    WAITING_FOR_SERVER,
+    SERVER_SUCCESS,
+    SERVER_FAILURE
+};
+
 struct CastSpellParams {
     /* Original cast spell function arguments */
     uint32_t *playerUnit;
@@ -62,6 +68,7 @@ struct CastSpellParams {
     uint32_t castStartTimeMs;
     CastType castType;
     uint32_t numRetries;
+    CastResult castResult;
 };
 
 struct LastCastData {

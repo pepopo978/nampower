@@ -125,7 +125,8 @@ Only one gcd spell can be queued at a time.  Pressing a new gcd spell will repla
 #### Non GCD Spells
 Non gcd spells have special handling.  You can queue up to 5 non gcd spells, 
 and they will execute in the order queued with `NP_NonGcdBufferTimeMs` delay after each of them to help avoid server rejection.  
-The non gcd queue always has priority over queued normal spells.
+The non gcd queue always has priority over queued normal spells.  
+You can only queue a given spellId once in the non gcd queue, any subsequent attempts will just replace the existing entry in the queue.
 
 `NP_ReplaceMatchingNonGcdCategory` will cause non gcd spells with the same StartRecoveryCategory to replace each other in the queue.  
 The vast majority of spells not on the gcd have category '0' so enabling this setting will cause them to all replace each other.  

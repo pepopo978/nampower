@@ -268,19 +268,26 @@ namespace Nampower {
                             gCastData.normalSpellQueued = true;
                             return false;
                         } else if (remainingEffectiveCastTime > 0) {
-                            DEBUG_LOG("Queuing instant cast non GCD targeting for after cooldown: "
-                                              << remainingCD << "ms " << spellName << " gcd category "
-                                              << spell->StartRecoveryCategory);
+                            auto castParams = gNonGcdCastQueue.findSpellId(spellId);
+                            if (castParams) {
+                                DEBUG_LOG("Updating instant cast non GCD targeting params for " << spellName);
+                                castParams->guid = guid;
+                                return false;
+                            } else {
+                                DEBUG_LOG("Queuing instant cast non GCD targeting for after cast/delay: "
+                                                  << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
+                                                  << spell->StartRecoveryCategory);
 
-                            gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
-                                                   spell->StartRecoveryCategory,
-                                                   castTime,
-                                                   0,
-                                                   ::NON_GCD,
-                                                   false}, gUserSettings.replaceMatchingNonGcdCategory);
-                            TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
-                            gCastData.nonGcdSpellQueued = true;
-                            return false;
+                                gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
+                                                       spell->StartRecoveryCategory,
+                                                       castTime,
+                                                       0,
+                                                       ::NON_GCD,
+                                                       false}, gUserSettings.replaceMatchingNonGcdCategory);
+                                TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
+                                gCastData.nonGcdSpellQueued = true;
+                                return false;
+                            }
                         }
                     }
                 }
@@ -297,19 +304,26 @@ namespace Nampower {
                     gCastData.normalSpellQueued = true;
                     return false;
                 } else if (remainingEffectiveCastTime > 0) {
-                    DEBUG_LOG("Queuing non GCD for after delay: "
-                                      << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
-                                      << spell->StartRecoveryCategory);
+                    auto castParams = gNonGcdCastQueue.findSpellId(spellId);
+                    if (castParams) {
+                        DEBUG_LOG("Updating non GCD params for " << spellName);
+                        castParams->guid = guid;
+                        return false;
+                    } else {
+                        DEBUG_LOG("Queuing non GCD for after cast/delay: "
+                                          << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
+                                          << spell->StartRecoveryCategory);
 
-                    gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
-                                           spell->StartRecoveryCategory,
-                                           castTime,
-                                           0,
-                                           ::NON_GCD,
-                                           false}, gUserSettings.replaceMatchingNonGcdCategory);
-                    TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
-                    gCastData.nonGcdSpellQueued = true;
-                    return false;
+                        gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
+                                               spell->StartRecoveryCategory,
+                                               castTime,
+                                               0,
+                                               ::NON_GCD,
+                                               false}, gUserSettings.replaceMatchingNonGcdCategory);
+                        TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
+                        gCastData.nonGcdSpellQueued = true;
+                        return false;
+                    }
                 }
             }
         } else if (inSpellQueueWindow) {
@@ -324,19 +338,26 @@ namespace Nampower {
                     gCastData.normalSpellQueued = true;
                     return false;
                 } else if (remainingEffectiveCastTime > 0) {
-                    DEBUG_LOG("Queuing instant cast non GCD for after delay: "
-                                      << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
-                                      << spell->StartRecoveryCategory);
+                    auto castParams = gNonGcdCastQueue.findSpellId(spellId);
+                    if (castParams) {
+                        DEBUG_LOG("Updating instant cast non GCD params for " << spellName);
+                        castParams->guid = guid;
+                        return false;
+                    } else {
+                        DEBUG_LOG("Queuing instant cast non GCD for after cast/delay: "
+                                          << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
+                                          << spell->StartRecoveryCategory);
 
-                    gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
-                                           spell->StartRecoveryCategory,
-                                           castTime,
-                                           0,
-                                           ::NON_GCD,
-                                           false}, gUserSettings.replaceMatchingNonGcdCategory);
-                    TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
-                    gCastData.nonGcdSpellQueued = true;
-                    return false;
+                        gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
+                                               spell->StartRecoveryCategory,
+                                               castTime,
+                                               0,
+                                               ::NON_GCD,
+                                               false}, gUserSettings.replaceMatchingNonGcdCategory);
+                        TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
+                        gCastData.nonGcdSpellQueued = true;
+                        return false;
+                    }
                 }
             }
         }
@@ -356,6 +377,16 @@ namespace Nampower {
                 return false;
             } else {
                 gCastData.gcdEndMs = 0;
+            }
+        }
+
+        // prevent casting combustion if recently cast and
+        // still waiting for server result as it will break the cooldown for it
+        if (spellId == 11129) {
+            auto castParams = gCastHistory.findSpellId(spellId);
+            if (castParams && castParams->castResult == CastResult::WAITING_FOR_SERVER) {
+                DEBUG_LOG("Ignoring combustion cast as still waiting for server result from previous cast");
+                return false;
             }
         }
 
@@ -381,7 +412,8 @@ namespace Nampower {
                                 castTime,
                                 currentTime,
                                 castType,
-                                gCastData.numRetries});
+                                gCastData.numRetries,
+                                CastResult::WAITING_FOR_SERVER});
         auto ret = castSpell(playerUnit, spellId, item, guid);
 
         // if this is a trade skill or item enchant, do nothing further

@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v1.9.11";
+const char *VERSION = "v2.0.0";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -582,10 +582,10 @@ namespace Nampower {
                                                                                     &CancelSpellHook);
         gCancelSpellDetour->Apply();
 
-//        auto const castResultHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::CastResultHandler);
-//        gCastResultHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process, castResultHandlerOrig,
-//                                                                                           &CastResultHandlerHook);
-//        gCastResultHandlerDetour->Apply();
+        auto const castResultHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::CastResultHandler);
+        gCastResultHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process, castResultHandlerOrig,
+                                                                                           &CastResultHandlerHook);
+        gCastResultHandlerDetour->Apply();
 
 //        auto const spellFailedHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::SpellFailedHandler);
 //        gSpellFailedHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT>>(process,
