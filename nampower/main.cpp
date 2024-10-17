@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v1.9.10";
+const char *VERSION = "v1.9.11";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -69,6 +69,9 @@ namespace Nampower {
 
     CastQueue gCastHistory = CastQueue();
 
+    bool gScriptQueued;
+    char *queuedScript;
+
     std::unique_ptr<hadesmem::PatchDetour<SpellVisualsInitializeT >> gSpellVisualsInitDetour;
     std::unique_ptr<hadesmem::PatchDetour<LoadScriptFunctionsT >> gLoadScriptFunctionsDetour;
 
@@ -87,6 +90,7 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<SpellGoT>> gSpellGoDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gSpellTargetUnitDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gQueueSpellByNameDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> qQueueScriptDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_HandleSpriteClickT>> gSpell_C_HandleSpriteClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_TargetSpellT>> gSpell_C_TargetSpellDetour;
 
@@ -113,6 +117,66 @@ namespace Nampower {
         registerFunction(name, func);
     }
 
+    bool Script_QueueScript(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        DEBUG_LOG("Trying to queue script");
+
+        auto const currentTime = GetTime();
+        auto effectiveCastEndMs = EffectiveCastEndMs();
+        auto remainingEffectiveCastTime = (effectiveCastEndMs > currentTime) ? effectiveCastEndMs - currentTime : 0;
+        auto remainingGcd = (gCastData.gcdEndMs > currentTime) ? gCastData.gcdEndMs - currentTime : 0;
+        auto inSpellQueueWindow = InSpellQueueWindow(remainingEffectiveCastTime, remainingGcd, false);
+
+        if (inSpellQueueWindow) {
+            // check if valid string
+            auto const lua_isstring = reinterpret_cast<lua_isstringT>(Offsets::lua_isstring);
+            if (lua_isstring(luaState, 1)) {
+                auto const lua_tostring = reinterpret_cast<lua_tostringT>(Offsets::lua_tostring);
+                auto script = lua_tostring(luaState, 1);
+
+                if (script != nullptr && strlen(script) > 0) {
+                    DEBUG_LOG("Queuing script " << script);
+                    // save the script to be run later
+                    queuedScript = script;
+                    gScriptQueued = true;
+                }
+            }
+        } else {
+            // just call regular runscript
+            auto const runScript = reinterpret_cast<LuaScriptT >(Offsets::Script_RunScript);
+            return runScript(luaState);
+        }
+
+        return false;
+    }
+
+    bool InSpellQueueWindow(uint32_t remainingCastTime, uint32_t remainingGcd, bool spellIsTargeting) {
+        auto currentTime = GetTime();
+
+        uint32_t queueWindow = 0;
+
+        if (gCastData.channeling) {
+            // calculate the time remaining in the channel
+            auto const remainingChannelTime =
+                    gCastData.channelDuration - (currentTime - gLastCastData.channelStartTimeMs);
+
+            return remainingChannelTime < gUserSettings.channelQueueWindowMs;
+        } else if (spellIsTargeting) {
+            queueWindow = gUserSettings.targetingQueueWindowMs;
+        } else {
+            queueWindow = gUserSettings.spellQueueWindowMs;
+        }
+
+        if (remainingCastTime > 0) {
+            return remainingCastTime < queueWindow || gForceQueueCast;
+        }
+
+        if (remainingGcd > 0) {
+            return remainingGcd < queueWindow || gForceQueueCast;
+        }
+
+        return false;
+    }
+
     bool IsNonSwingSpellQueued() {
         return gCastData.nonGcdSpellQueued || gCastData.normalSpellQueued;
     }
@@ -134,7 +198,20 @@ namespace Nampower {
         auto const iSceneEnd = detour->GetTrampolineT<ISceneEndT>();
 
         if (!gCastData.channeling) {
-            if (gCastData.nonGcdSpellQueued) {
+            if (gScriptQueued) {
+                auto currentTime = GetTime();
+
+                auto effectiveCastEndMs = EffectiveCastEndMs();
+                // get max of cooldown and gcd
+                auto delay = effectiveCastEndMs > gCastData.gcdEndMs ? effectiveCastEndMs : gCastData.gcdEndMs;
+
+                if (delay <= currentTime) {
+                    DEBUG_LOG("Running queued script " << queuedScript);
+                    LuaCall(queuedScript);
+                    gScriptQueued = false;
+                }
+
+            } else if (gCastData.nonGcdSpellQueued) {
                 auto currentTime = GetTime();
 
                 if (EffectiveCastEndMs() < currentTime) {
@@ -148,10 +225,9 @@ namespace Nampower {
                 auto delay = effectiveCastEndMs > gCastData.gcdEndMs ? effectiveCastEndMs : gCastData.gcdEndMs;
 
                 if (delay <= currentTime) {
-                    // if more than 5 seconds have passed since the last cast, ignore
+                    // if more than MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE seconds have passed since the last cast, ignore
                     if (currentTime - gLastCastData.startTimeMs < MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE) {
                         CastQueuedNormalSpell();
-                        return iSceneEnd(ptr);
                     } else {
                         DEBUG_LOG("Ignoring queued cast of " << game::GetSpellName(gLastNormalCastParams.spellId)
                                                              << " due to max time since last cast");
@@ -568,6 +644,10 @@ namespace Nampower {
                                                                                        Script_QueueSpellByName);
         gQueueSpellByNameDetour->Apply();
 
+        auto const queueScriptOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_QueueScript);
+        qQueueScriptDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process, queueScriptOrig,
+                                                                                  Script_QueueScript);
+        qQueueScriptDetour->Apply();
 
 //        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
 //                Offsets::Spell_C_CooldownEventTriggered);
@@ -603,6 +683,9 @@ namespace Nampower {
         DEBUG_LOG("Registering Custom Lua functions");
         char queueSpellByName[] = "QueueSpellByName";
         RegisterLuaFunction(queueSpellByName, reinterpret_cast<uintptr_t *>(Offsets::Script_QueueSpellByName));
+
+        char queueScript[] = "QueueScript";
+        RegisterLuaFunction(queueScript, reinterpret_cast<uintptr_t *>(Offsets::Script_QueueScript));
     }
 
     std::once_flag load_flag;

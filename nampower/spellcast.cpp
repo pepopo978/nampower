@@ -135,34 +135,6 @@ namespace Nampower {
         params->numRetries = numRetries;
     }
 
-    bool InSpellQueueWindow(uint32_t remainingCastTime, uint32_t remainingGcd, bool spellIsTargeting) {
-        auto currentTime = GetTime();
-
-        uint32_t queueWindow = 0;
-
-        if (gCastData.channeling) {
-            // calculate the time remaining in the channel
-            auto const remainingChannelTime =
-                    gCastData.channelDuration - (currentTime - gLastCastData.channelStartTimeMs);
-
-            return remainingChannelTime < gUserSettings.channelQueueWindowMs;
-        } else if (spellIsTargeting) {
-            queueWindow = gUserSettings.targetingQueueWindowMs;
-        } else {
-            queueWindow = gUserSettings.spellQueueWindowMs;
-        }
-
-        if (remainingCastTime > 0) {
-            return remainingCastTime < queueWindow || gForceQueueCast;
-        }
-
-        if (remainingGcd > 0) {
-            return remainingGcd < queueWindow || gForceQueueCast;
-        }
-
-        return false;
-    }
-
     void TriggerSpellQueuedEvent(QueueEvents queueEventCode, uint32_t spellId) {
         ((int (__cdecl *)(int, char *, uint32_t, uint32_t)) Offsets::SignalEventParam)(
                 369,  // SPELL_QUEUE_EVENT event we are adding

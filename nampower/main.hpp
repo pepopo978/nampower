@@ -51,6 +51,8 @@ namespace Nampower {
     extern CastQueue gNonGcdCastQueue;
     extern CastQueue gCastHistory;
 
+    extern bool gScriptQueued;
+
     using CastSpellT = bool (__fastcall *)(uint32_t *, uint32_t, void *, std::uint64_t);
     using SendCastT = void (__fastcall *)(game::SpellCast *, char unk);
     using CancelSpellT = void (__fastcall *)(bool, bool, game::SpellCastResult);
@@ -78,7 +80,7 @@ namespace Nampower {
     using LuaScriptT = bool (__fastcall *)(uintptr_t *luaState);
     using Script_GetGUIDFromNameT = std::uint64_t (__fastcall *)(const char *);
     using lua_isstringT = bool (__fastcall *)(uintptr_t *, int);
-    using lua_tostringT = const char *(__fastcall *)(uintptr_t *, int);
+    using lua_tostringT = char *(__fastcall *)(uintptr_t *, int);
 
     using Spell_C_CooldownEventTriggeredT = void (__fastcall *)(uint32_t spellId,
                                                                 uint64_t *targetGUID,
@@ -96,6 +98,8 @@ namespace Nampower {
     void RegisterLuaFunction(char *, uintptr_t *func);
 
     void LuaCall(const char *code);
+
+    bool InSpellQueueWindow(uint32_t remainingCastTime, uint32_t remainingGcd, bool spellIsTargeting);
 
     bool IsNonSwingSpellQueued();
 
