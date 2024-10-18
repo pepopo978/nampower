@@ -275,7 +275,8 @@ namespace Nampower {
                                 return false;
                             } else {
                                 DEBUG_LOG("Queuing instant cast non GCD targeting for after cast/delay: "
-                                                  << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
+                                                  << remainingEffectiveCastTime << "ms " << spellName
+                                                  << " gcd category "
                                                   << spell->StartRecoveryCategory);
 
                                 gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
@@ -380,12 +381,12 @@ namespace Nampower {
             }
         }
 
-        // prevent casting combustion if recently cast and
-        // still waiting for server result as it will break the cooldown for it
-        if (spellId == 11129) {
+        // prevent casting instant cast spells with "Start cooldown after aura fades" aka SPELL_ATTR_DISABLED_WHILE_ACTIVE
+        //  if recently cast and still waiting for server result as it will break the cooldown for it
+        if (spell->Attributes & game::SPELL_ATTR_DISABLED_WHILE_ACTIVE) {
             auto castParams = gCastHistory.findSpellId(spellId);
             if (castParams && castParams->castResult == CastResult::WAITING_FOR_SERVER) {
-                DEBUG_LOG("Ignoring combustion cast as still waiting for server result from previous cast");
+                DEBUG_LOG("Ignoring " << spellName << " cast due to DISABLED_WHILE_ACTIVE flag, still waiting for server result");
                 return false;
             }
         }
