@@ -143,6 +143,17 @@ namespace Nampower {
                 spellId);
     }
 
+    bool Script_CastSpellByNameNoQueue(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        DEBUG_LOG("Casting next spell without queuing");
+        // turn on forceQueue and then call regular CastSpellByName
+        gNoQueueCast = true;
+        auto const Script_CastSpellByName = reinterpret_cast<LuaScriptT>(Offsets::Script_CastSpellByName);
+        auto result = Script_CastSpellByName(luaState);
+        gNoQueueCast = false;
+
+        return result;
+    }
+
     bool Script_QueueSpellByName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
         DEBUG_LOG("Force queuing next cast spell");
         // turn on forceQueue and then call regular CastSpellByName
@@ -214,7 +225,7 @@ namespace Nampower {
             auto const castSpell = detour->GetTrampolineT<CastSpellT>();
             auto ret = castSpell(playerUnit, spellId, item, guid);
 
-            if (!ret && gUserSettings.queueOnSwingSpells) {
+            if (!ret && gUserSettings.queueOnSwingSpells && !gNoQueueCast) {
                 // if not in cooldown window
                 if (currentTime - gLastCastData.onSwingStartTimeMs > gUserSettings.onSwingBufferCooldownMs) {
                     DEBUG_LOG("Queuing on swing spell " << spellName);
@@ -246,118 +257,122 @@ namespace Nampower {
             inSpellQueueWindow = false;
         }
 
-        if (spellIsTargeting) {
-            SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory,
-                           castTime,
-                           currentTime, TARGETING, 0);
+        // skip queueing if gNoQueueCast is set
+        // skip queueing if spellIsChanneling and gUserSettings.queueChannelingSpells is false
+        if (!gNoQueueCast && (!spellIsChanneling || gUserSettings.queueChannelingSpells)) {
+            if (spellIsTargeting) {
+                SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory,
+                               castTime,
+                               currentTime, TARGETING, 0);
 
-            if (gUserSettings.queueTargetingSpells) {
-                if (castTime > 0 && inSpellQueueWindow) {
-                    if (gUserSettings.queueCastTimeSpells) {
-                        DEBUG_LOG("Queuing targeting for after cooldown: " << remainingCD << "ms " << spellName);
-                        TriggerSpellQueuedEvent(NORMAL_QUEUED, spellId);
-                        gCastData.normalSpellQueued = true;
-                        return false;
-                    }
-                } else if (inSpellQueueWindow) {
-                    if (gUserSettings.queueInstantSpells) {
-                        if (spellOnGcd) {
-                            DEBUG_LOG("Queuing instant cast targeting for after cooldown: " << remainingCD << "ms "
-                                                                                            << spellName);
+                if (gUserSettings.queueTargetingSpells) {
+                    if (castTime > 0 && inSpellQueueWindow) {
+                        if (gUserSettings.queueCastTimeSpells) {
+                            DEBUG_LOG("Queuing targeting for after cooldown: " << remainingCD << "ms " << spellName);
                             TriggerSpellQueuedEvent(NORMAL_QUEUED, spellId);
                             gCastData.normalSpellQueued = true;
                             return false;
-                        } else if (remainingEffectiveCastTime > 0) {
-                            auto castParams = gNonGcdCastQueue.findSpellId(spellId);
-                            if (castParams) {
-                                DEBUG_LOG("Updating instant cast non GCD targeting params for " << spellName);
-                                castParams->guid = guid;
+                        }
+                    } else if (inSpellQueueWindow) {
+                        if (gUserSettings.queueInstantSpells) {
+                            if (spellOnGcd) {
+                                DEBUG_LOG("Queuing instant cast targeting for after cooldown: " << remainingCD << "ms "
+                                                                                                << spellName);
+                                TriggerSpellQueuedEvent(NORMAL_QUEUED, spellId);
+                                gCastData.normalSpellQueued = true;
                                 return false;
-                            } else {
-                                DEBUG_LOG("Queuing instant cast non GCD targeting for after cast/delay: "
-                                                  << remainingEffectiveCastTime << "ms " << spellName
-                                                  << " gcd category "
-                                                  << spell->StartRecoveryCategory);
+                            } else if (remainingEffectiveCastTime > 0) {
+                                auto castParams = gNonGcdCastQueue.findSpellId(spellId);
+                                if (castParams) {
+                                    DEBUG_LOG("Updating instant cast non GCD targeting params for " << spellName);
+                                    castParams->guid = guid;
+                                    return false;
+                                } else {
+                                    DEBUG_LOG("Queuing instant cast non GCD targeting for after cast/delay: "
+                                                      << remainingEffectiveCastTime << "ms " << spellName
+                                                      << " gcd category "
+                                                      << spell->StartRecoveryCategory);
 
-                                gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
-                                                       spell->StartRecoveryCategory,
-                                                       castTime,
-                                                       0,
-                                                       ::NON_GCD,
-                                                       false}, gUserSettings.replaceMatchingNonGcdCategory);
-                                TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
-                                gCastData.nonGcdSpellQueued = true;
-                                return false;
+                                    gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
+                                                           spell->StartRecoveryCategory,
+                                                           castTime,
+                                                           0,
+                                                           ::NON_GCD,
+                                                           false}, gUserSettings.replaceMatchingNonGcdCategory);
+                                    TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
+                                    gCastData.nonGcdSpellQueued = true;
+                                    return false;
+                                }
                             }
                         }
                     }
                 }
-            }
-        } else if (castTime > 0 && inSpellQueueWindow) {
-            SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory,
-                           castTime,
-                           currentTime, NORMAL, 0);
+            } else if (castTime > 0 && inSpellQueueWindow) {
+                SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory,
+                               castTime,
+                               currentTime, NORMAL, 0);
 
-            if (gUserSettings.queueCastTimeSpells) {
-                if (spellOnGcd) {
-                    DEBUG_LOG("Queuing for after cooldown: " << remainingCD << "ms " << spellName);
-                    TriggerSpellQueuedEvent(NORMAL_QUEUED, spellId);
-                    gCastData.normalSpellQueued = true;
-                    return false;
-                } else if (remainingEffectiveCastTime > 0) {
-                    auto castParams = gNonGcdCastQueue.findSpellId(spellId);
-                    if (castParams) {
-                        DEBUG_LOG("Updating non GCD params for " << spellName);
-                        castParams->guid = guid;
+                if (gUserSettings.queueCastTimeSpells) {
+                    if (spellOnGcd) {
+                        DEBUG_LOG("Queuing for after cooldown: " << remainingCD << "ms " << spellName);
+                        TriggerSpellQueuedEvent(NORMAL_QUEUED, spellId);
+                        gCastData.normalSpellQueued = true;
                         return false;
-                    } else {
-                        DEBUG_LOG("Queuing non GCD for after cast/delay: "
-                                          << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
-                                          << spell->StartRecoveryCategory);
+                    } else if (remainingEffectiveCastTime > 0) {
+                        auto castParams = gNonGcdCastQueue.findSpellId(spellId);
+                        if (castParams) {
+                            DEBUG_LOG("Updating non GCD params for " << spellName);
+                            castParams->guid = guid;
+                            return false;
+                        } else {
+                            DEBUG_LOG("Queuing non GCD for after cast/delay: "
+                                              << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
+                                              << spell->StartRecoveryCategory);
 
-                        gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
-                                               spell->StartRecoveryCategory,
-                                               castTime,
-                                               0,
-                                               ::NON_GCD,
-                                               false}, gUserSettings.replaceMatchingNonGcdCategory);
-                        TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
-                        gCastData.nonGcdSpellQueued = true;
-                        return false;
+                            gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
+                                                   spell->StartRecoveryCategory,
+                                                   castTime,
+                                                   0,
+                                                   ::NON_GCD,
+                                                   false}, gUserSettings.replaceMatchingNonGcdCategory);
+                            TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
+                            gCastData.nonGcdSpellQueued = true;
+                            return false;
+                        }
                     }
                 }
-            }
-        } else if (inSpellQueueWindow) {
-            if (gUserSettings.queueInstantSpells) {
-                if (spellOnGcd) {
-                    SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid,
-                                   spell->StartRecoveryCategory, castTime,
-                                   currentTime, NORMAL, 0);
+            } else if (inSpellQueueWindow) {
+                if (gUserSettings.queueInstantSpells) {
+                    if (spellOnGcd) {
+                        SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid,
+                                       spell->StartRecoveryCategory, castTime,
+                                       currentTime, NORMAL, 0);
 
-                    DEBUG_LOG("Queuing instant cast for after cooldown: " << remainingCD << "ms " << spellName);
-                    TriggerSpellQueuedEvent(NORMAL_QUEUED, spellId);
-                    gCastData.normalSpellQueued = true;
-                    return false;
-                } else if (remainingEffectiveCastTime > 0) {
-                    auto castParams = gNonGcdCastQueue.findSpellId(spellId);
-                    if (castParams) {
-                        DEBUG_LOG("Updating instant cast non GCD params for " << spellName);
-                        castParams->guid = guid;
+                        DEBUG_LOG("Queuing instant cast for after cooldown: " << remainingCD << "ms " << spellName);
+                        TriggerSpellQueuedEvent(NORMAL_QUEUED, spellId);
+                        gCastData.normalSpellQueued = true;
                         return false;
-                    } else {
-                        DEBUG_LOG("Queuing instant cast non GCD for after cast/delay: "
-                                          << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
-                                          << spell->StartRecoveryCategory);
+                    } else if (remainingEffectiveCastTime > 0) {
+                        auto castParams = gNonGcdCastQueue.findSpellId(spellId);
+                        if (castParams) {
+                            DEBUG_LOG("Updating instant cast non GCD params for " << spellName);
+                            castParams->guid = guid;
+                            return false;
+                        } else {
+                            DEBUG_LOG("Queuing instant cast non GCD for after cast/delay: "
+                                              << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
+                                              << spell->StartRecoveryCategory);
 
-                        gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
-                                               spell->StartRecoveryCategory,
-                                               castTime,
-                                               0,
-                                               ::NON_GCD,
-                                               false}, gUserSettings.replaceMatchingNonGcdCategory);
-                        TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
-                        gCastData.nonGcdSpellQueued = true;
-                        return false;
+                            gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
+                                                   spell->StartRecoveryCategory,
+                                                   castTime,
+                                                   0,
+                                                   ::NON_GCD,
+                                                   false}, gUserSettings.replaceMatchingNonGcdCategory);
+                            TriggerSpellQueuedEvent(NON_GCD_QUEUED, spellId);
+                            gCastData.nonGcdSpellQueued = true;
+                            return false;
+                        }
                     }
                 }
             }
@@ -386,7 +401,8 @@ namespace Nampower {
         if (spell->Attributes & game::SPELL_ATTR_DISABLED_WHILE_ACTIVE) {
             auto castParams = gCastHistory.findSpellId(spellId);
             if (castParams && castParams->castResult == CastResult::WAITING_FOR_SERVER) {
-                DEBUG_LOG("Ignoring " << spellName << " cast due to DISABLED_WHILE_ACTIVE flag, still waiting for server result");
+                DEBUG_LOG("Ignoring " << spellName
+                                      << " cast due to DISABLED_WHILE_ACTIVE flag, still waiting for server result");
                 return false;
             }
         }

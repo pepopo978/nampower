@@ -36,6 +36,7 @@ namespace Nampower {
     extern uint32_t gBufferTimeMs;   // adjusts dynamically depending on errors
 
     extern bool gForceQueueCast;
+    extern bool gNoQueueCast;
 
     extern hadesmem::PatchDetourBase *castSpellDetour;
 

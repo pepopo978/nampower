@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.0.1";
+const char *VERSION = "v2.0.2";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -54,6 +54,7 @@ namespace Nampower {
     uint32_t gBufferTimeMs;   // adjusts dynamically depending on errors
 
     bool gForceQueueCast;
+    bool gNoQueueCast;
 
     hadesmem::PatchDetourBase *castSpellDetour;
 
@@ -89,6 +90,7 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_CooldownEventTriggeredT >> gSpell_C_CooldownEventTriggeredDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellGoT>> gSpellGoDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gSpellTargetUnitDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gCastSpellByNameNoQueueDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gQueueSpellByNameDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> qQueueScriptDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gIsSpellInRangeDetour;
@@ -644,6 +646,11 @@ namespace Nampower {
                                                                                                     &Spell_C_TargetSpellHook);
         gSpell_C_TargetSpellDetour->Apply();
 
+        auto const castSpellByNameNoQueueOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_CastSpellByNameNoQueue);
+        gCastSpellByNameNoQueueDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process, castSpellByNameNoQueueOrig,
+                                                                                             Script_CastSpellByNameNoQueue);
+        gCastSpellByNameNoQueueDetour->Apply();
+
         auto const queueSpellByNameOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_QueueSpellByName);
         gQueueSpellByNameDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process, queueSpellByNameOrig,
                                                                                        Script_QueueSpellByName);
@@ -693,6 +700,9 @@ namespace Nampower {
         DEBUG_LOG("Registering Custom Lua functions");
         char queueSpellByName[] = "QueueSpellByName";
         RegisterLuaFunction(queueSpellByName, reinterpret_cast<uintptr_t *>(Offsets::Script_QueueSpellByName));
+
+        char castSpellByNameNoQueue[] = "CastSpellByNameNoQueue";
+        RegisterLuaFunction(castSpellByNameNoQueue, reinterpret_cast<uintptr_t *>(Offsets::Script_CastSpellByNameNoQueue));
 
         char queueScript[] = "QueueScript";
         RegisterLuaFunction(queueScript, reinterpret_cast<uintptr_t *>(Offsets::Script_QueueScript));

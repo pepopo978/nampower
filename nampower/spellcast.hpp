@@ -17,6 +17,8 @@ namespace Nampower {
 
     void TriggerSpellQueuedEvent(QueueEvents queueEventCode, uint32_t spellId);
 
+    bool Script_CastSpellByNameNoQueue(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
+
     bool Script_QueueSpellByName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
 
     bool Script_IsSpellInRange(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
