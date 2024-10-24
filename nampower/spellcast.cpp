@@ -407,8 +407,10 @@ namespace Nampower {
             }
         }
 
-        // try clearing current casting spell id
-        clearCastingSpell();
+        // try clearing current casting spell id if not using tradeskill or enchant
+        if (!spellIsTradeSkillOrEnchant) {
+            clearCastingSpell();
+        }
 
         // add to cast history
         auto castType = CastType::NORMAL;
