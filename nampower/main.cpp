@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.0.3";
+const char *VERSION = "v2.1.0";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -55,6 +55,9 @@ namespace Nampower {
 
     bool gForceQueueCast;
     bool gNoQueueCast;
+
+    uint32_t gRunningAverageLatencyMs;
+    uint32_t gLastServerSpellDelayMs;
 
     hadesmem::PatchDetourBase *castSpellDetour;
 
@@ -108,6 +111,11 @@ namespace Nampower {
                 std::chrono::high_resolution_clock::now().time_since_epoch()).count()) - gStartTime;
     }
 
+    uint64_t GetWowTimeMs() {
+        auto const osGetAsyncTimeMs = reinterpret_cast<OsGetAsyncTimeMsT>(Offsets::OsGetAsyncTimeMs);
+        return osGetAsyncTimeMs();
+    }
+
     void LuaCall(const char *code) {
         typedef void __fastcall func(const char *code, const char *unused);
         func *function = (func *) Offsets::lua_call;
@@ -119,6 +127,46 @@ namespace Nampower {
         auto const registerFunction = reinterpret_cast<FrameScript_RegisterFunctionT>(Offsets::FrameScript_RegisterFunction);
         registerFunction(name, func);
     }
+
+    // when the game first launches there won't be a cached latency value for 10-20 seconds and this will return 0
+    uint32_t GetLatencyMs() {
+        auto const getConnection = reinterpret_cast<GetClientConnectionT>(Offsets::GetClientConnection);
+        auto const getNetStats = reinterpret_cast<GetNetStatsT>(Offsets::GetNetStats);
+
+        auto connectionPtr = getConnection();
+
+        float bytesIn, bytesOut;
+        uint32_t latency;
+
+        getNetStats(connectionPtr, &bytesIn, &bytesOut, &latency);
+
+        // update running average
+        if (latency > 0) {
+            if (gRunningAverageLatencyMs == 0) {
+                // first time
+                gRunningAverageLatencyMs = latency;
+                // ignore big spikes
+            } else if (latency < gRunningAverageLatencyMs * 2) {
+                gRunningAverageLatencyMs = (gRunningAverageLatencyMs * 9 + latency) / 10;
+            }
+        }
+
+        return gRunningAverageLatencyMs;
+    }
+
+    uint32_t GetServerDelayMs() {
+        // if we have a gLastServerSpellDelayMs that seems reasonable, use it
+        // occasionally the server will take a long time to respond to a spell cast, in which case default to gBufferTimeMs
+        // if gLastServerSpellDelayMs == 0, then we don't have a valid value for the last cast
+        if (gUserSettings.optimizeBufferUsingPacketTimings &&
+            gLastServerSpellDelayMs > 0 &&
+            gLastServerSpellDelayMs < gBufferTimeMs) {
+            return gLastServerSpellDelayMs;
+        }
+
+        return gBufferTimeMs;
+    }
+
 
     bool Script_QueueScript(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
         DEBUG_LOG("Trying to queue script");
@@ -163,9 +211,8 @@ namespace Nampower {
 
         if (gCastData.channeling) {
             // calculate the time remaining in the channel
-            auto const remainingChannelTime =
-                    gCastData.channelDuration - (currentTime - gLastCastData.channelStartTimeMs);
-
+            auto const remainingChannelTime = (gCastData.channelEndMs > currentTime) ? gCastData.channelEndMs -
+                                                                                       currentTime : 0;
             return remainingChannelTime < gUserSettings.channelQueueWindowMs;
         } else if (spellIsTargeting) {
             queueWindow = gUserSettings.targetingQueueWindowMs;
@@ -189,16 +236,26 @@ namespace Nampower {
     }
 
     uint32_t EffectiveCastEndMs() {
+        if (gCastData.channeling) {
+            return gCastData.channelEndMs;
+        }
+
         return max(gCastData.castEndMs, gCastData.delayEndMs);
+    }
+
+    void ResetChannelingFlags() {
+        gCastData.channeling = false;
+        gCastData.channelEndMs = 0;
+        gCastData.channelSpellId = 0;
+        gCastData.channelLastCastTimeMs = 0;
+        gCastData.channelCastCount = 0;
     }
 
     void ResetCastFlags() {
         // don't reset delayEndMs
         gCastData.castEndMs = 0;
         gCastData.gcdEndMs = 0;
-        gCastData.channeling = false;
-        gCastData.channelDuration = 0;
-        gCastData.channelCastCount = 0;
+        ResetChannelingFlags();
     }
 
     int *ISceneEndHook(hadesmem::PatchDetourBase *detour, uintptr_t *ptr) {
@@ -243,6 +300,36 @@ namespace Nampower {
                     }
                 }
             }
+        } else if (gUserSettings.queueChannelingSpells && IsNonSwingSpellQueued()) {
+            auto const currentTime = GetTime();
+            auto const elapsed = currentTime - gLastCastData.channelStartTimeMs;
+
+            auto remainingChannelTime = (gCastData.channelEndMs > currentTime) ? gCastData.channelEndMs - currentTime
+                                                                               : 0;
+
+            auto const currentLatency = GetLatencyMs();
+            auto latencyReduction = 0;
+            if (currentLatency > 0 && gUserSettings.channelLatencyReductionPercentage != 0) {
+                latencyReduction = ((int32_t) currentLatency * gUserSettings.channelLatencyReductionPercentage) / 100;
+
+                if (remainingChannelTime > latencyReduction) {
+                    remainingChannelTime -= latencyReduction;
+                } else {
+                    remainingChannelTime = 0;
+                }
+            }
+
+
+            if (remainingChannelTime <= 0) {
+                DEBUG_LOG("Ending channel [" << elapsed << " elapsed > "
+                                             << gCastData.channelDuration << " original duration "
+                                             << " latency reduction " << latencyReduction << "]"
+                                             << " triggering queued spells");
+
+                ResetCastFlags();
+
+                CastQueuedSpells();
+            }
         }
 
         return iSceneEnd(ptr);
@@ -274,6 +361,9 @@ namespace Nampower {
         } else if (strcmp(cvar, "NP_ReplaceMatchingNonGcdCategory") == 0) {
             gUserSettings.replaceMatchingNonGcdCategory = atoi(value) != 0;
             DEBUG_LOG("Set NP_ReplaceMatchingNonGcdCategory to " << gUserSettings.replaceMatchingNonGcdCategory);
+        } else if (strcmp(cvar, "NP_OptimizeBufferUsingPacketTimings") == 0) {
+            gUserSettings.optimizeBufferUsingPacketTimings = atoi(value) != 0;
+            DEBUG_LOG("Set NP_OptimizeBufferUsingPacketTimings to " << gUserSettings.optimizeBufferUsingPacketTimings);
 
         } else if (strcmp(cvar, "NP_MinBufferTimeMs") == 0) {
             gUserSettings.minBufferTimeMs = atoi(value);
@@ -297,6 +387,11 @@ namespace Nampower {
         } else if (strcmp(cvar, "NP_TargetingQueueWindowMs") == 0) {
             gUserSettings.targetingQueueWindowMs = atoi(value);
             DEBUG_LOG("Set NP_TargetingQueueWindowMs to " << gUserSettings.targetingQueueWindowMs);
+
+        } else if (strcmp(cvar, "NP_ChannelLatencyReductionPercentage") == 0) {
+            gUserSettings.channelLatencyReductionPercentage = atoi(value);
+            DEBUG_LOG(
+                    "Set NP_ChannelLatencyReductionPercentage to " << gUserSettings.channelLatencyReductionPercentage);
         }
     }
 
@@ -362,6 +457,7 @@ namespace Nampower {
         gUserSettings.retryServerRejectedSpells = true;
         gUserSettings.quickcastTargetingSpells = false;
         gUserSettings.replaceMatchingNonGcdCategory = false;
+        gUserSettings.optimizeBufferUsingPacketTimings = false;
 
         gUserSettings.minBufferTimeMs = 55; // time in ms to buffer cast to minimize server failure
         gUserSettings.nonGcdBufferTimeMs = 100; // time in ms to buffer non-GCD spells to minimize server failure
@@ -371,6 +467,8 @@ namespace Nampower {
         gUserSettings.onSwingBufferCooldownMs = 500; // time in ms to wait before queuing on swing spell after a swing
         gUserSettings.channelQueueWindowMs = 1500; // time in ms before channel ends to allow queuing spells
         gUserSettings.targetingQueueWindowMs = 500; // time in ms before cast to allow targeting
+
+        gUserSettings.channelLatencyReductionPercentage = 75; // percent of latency to reduce channel time by
 
         char defaultTrue[] = "1";
         char defaultFalse[] = "0";
@@ -530,6 +628,27 @@ namespace Nampower {
                      0,  // unk2
                      0); // unk3
 
+        char NP_OptimizeBufferUsingPacketTimings[] = "NP_OptimizeBufferUsingPacketTimings";
+        CVarRegister(NP_OptimizeBufferUsingPacketTimings, // name
+                     nullptr, // help
+                     0,  // unk1
+                     gUserSettings.optimizeBufferUsingPacketTimings ? defaultTrue
+                                                                    : defaultFalse, // default value address
+                     nullptr, // callback
+                     1, // category
+                     0,  // unk2
+                     0); // unk3
+
+        char NP_ChannelLatencyReductionPercentage[] = "NP_ChannelLatencyReductionPercentage";
+        CVarRegister(NP_ChannelLatencyReductionPercentage, // name
+                     nullptr, // help
+                     0,  // unk1
+                     std::to_string(gUserSettings.channelLatencyReductionPercentage).c_str(), // default value address
+                     nullptr, // callback
+                     1, // category
+                     0,  // unk2
+                     0); // unk3
+
         // update from cvars
         load_user_var("NP_QueueCastTimeSpells");
         load_user_var("NP_QueueInstantSpells");
@@ -540,6 +659,7 @@ namespace Nampower {
         load_user_var("NP_RetryServerRejectedSpells");
         load_user_var("NP_QuickcastTargetingSpells");
         load_user_var("NP_ReplaceMatchingNonGcdCategory");
+        load_user_var("NP_OptimizeBufferUsingPacketTimings");
 
         load_user_var("NP_MinBufferTimeMs");
         load_user_var("NP_NonGcdBufferTimeMs");
@@ -549,6 +669,8 @@ namespace Nampower {
         load_user_var("NP_ChannelQueueWindowMs");
         load_user_var("NP_TargetingQueueWindowMs");
         load_user_var("NP_OnSwingBufferCooldownMs");
+
+        load_user_var("NP_ChannelLatencyReductionPercentage");
 
         gBufferTimeMs = gUserSettings.minBufferTimeMs;
     }
@@ -585,8 +707,9 @@ namespace Nampower {
         gCancelSpellDetour->Apply();
 
         auto const castResultHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::CastResultHandler);
-        gCastResultHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process, castResultHandlerOrig,
-                                                                                           &CastResultHandlerHook);
+        gCastResultHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process,
+                                                                                            castResultHandlerOrig,
+                                                                                            &CastResultHandlerHook);
         gCastResultHandlerDetour->Apply();
 
 //        auto const spellFailedHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::SpellFailedHandler);
@@ -646,8 +769,15 @@ namespace Nampower {
                                                                                                     &Spell_C_TargetSpellHook);
         gSpell_C_TargetSpellDetour->Apply();
 
-        auto const castSpellByNameNoQueueOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_CastSpellByNameNoQueue);
-        gCastSpellByNameNoQueueDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process, castSpellByNameNoQueueOrig,
+//        auto const signalEventOrig = hadesmem::detail::AliasCast<SignalEventT>(Offsets::SignalEvent);
+//        gSignalEventDetour = std::make_unique<hadesmem::PatchDetour<SignalEventT >>(process, signalEventOrig,
+//                                                                                    &SignalEventHook);
+//        gSignalEventDetour->Apply();
+
+        auto const castSpellByNameNoQueueOrig = hadesmem::detail::AliasCast<LuaScriptT>(
+                Offsets::Script_CastSpellByNameNoQueue);
+        gCastSpellByNameNoQueueDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
+                                                                                             castSpellByNameNoQueueOrig,
                                                                                              Script_CastSpellByNameNoQueue);
         gCastSpellByNameNoQueueDetour->Apply();
 
@@ -702,7 +832,8 @@ namespace Nampower {
         RegisterLuaFunction(queueSpellByName, reinterpret_cast<uintptr_t *>(Offsets::Script_QueueSpellByName));
 
         char castSpellByNameNoQueue[] = "CastSpellByNameNoQueue";
-        RegisterLuaFunction(castSpellByNameNoQueue, reinterpret_cast<uintptr_t *>(Offsets::Script_CastSpellByNameNoQueue));
+        RegisterLuaFunction(castSpellByNameNoQueue,
+                            reinterpret_cast<uintptr_t *>(Offsets::Script_CastSpellByNameNoQueue));
 
         char queueScript[] = "QueueScript";
         RegisterLuaFunction(queueScript, reinterpret_cast<uintptr_t *>(Offsets::Script_QueueScript));

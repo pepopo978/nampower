@@ -38,6 +38,9 @@ namespace Nampower {
     extern bool gForceQueueCast;
     extern bool gNoQueueCast;
 
+    extern uint32_t gRunningAverageLatencyMs;
+    extern uint32_t gLastServerSpellDelayMs;
+
     extern hadesmem::PatchDetourBase *castSpellDetour;
 
     /* Configurable settings set by user */
@@ -63,8 +66,8 @@ namespace Nampower {
     using FastCallPacketHandlerT = int (__fastcall *)(uint32_t unk, uint32_t opCode, uint32_t unk2, CDataStore *packet);
     using ISceneEndT = int *(__fastcall *)(uintptr_t *unk);
     using EndSceneT = int (__fastcall *)(uintptr_t *unk);
-    using SpellChannelStartHandlerT = int (__stdcall *)(int, CDataStore *);
-    using SpellChannelUpdateHandlerT = int (__stdcall *)(int, CDataStore *);
+    using SpellChannelStartHandlerT = int (__stdcall *)(uint32_t, CDataStore *);
+    using SpellChannelUpdateHandlerT = int (__stdcall *)(uint32_t, CDataStore *);
     using Spell_C_SpellFailedT = void (__fastcall *)(uint32_t, game::SpellCastResult, int, int, char unk3);
     using Spell_C_GetAutoRepeatingSpellT = int (__cdecl *)();
     using SpellGoT = void (__fastcall *)(uint64_t *, uint64_t *, uint32_t, CDataStore *);
@@ -74,6 +77,14 @@ namespace Nampower {
             uint32_t *spellId,
             uint32_t unk3,
             float unk4);
+    using Spell_C_GetSpellCooldownT = int (__fastcall *)(uint32_t spellId, uint32_t isPetSpell,
+                                                         uint32_t *duration, uint64_t *startTime, uint32_t *enable);
+
+    using GetSpellSlotAndTypeT = int (__fastcall *)(const char *, uint32_t *);
+    using OsGetAsyncTimeMsT = uint64_t (__stdcall *)();
+
+    using GetClientConnectionT = uintptr_t *(__stdcall *)();
+    using GetNetStatsT = void (__thiscall *)(uintptr_t* connection, float *param_1, float *param_2, uint32_t *param_3);
 
     using LoadScriptFunctionsT = void (__stdcall *)();
     using FrameScript_RegisterFunctionT = void (__fastcall *)(char *name, uintptr_t *func);
@@ -103,9 +114,17 @@ namespace Nampower {
 
     void LuaCall(const char *code);
 
+    uint64_t GetWowTimeMs();
+
+    uint32_t GetLatencyMs();
+
+    uint32_t GetServerDelayMs();
+
     bool InSpellQueueWindow(uint32_t remainingCastTime, uint32_t remainingGcd, bool spellIsTargeting);
 
     bool IsNonSwingSpellQueued();
+
+    void ResetChannelingFlags();
 
     void ResetCastFlags();
 

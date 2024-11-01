@@ -50,6 +50,10 @@ SET NP_TargetingQueueWindowMs "1000"
 - `NP_RetryServerRejectedSpells` - Whether to retry spells that are rejected by the server for these reasons: SPELL_FAILED_ITEM_NOT_READY, SPELL_FAILED_NOT_READY, SPELL_FAILED_SPELL_IN_PROGRESS.  0 to disable, 1 to enable. Default is 1.
 - `NP_QuickcastTargetingSpells` - Whether to enable quick casting for ALL spells with terrain targeting.  This will cause the spell to instantly cast on your cursor without waiting for you to confirm the targeting circle.  Queuing targeting spells will use quickcasting regardless of this value (couldn't get it to work without doing this).  0 to disable, 1 to enable. Default is 0.
 - `NP_ReplaceMatchingNonGcdCategory` - Whether to replace any queued non gcd spell when a new non gcd spell with the same StartRecoveryCategory is cast (more explanation below).  0 to disable, 1 to enable. Default is 0.
+- `NP_OptimizeBufferUsingPacketTimings` - Whether to attempt to optimize your buffer using your latency and server packet timings (more explanation below).  0 to disable, 1 to enable. Default is 0.
+
+
+- `NP_ChannelLatencyReductionPercentage` - The percentage of your latency to subtract from the end of a channel duration to optimize cast time while hopefully not losing any ticks (more explanation below). Default is 75.
 
 ### Custom Lua Functions
 
@@ -127,6 +131,23 @@ There are separate configurable queue windows for:
 
 There are 3 separate queues for the following types of spells: GCD(max size:1), non GCD(max size:5), and on-hit(max size:1).
 
+### Why do I need a buffer?
+From my own testing it seems that a buffer is required on spells to avoid "This ability isn't ready yet"/"Another action in progress" errors.  
+By that I mean that if you cast a gcd spell every 1.5 seconds without your ping changing you will occasionally get
+errors from the server and your cast will get rejected.  If you have 150ms+ ping this can be very punishing.
+
+I believe this is related to the server tick during which incoming spells are processed.  There is logic to
+subtract the server processing time from your gcd in vmangos but turtle does not appear to be doing this.
+
+To compensate for what seems to be a 50ms server tick the default buffer in nampower.cfg is 55ms.  If you are close to the server
+you can experiment with lowering this value.  You will occasionally get errors but if they are infrequent enough for you
+the time saved will be worth it.
+
+Non gcd spells also seem to be affected by this.  I suspect that only one spell can be processed per server tick.  
+This means that if you try to cast 2 non gcd spells in the same server tick only one will be processed.  
+To avoid this happening there is `NP_NonGcdBufferTimeMs` which is added after each non gcd spell.  There might be more to
+it than this as using the normal buffer of 55ms was still resulting in skipped casts for me.  I found 100ms to be a safe value.
+
 #### GCD Spells
 Only one gcd spell can be queued at a time.  Pressing a new gcd spell will replace any existing queued gcd spell.
 
@@ -147,22 +168,31 @@ However, this will also prevent using certain cooldowns together with trinkets, 
 Only one on hit spell can be queued at a time.  Pressing a new on hit spell will replace any existing queued on hit spell.  
 On hit spells have no effect on the gcd or non gcd queues as they are handled entirely separately and are resolved by your auto attack.
 
-### Why do I need a buffer?
-From my own testing it seems that a buffer is required on spells to avoid "This ability isn't ready yet"/"Another action in progress" errors.  
-By that I mean that if you cast a gcd spell every 1.5 seconds without your ping changing you will occasionally get 
-errors from the server and your cast will get rejected.  If you have 150ms+ ping this can be very punishing.  
+#### Channeling Spells
+Channeling spells function differently than other spells in that the channel in the client actually begins when you receive 
+the CHANNEL_START packet from the server.  This means the client channel is happening 1/2 your latency after the server channel 
+and that server tick delay is already included in the cast, whereas regular spells are the other way around (the client is ahead of the server).  
 
-I believe this is related to the server tick during which incoming spells are processed.  There is logic to 
-subtract the server processing time from your gcd in vmangos but turtle does not appear to be doing this.  
+From my testing it seems that you can usually subtract your full latency from the end of the channel duration without losing
+any ticks.  Since your latency can vary it is safer to do a percentage of your latency instead to minimize the chance of 
+having a tick cut off.  This is controlled by the cvar `NP_ChannelLatencyReductionPercentage` which defaults to 75.
 
-To compensate for what seems to be a 50ms server tick the default buffer in nampower.cfg is 55ms.  If you are close to the server
-you can experiment with lowering this value.  You will occasionally get errors but if they are infrequent enough for you
-the time saved will be worth it.  
+#### NP_OptimizeBufferUsingPacketTimings
+This feature will attempt to optimize your buffer on individual casts using your latency and server packet timings.  
+After you begin to cast a spell you will get a cast result packet back from the server letting you know if the cast was successful.
+The time between when you send your start cast packet and when you receive the cast result packet consists of:
+- The time it takes for your packet to reach the server
+- The time it takes for the server to process the packet (see Why do I need a buffer?)
+- The time it takes for the server to send the result packet back to you
+- Other delays I'm not sure about like the time it takes for the client to process packets from the server due to being single threaded
 
-Non gcd spells also seem to be affected by this.  I suspect that only one spell can be processed per server tick.  
-This means that if you try to cast 2 non gcd spells in the same server tick only one will be processed.  
-To avoid this happening there is `NP_NonGcdBufferTimeMs` which is added after each non gcd spell.  There might be more to
-it than this as using the normal buffer of 55ms was still resulting in skipped casts for me.  I found 100ms to be a safe value.
+If we take this 'Spell Response Time' and subtract your regular latency from it, we should be able to get a rough idea of the time it
+took for the server to process the cast.  If that time was less than your current default buffer we can use that time as the new buffer
+for the next cast only.  In theory if it is more than your current buffer we should also use it, but in 
+practice it seems to regularly be way larger than expected and using the default buffer doesn't result in an error.
+
+Due to this delay varying wildly in testing I'm unsure how reliable this technique is.  It needs more testing
+and a better understanding of all the factors introducing delay.  It is disabled by default for now.
 
 # Pepo v1.0.0 Changes
 

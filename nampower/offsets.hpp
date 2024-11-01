@@ -44,7 +44,12 @@ enum class Offsets : std::uint32_t {
     SpellIsTargeting = 0xCECAC0,
     CastingSpellId = 0xCECA88,
     VisualSpellId = 0X00CEAC58,
-    CastResultCDataStore = 0x0019FDDC,
+    GetSpellSlotAndType = 0X004B3950,
+    OsGetAsyncTimeMs = 0X0042B790,
+    ChannelTargetGuid = 0xC4D980,
+
+    CGSpellBook_mKnownSpells = 0xB700F0,
+    CGSpellBook_mKnownAbilities = 0XB712A8,
 
     IsSpellInRangeOfUnit = 0X004E56F0,
     CancelSpell = 0x6E4940,
@@ -77,10 +82,13 @@ enum class Offsets : std::uint32_t {
     Spell_C_GetAutoRepeatingSpell = 0x006E9FD0,
     Spell_C_HandleSpriteClick = 0x006E5B10,
     Spell_C_TargetSpell = 0x006E5250,
+    Spell_C_GetSpellCooldown = 0X006E2EA0,
 
     CVarLookup = 0x0063DEC0,
     RegisterCVar = 0X0063DB90,
 
+    GetClientConnection = 0X005AB490,
+    GetNetStats = 0X00537F20,
     ClientServicesSendMessagePtr = 0X00C28128,
 
     LoadScriptFunctions = 0x00490250,

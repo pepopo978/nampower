@@ -17,6 +17,7 @@ struct UserSettings {
     bool retryServerRejectedSpells;
     bool quickcastTargetingSpells;
     bool replaceMatchingNonGcdCategory;
+    bool optimizeBufferUsingPacketTimings;
 
     uint32_t spellQueueWindowMs;
     uint32_t onSwingBufferCooldownMs;
@@ -27,6 +28,7 @@ struct UserSettings {
     uint32_t maxBufferIncreaseMs;
     uint32_t nonGcdBufferTimeMs;
 
+    int32_t channelLatencyReductionPercentage;
 };
 
 enum CastType {
@@ -64,8 +66,8 @@ struct CastSpellParams {
 
     /* Additional data */
     uint32_t gcDCategory; // comes from spell->StartRecoveryCategory
-    uint32_t castTimeMs;
-    uint32_t castStartTimeMs;
+    uint32_t castTimeMs; // spell's cast time in ms
+    uint32_t castStartTimeMs; // event time in ms
     CastType castType;
     uint32_t numRetries;
     CastResult castResult;
@@ -99,7 +101,10 @@ struct CastData {
 
     bool cancellingSpell;
     bool channeling;
+    uint32_t channelEndMs;
+    uint32_t channelSpellId;
     uint32_t channelDuration;
     uint32_t channelCastCount;
+    uint32_t channelLastCastTimeMs;
 };
 

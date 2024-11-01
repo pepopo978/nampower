@@ -8,6 +8,11 @@
 #include "spellcast.hpp"
 
 namespace Nampower {
+    void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId) {
+        auto const signalEvent = detour->GetTrampolineT<SignalEventT>();
+        signalEvent(eventId);
+    }
+
     bool Script_SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
         auto const spellTargetUnit = detour->GetTrampolineT<LuaScriptT>();
 
@@ -44,7 +49,7 @@ namespace Nampower {
 
         // try to find the cast params for the spellId that numRetries in spellhistory
         auto castParams = gCastHistory.findSpellId(spellId);
-        if(castParams) {
+        if (castParams) {
             // Update the cast result even if this was a client failure to allowing casting again if needed
             castParams->castResult = CastResult::SERVER_FAILURE;
         }
@@ -143,8 +148,8 @@ namespace Nampower {
                                             uint64_t *targetGUID,
                                             int param_3,
                                             int clearCooldowns) {
-        DEBUG_LOG("Cooldown event triggered for " << game::GetSpellName(spellId) << " " << targetGUID << " " << param_3
-                                                  << " " << clearCooldowns);
+        DEBUG_LOG("Cooldown event triggered for " << game::GetSpellName(spellId) << " " <<
+                                                  targetGUID << " " << param_3 << " " << clearCooldowns);
 
         auto const cooldownEventTriggered = detour->GetTrampolineT<Spell_C_CooldownEventTriggeredT>();
         cooldownEventTriggered(spellId, targetGUID, param_3, clearCooldowns);
@@ -201,8 +206,42 @@ namespace Nampower {
 
         packet->m_read = rpos;
 
-        DEBUG_LOG("Cast result for " << game::GetSpellName(spellId) << " status " << int(status)
-                                     << " result " << int(spellCastResult));
+        auto const currentLatency = GetLatencyMs();
+
+        // Reset the server delay in case we aren't able to calculate it
+        gLastServerSpellDelayMs = 0;
+
+        // if the cast was successful and the spell cast result was successful, and we have a latency
+        // attempt to calculate the server delay
+        if (status == 0 && spellCastResult == 0 && currentLatency > 0) {
+            auto currentTime = GetTime();
+            // try to find the cast in the history
+            auto maxStartTime = currentTime - currentLatency;
+            auto castParams = gCastHistory.findSpellIdWithMaxStartTime(spellId, maxStartTime);
+
+            if(castParams) {
+                // running spellResponseTimeMs average
+                auto const lastCastTime = castParams->castStartTimeMs;
+                auto const spellResponseTimeMs = int32_t(currentTime - lastCastTime);
+
+                auto const serverDelay = spellResponseTimeMs - int32_t(currentLatency + castParams->castTimeMs);
+
+                // don't trust negative server delays
+                if (serverDelay > 0) {
+                    gLastServerSpellDelayMs = serverDelay;
+                }
+            }
+        }
+
+        if (gLastServerSpellDelayMs > 0) {
+            DEBUG_LOG("Cast result for " << game::GetSpellName(spellId) << " status " << int(status)
+                                         << " result " << int(spellCastResult) << " latency " << currentLatency
+                                            << " server delay " << gLastServerSpellDelayMs);
+        } else {
+            DEBUG_LOG("Cast result for " << game::GetSpellName(spellId) << " status " << int(status)
+                                         << " result " << int(spellCastResult) << " latency " << currentLatency);
+        }
+
 
         // update cast history
         auto castParams = gCastHistory.findSpellId(spellId);

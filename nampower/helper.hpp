@@ -17,5 +17,4 @@ namespace Nampower {
     bool SpellIsOnSwing(const game::SpellRec *spell);
 
     bool SpellIsTradeskillOrEnchant(const game::SpellRec *spell);
-
 }

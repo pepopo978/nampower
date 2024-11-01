@@ -87,6 +87,19 @@ namespace Nampower {
             return &queue[front];
         }
 
+        // Find the first spell in the queue with the given spellId
+        // so long as it was cast earlier than maxStartTimeMs
+        // when casting same spell multiple times in a row this is usually the 2nd cast in the history
+        CastSpellParams *findSpellIdWithMaxStartTime(uint32_t spellId, uint32_t maxStartTimeMs) {
+            for (int i = 0; i < size; i++) {
+                int index = (front + i) % MAX_SIZE;
+                if (queue[index].spellId == spellId && queue[index].castStartTimeMs < maxStartTimeMs) {
+                    return &queue[index];
+                }
+            }
+            return nullptr;
+        }
+
         CastSpellParams *findSpellId(uint32_t spellId) {
             for (int i = 0; i < size; i++) {
                 int index = (front + i) % MAX_SIZE;
