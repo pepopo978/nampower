@@ -7,6 +7,19 @@ Some other key improvements over Namreeb's version:
 - Using high_resolution_clock instead of GetTickCount for fasting timing on when to start casts
 - Fix broken cast animations when casting spells back to back
 
+### Compatability with other addons
+Queuing can cause issues with some addons that also manage spell casting.  Quickheal/Healbot/Quiver do not work well with queuing.  Check github issues for other potential incompatibilities.
+If rewrites these addons to use guid's from superwow that would likely fix all issues.
+
+Additionally, if you use pfui mouseover macros there is a timing issue that can occur causing it to target yourself instead of your mouseover target.
+
+HIGHLY recommend changing line 80 in pfui/modules/mouseover.lua from 
+
+`if SpellIsTargeting() then SpellTargetUnit(unitstr or "player") end`
+
+to 
+`SpellTargetUnit(unitstr or "player")`
+
 ### Configuration
 
 #### Configure with addon
