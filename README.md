@@ -9,7 +9,7 @@ Some other key improvements over Namreeb's version:
 
 ### Compatability with other addons
 Queuing can cause issues with some addons that also manage spell casting.  Quickheal/Healbot/Quiver do not work well with queuing.  Check github issues for other potential incompatibilities.
-If rewrites these addons to use guid's from superwow that would likely fix all issues.
+If someone rewrites these addons to use guids from superwow that would likely fix all issues.
 
 Additionally, if you use pfui mouseover macros there is a timing issue that can occur causing it to target yourself instead of your mouseover target.
 
