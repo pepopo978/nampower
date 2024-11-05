@@ -53,10 +53,6 @@ namespace Nampower {
                                        << " elapsed " << (GetTime() - gLastCastData.channelStartTimeMs)
                                        << " original duration " << gCastData.channelDuration);
             ResetChannelingFlags();
-
-            if (IsNonSwingSpellQueued()) {
-                CastQueuedSpells();
-            }
         } else {
             DEBUG_LOG("Channel update: " << game::GetSpellName(gCastData.channelSpellId) << " remaining "
                                          << channelRemainingTime);

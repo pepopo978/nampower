@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.1.0";
+const char *VERSION = "v2.1.1";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -326,9 +326,7 @@ namespace Nampower {
                                              << " latency reduction " << latencyReduction << "]"
                                              << " triggering queued spells");
 
-                ResetCastFlags();
-
-                CastQueuedSpells();
+                ResetChannelingFlags();
             }
         }
 
