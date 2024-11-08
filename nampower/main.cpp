@@ -211,7 +211,6 @@ namespace Nampower {
 
         if (gCastData.channeling) {
             if (gUserSettings.queueChannelingSpells) {
-                auto currentTime = GetTime();
                 auto const remainingChannelTime = (gCastData.channelEndMs > currentTime) ? gCastData.channelEndMs -
                                                                                            currentTime : 0;
                 return remainingChannelTime < gUserSettings.channelQueueWindowMs;
