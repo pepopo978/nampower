@@ -237,14 +237,16 @@ namespace Nampower {
     }
 
     uint32_t EffectiveCastEndMs() {
-        if (gCastData.channeling) {
-            if (gUserSettings.queueChannelingSpells) {
+        if (gCastData.channeling && gUserSettings.queueChannelingSpells) {
+            if (gUserSettings.interruptChannelsOutsideQueueWindow) {
                 auto currentTime = GetTime();
                 auto const remainingChannelTime = (gCastData.channelEndMs > currentTime) ? gCastData.channelEndMs -
                                                                                            currentTime : 0;
                 if (remainingChannelTime < gUserSettings.channelQueueWindowMs) {
                     return gCastData.channelEndMs;
                 }
+            } else {
+                return gCastData.channelEndMs;
             }
         }
 
@@ -316,9 +318,9 @@ namespace Nampower {
                                                                                : 0;
 
             auto const currentLatency = GetLatencyMs();
-            auto latencyReduction = 0;
+            uint32_t latencyReduction = 0;
             if (currentLatency > 0 && gUserSettings.channelLatencyReductionPercentage != 0) {
-                latencyReduction = ((int32_t) currentLatency * gUserSettings.channelLatencyReductionPercentage) / 100;
+                latencyReduction = ((uint32_t) currentLatency * gUserSettings.channelLatencyReductionPercentage) / 100;
 
                 if (remainingChannelTime > latencyReduction) {
                     remainingChannelTime -= latencyReduction;
@@ -357,6 +359,11 @@ namespace Nampower {
         } else if (strcmp(cvar, "NP_QueueTargetingSpells") == 0) {
             gUserSettings.queueTargetingSpells = atoi(value) != 0;
             DEBUG_LOG("Set NP_QueueTargetingSpells to " << gUserSettings.queueTargetingSpells);
+
+        } else if (strcmp(cvar, "NP_InterruptChannelsOutsideQueueWindow") == 0) {
+            gUserSettings.interruptChannelsOutsideQueueWindow = atoi(value) != 0;
+            DEBUG_LOG("Set NP_InterruptChannelsOutsideQueueWindow to "
+                              << gUserSettings.interruptChannelsOutsideQueueWindow);
 
         } else if ((strcmp(cvar, "NP_RetryServerRejectedSpells") == 0)) {
             gUserSettings.retryServerRejectedSpells = atoi(value) != 0;
@@ -460,6 +467,8 @@ namespace Nampower {
         gUserSettings.queueChannelingSpells = true;
         gUserSettings.queueTargetingSpells = true;
 
+        gUserSettings.interruptChannelsOutsideQueueWindow = false;
+
         gUserSettings.retryServerRejectedSpells = true;
         gUserSettings.quickcastTargetingSpells = false;
         gUserSettings.replaceMatchingNonGcdCategory = false;
@@ -529,6 +538,17 @@ namespace Nampower {
                      nullptr, // help
                      0,  // unk1
                      gUserSettings.queueTargetingSpells ? defaultTrue : defaultFalse, // default value address
+                     nullptr, // callback
+                     1, // category
+                     0,  // unk2
+                     0); // unk3
+
+        char NP_InterruptChannelsOutsideQueueWindow[] = "NP_InterruptChannelsOutsideQueueWindow";
+        CVarRegister(NP_InterruptChannelsOutsideQueueWindow, // name
+                     nullptr, // help
+                     0,  // unk1
+                     gUserSettings.interruptChannelsOutsideQueueWindow ? defaultTrue
+                                                                       : defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
@@ -661,6 +681,8 @@ namespace Nampower {
         load_user_var("NP_QueueOnSwingSpells");
         load_user_var("NP_QueueChannelingSpells");
         load_user_var("NP_QueueTargetingSpells");
+
+        load_user_var("NP_InterruptChannelsOutsideQueueWindow");
 
         load_user_var("NP_RetryServerRejectedSpells");
         load_user_var("NP_QuickcastTargetingSpells");

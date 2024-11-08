@@ -14,6 +14,7 @@ struct UserSettings {
     bool queueChannelingSpells;
     bool queueTargetingSpells;
 
+    bool interruptChannelsOutsideQueueWindow;
     bool retryServerRejectedSpells;
     bool quickcastTargetingSpells;
     bool replaceMatchingNonGcdCategory;

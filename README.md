@@ -45,9 +45,10 @@ SET NP_TargetingQueueWindowMs "1000"
 - `NP_QueueCastTimeSpells` - Whether to enable spell queuing for spells with a cast time.  0 to disable, 1 to enable. Default is 1.
 - `NP_QueueInstantSpells` - Whether to enable spell queuing for instant cast spells tied to gcd.  0 to disable, 1 to enable.  Default is 1.
 - `NP_QueueOnSwingSpells` - Whether to enable on swing spell queuing.  0 to disable, 1 to enable. Default is 1.
-- `NP_QueueChannelingSpells` - Whether to enable channeling spell queuing as well as whether to allow interrupting channeling spells during the channel queue window.  0 to disable, 1 to enable. Default is 1.
+- `NP_QueueChannelingSpells` - Whether to enable channeling spell queuing as well as whether to allow any queuing during channels.  0 to disable, 1 to enable. Default is 1.
 - `NP_QueueTargetingSpells` - Whether to enable terrain targeting spell queuing.  0 to disable, 1 to enable. Default is 1.
 
+- `NP_InterruptChannelsOutsideQueueWindow` - Whether to allow interrupting channels (the original client behavior) when trying to cast a spell outside the channeling queue window. Default is 0.
 
 - `NP_SpellQueueWindowMs` - The window in ms before a cast finishes where the next will get queued. Default is 500.
 - `NP_OnSwingBufferCooldownMs` - The cooldown time in ms after an on swing spell before you can queue on swing spells. Default is 500.
@@ -190,7 +191,7 @@ From my testing it seems that you can usually subtract your full latency from th
 any ticks.  Since your latency can vary it is safer to do a percentage of your latency instead to minimize the chance of 
 having a tick cut off.  This is controlled by the cvar `NP_ChannelLatencyReductionPercentage` which defaults to 75.
 
-Channeling spells can be interrupted outside the channel queue window by casting any spell.  During the channel queue window
+Channeling spells can be interrupted outside the channel queue window by casting any spell if `NP_InterruptChannelsOutsideQueueWindow` is set to 1.  During the channel queue window
 you cannot interrupt the channel unless you turn off `NP_QueueChannelingSpells`.  You can always move to interrupt a channel at any time.
 
 #### NP_OptimizeBufferUsingPacketTimings
