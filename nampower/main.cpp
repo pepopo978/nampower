@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.1.1";
+const char *VERSION = "v2.1.2";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -210,10 +210,12 @@ namespace Nampower {
         uint32_t queueWindow = 0;
 
         if (gCastData.channeling) {
-            // calculate the time remaining in the channel
-            auto const remainingChannelTime = (gCastData.channelEndMs > currentTime) ? gCastData.channelEndMs -
-                                                                                       currentTime : 0;
-            return remainingChannelTime < gUserSettings.channelQueueWindowMs;
+            if (gUserSettings.queueChannelingSpells) {
+                auto currentTime = GetTime();
+                auto const remainingChannelTime = (gCastData.channelEndMs > currentTime) ? gCastData.channelEndMs -
+                                                                                           currentTime : 0;
+                return remainingChannelTime < gUserSettings.channelQueueWindowMs;
+            }
         } else if (spellIsTargeting) {
             queueWindow = gUserSettings.targetingQueueWindowMs;
         } else {
@@ -237,7 +239,14 @@ namespace Nampower {
 
     uint32_t EffectiveCastEndMs() {
         if (gCastData.channeling) {
-            return gCastData.channelEndMs;
+            if (gUserSettings.queueChannelingSpells) {
+                auto currentTime = GetTime();
+                auto const remainingChannelTime = (gCastData.channelEndMs > currentTime) ? gCastData.channelEndMs -
+                                                                                           currentTime : 0;
+                if (remainingChannelTime < gUserSettings.channelQueueWindowMs) {
+                    return gCastData.channelEndMs;
+                }
+            }
         }
 
         return max(gCastData.castEndMs, gCastData.delayEndMs);
