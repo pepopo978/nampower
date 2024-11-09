@@ -45,6 +45,16 @@ namespace Nampower {
         auto const spellFailed = detour->GetTrampolineT<Spell_C_SpellFailedT>();
         spellFailed(spellId, spellResult, unk1, unk2, unk3);
 
+        // ignore SPELL_FAILED_CANT_DO_THAT_YET for arcane surge gets sent all the time after success
+        if (spellResult == game::SpellCastResult::SPELL_FAILED_CANT_DO_THAT_YET &&
+            (spellId == 51933 ||
+             spellId == 51934 ||
+             spellId == 51935 ||
+             spellId == 51936)
+                ) {
+            return;
+        }
+
         ResetCastFlags();
 
         // try to find the cast params for the spellId that numRetries in spellhistory
@@ -219,7 +229,7 @@ namespace Nampower {
             auto maxStartTime = currentTime - currentLatency;
             auto castParams = gCastHistory.findSpellIdWithMaxStartTime(spellId, maxStartTime);
 
-            if(castParams) {
+            if (castParams) {
                 // running spellResponseTimeMs average
                 auto const lastCastTime = castParams->castStartTimeMs;
                 auto const spellResponseTimeMs = int32_t(currentTime - lastCastTime);
@@ -236,7 +246,7 @@ namespace Nampower {
         if (gLastServerSpellDelayMs > 0) {
             DEBUG_LOG("Cast result for " << game::GetSpellName(spellId) << " status " << int(status)
                                          << " result " << int(spellCastResult) << " latency " << currentLatency
-                                            << " server delay " << gLastServerSpellDelayMs);
+                                         << " server delay " << gLastServerSpellDelayMs);
         } else {
             DEBUG_LOG("Cast result for " << game::GetSpellName(spellId) << " status " << int(status)
                                          << " result " << int(spellCastResult) << " latency " << currentLatency);

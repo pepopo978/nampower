@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.1.3";
+const char *VERSION = "v2.1.4";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
