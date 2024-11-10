@@ -20,10 +20,19 @@ HIGHLY recommend changing line 80 in pfui/modules/mouseover.lua from
 to 
 `SpellTargetUnit(unitstr or "player")`
 
+### Installation
+Grab the latest nampower.dll from https://github.com/pepopo978/nampower/releases and place in the same directory as WoW.exe.  You can also get the helper addon mentioned below and place that in Interface/Addons.
+
+If you would prefer to compile yourself you will need to get:
+- boost 1.80 32 bit from https://www.boost.org/users/history/version_1_80_0.html
+- hadesmem from https://github.com/namreeb/hadesmem
+
+CMakeLists.txt is currently looking for boost at `set(BOOST_INCLUDEDIR "C:/software/boost_1_80_0")` and hadesmem at `set(HADESMEM_ROOT "C:/software/hadesmem-v142-Debug-Win32")`.  Edit as needed.
+
 ### Configuration
 
 #### Configure with addon
-There is a companion addon to make it easy to check/change the settings in game.  You can download it [here](https://github.com/pepopo978/nampowersettings).
+There is a companion addon to make it easy to check/change the settings in game.  You can download it here - [nampowersettings](https://github.com/pepopo978/nampowersettings).
 
 #### Manual Configuration
 The following CVars control the behavior of the spell queuing system:
