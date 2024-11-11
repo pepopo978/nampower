@@ -43,7 +43,9 @@ namespace Nampower {
 
         auto const spellOnGcd = SpellIsOnGcd(spell);
         gLastCastData.wasOnGcd = spellOnGcd;
-        gLastCastData.wasItem = gCastHistory.peek()->item != nullptr;
+
+        // no cast history for on swing spells
+        gLastCastData.wasItem = gCastHistory.peek() != nullptr && gCastHistory.peek()->item != nullptr;
 
         auto const bufferMs = GetServerDelayMs();
 
@@ -243,6 +245,14 @@ namespace Nampower {
             SaveCastParams(&gLastOnSwingCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory,
                            castTime,
                            currentTime, ON_SWING, 0);
+
+            gCastHistory.pushFront({playerUnit, spellId, item, guid,
+                                    spell->StartRecoveryCategory,
+                                    castTime,
+                                    currentTime,
+                                    ON_SWING,
+                                    gCastData.numRetries,
+                                    CastResult::WAITING_FOR_SERVER});
 
             // try to cast the spell
             auto const castSpell = detour->GetTrampolineT<CastSpellT>();
