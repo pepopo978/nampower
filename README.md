@@ -13,12 +13,7 @@ If someone rewrites these addons to use guids from superwow that would likely fi
 
 Additionally, if you use pfui mouseover macros there is a timing issue that can occur causing it to target yourself instead of your mouseover target.
 
-HIGHLY recommend changing line 80 in pfui/modules/mouseover.lua from 
-
-`if SpellIsTargeting() then SpellTargetUnit(unitstr or "player") end`
-
-to 
-`SpellTargetUnit(unitstr or "player")`
+If you have superwow HIGHLY recommend replacing pfui/modules/mouseover.lua with this version https://gist.github.com/pepopo978/690f1fa8bafae04abb8ac657a9fd969e
 
 ### Installation
 Grab the latest nampower.dll from https://github.com/pepopo978/nampower/releases and place in the same directory as WoW.exe.  You can also get the helper addon mentioned below and place that in Interface/Addons.
