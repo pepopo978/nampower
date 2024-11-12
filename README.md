@@ -24,6 +24,8 @@ If you would prefer to compile yourself you will need to get:
 
 CMakeLists.txt is currently looking for boost at `set(BOOST_INCLUDEDIR "C:/software/boost_1_80_0")` and hadesmem at `set(HADESMEM_ROOT "C:/software/hadesmem-v142-Debug-Win32")`.  Edit as needed.
 
+Recommend launching using VanillaFixes as it will load both nampower and superwow.
+
 ### Configuration
 
 #### Configure with addon
