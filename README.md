@@ -101,6 +101,8 @@ For example, you can equip a libram before casting a queued heal using
 #### IsSpellInRange(spellName, [target]) or IsSpellInRange(spellId, [target])
 Takes a spell name or spell id and an optional target.  Target can the usual UNIT tokens like "player", "target", "mouseover", etc or a unit guid.
 
+If using spell name it must be a spell you have in your spellbook.  If using spell id it can be any spell id.
+
 Returns 1 if the spell is in range, 0 if not in range, and -1 if the spell is not valid for this check (must be TARGET_UNIT_PET, TARGET_UNIT_TARGET_ENEMY, TARGET_UNIT_TARGET_ALLY, TARGET_UNIT_TARGET_ANY).
 This is because this uses the same underlying function as `IsActionInRange` which returns 1 for spells that are not single target which can be misleading.
 
