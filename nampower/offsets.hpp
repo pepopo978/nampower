@@ -49,6 +49,7 @@ enum class Offsets : std::uint32_t {
     ChannelTargetGuid = 0xC4D980,
 
     CGSpellBook_mKnownSpells = 0xB700F0,
+    CGSpellBook_mKnownPetSpells = 0XB6F098,
     CGSpellBook_mKnownAbilities = 0XB712A8,
 
     IsSpellInRangeOfUnit = 0X004E56F0,
@@ -95,9 +96,9 @@ enum class Offsets : std::uint32_t {
     FrameScript_RegisterFunction = 0x00704120,
 
     // Existing script functions
+    GetGUIDFromName = 0X00515970,
     Script_CastSpellByName = 0x004B4AB0,
     Script_SpellTargetUnit = 0x006E6D90,
-    Script_GetGUIDFromName = 0X00515970,
     Script_SetCVar = 0x00488C10,
     Script_RunScript = 0x0048B980,
 
@@ -108,10 +109,17 @@ enum class Offsets : std::uint32_t {
     Script_IsSpellInRange = 0x004E76D8,
 
     lua_isstring = 0x006F3510,
+    lua_isnumber = 0X006F34D0,
     lua_tostring = 0x006F3690,
+    lua_tonumber = 0X006F3620,
+    lua_pushnumber = 0X006F3810,
+    lua_pushstring = 0X006F3890,
+    lua_pushnil = 0X006F37F0,
     lua_call = 0x00704CD0,
     lua_pcall = 0x006F41A0,
     lua_error = 0X006F4940,
+
+    RangeCheckSelected = 0x6E4440,
 
     GetSpellIdFromSpellName = 0X004B3950,
 

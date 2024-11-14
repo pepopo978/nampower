@@ -57,7 +57,8 @@ namespace Nampower {
 
     extern bool gScriptQueued;
 
-    using CastSpellT = bool (__fastcall *)(uint32_t *, uint32_t, void *, std::uint64_t);
+    using RangeCheckSelectedT = bool (__fastcall *)(uintptr_t *playerUnit,const game::SpellRec *, std::uint64_t targetGuid, char ignoreErrors);
+    using CastSpellT = bool (__fastcall *)(uintptr_t *playerUnit, uint32_t spellId, void *item, std::uint64_t targetGuid);
     using SendCastT = void (__fastcall *)(game::SpellCast *, char unk);
     using CancelSpellT = void (__fastcall *)(bool, bool, game::SpellCastResult);
     using CancelAutoRepeatSpellT = void (__stdcall *)();
@@ -84,18 +85,23 @@ namespace Nampower {
     using OsGetAsyncTimeMsT = uint64_t (__stdcall *)();
 
     using GetClientConnectionT = uintptr_t *(__stdcall *)();
-    using GetNetStatsT = void (__thiscall *)(uintptr_t* connection, float *param_1, float *param_2, uint32_t *param_3);
+    using GetNetStatsT = void (__thiscall *)(uintptr_t *connection, float *param_1, float *param_2, uint32_t *param_3);
 
     using LoadScriptFunctionsT = void (__stdcall *)();
     using FrameScript_RegisterFunctionT = void (__fastcall *)(char *name, uintptr_t *func);
 
-    using LuaScriptT = bool (__fastcall *)(uintptr_t *luaState);
+    using LuaScriptT = uint32_t (__fastcall *)(uintptr_t *luaState);
     using Script_GetGUIDFromNameT = std::uint64_t (__fastcall *)(const char *);
     using lua_isstringT = bool (__fastcall *)(uintptr_t *, int);
+    using lua_isnumberT = bool (__fastcall *)(uintptr_t *, int);
     using lua_tostringT = char *(__fastcall *)(uintptr_t *, int);
+    using lua_tonumberT = double (__fastcall *)(uintptr_t *, int);
+    using lua_pushnumberT = void (__fastcall *)(uintptr_t *, double);
+    using lua_pushstringT = void (__fastcall *)(uintptr_t *, char*);
+    using lua_pushnilT = void (__fastcall *)(uintptr_t *);
     using lua_errorT = void (__cdecl *)(uintptr_t *, const char *);
 
-    using GetSpellIdFromSpellNameT = int (__fastcall *)(const char *, uint32_t *);
+    using GetSpellSlotAndBookTypeFromSpellNameT = uint32_t (__fastcall *)(const char *, uint32_t *);
 
     using Spell_C_CooldownEventTriggeredT = void (__fastcall *)(uint32_t spellId,
                                                                 uint64_t *targetGUID,

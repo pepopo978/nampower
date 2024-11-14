@@ -13,7 +13,7 @@ namespace Nampower {
         signalEvent(eventId);
     }
 
-    bool Script_SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+    uint32_t Script_SpellTargetUnitHook(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
         auto const spellTargetUnit = detour->GetTrampolineT<LuaScriptT>();
 
         // check if valid string
@@ -22,7 +22,7 @@ namespace Nampower {
             auto const lua_tostring = reinterpret_cast<lua_tostringT>(Offsets::lua_tostring);
             auto const unitName = lua_tostring(luaState, 1);
 
-            auto const getGUIDFromName = reinterpret_cast<Script_GetGUIDFromNameT>(Offsets::Script_GetGUIDFromName);
+            auto const getGUIDFromName = reinterpret_cast<Script_GetGUIDFromNameT>(Offsets::GetGUIDFromName);
             auto const guid = getGUIDFromName(unitName);
             if (guid) {
                 DEBUG_LOG("Spell target unit " << unitName << " guid " << guid);

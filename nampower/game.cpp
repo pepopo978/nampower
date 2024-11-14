@@ -35,8 +35,8 @@
 #include <cstdint>
 
 namespace game {
-    void *GetObjectPtr(std::uint64_t guid) {
-        void *(__stdcall *getObjectPtr)(std::uint64_t) = hadesmem::detail::AliasCast<decltype(getObjectPtr)>(
+    uintptr_t *GetObjectPtr(std::uint64_t guid) {
+        uintptr_t *(__stdcall *getObjectPtr)(std::uint64_t) = hadesmem::detail::AliasCast<decltype(getObjectPtr)>(
                 Offsets::GetObjectPtr);
 
         return getObjectPtr(guid);

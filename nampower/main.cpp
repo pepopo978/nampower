@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.1.5";
+const char *VERSION = "v2.2.0";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -463,9 +463,9 @@ namespace Nampower {
         // default values
         gUserSettings.queueCastTimeSpells = true;
         gUserSettings.queueInstantSpells = true;
-        gUserSettings.queueOnSwingSpells = true;
         gUserSettings.queueChannelingSpells = true;
         gUserSettings.queueTargetingSpells = true;
+        gUserSettings.queueOnSwingSpells = false;
 
         gUserSettings.interruptChannelsOutsideQueueWindow = false;
 
@@ -819,10 +819,10 @@ namespace Nampower {
                                                                                   Script_QueueScript);
         qQueueScriptDetour->Apply();
 
-//        auto const isSpellInRangeOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_IsSpellInRange);
-//        gIsSpellInRangeDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process, isSpellInRangeOrig,
-//                                                                                     Script_IsSpellInRange);
-//        gIsSpellInRangeDetour->Apply();
+        auto const isSpellInRangeOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_IsSpellInRange);
+        gIsSpellInRangeDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process, isSpellInRangeOrig,
+                                                                                     Script_IsSpellInRange);
+        gIsSpellInRangeDetour->Apply();
 
 //        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
 //                Offsets::Spell_C_CooldownEventTriggered);
@@ -866,8 +866,8 @@ namespace Nampower {
         char queueScript[] = "QueueScript";
         RegisterLuaFunction(queueScript, reinterpret_cast<uintptr_t *>(Offsets::Script_QueueScript));
 
-//        char isSpellInRange[] = "IsSpellInRange";
-//        RegisterLuaFunction(isSpellInRange, reinterpret_cast<uintptr_t *>(Offsets::Script_IsSpellInRange));
+        char isSpellInRange[] = "IsSpellInRange";
+        RegisterLuaFunction(isSpellInRange, reinterpret_cast<uintptr_t *>(Offsets::Script_IsSpellInRange));
     }
 
     std::once_flag load_flag;

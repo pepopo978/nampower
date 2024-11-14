@@ -168,7 +168,7 @@ namespace Nampower {
                 spellId);
     }
 
-    bool Script_CastSpellByNameNoQueue(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+    uint32_t Script_CastSpellByNameNoQueue(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
         DEBUG_LOG("Casting next spell without queuing");
         // turn on forceQueue and then call regular CastSpellByName
         gNoQueueCast = true;
@@ -179,7 +179,7 @@ namespace Nampower {
         return result;
     }
 
-    bool Script_QueueSpellByName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+    uint32_t Script_QueueSpellByName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
         DEBUG_LOG("Force queuing next cast spell");
         // turn on forceQueue and then call regular CastSpellByName
         gForceQueueCast = true;
@@ -200,25 +200,104 @@ namespace Nampower {
         }
     }
 
-    bool Script_IsSpellInRange(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
-        DEBUG_LOG("Checking if spell is in range");
+    uint32_t GetSpellIdFromSpellName(const char *spellName) {
+        auto const GetSpellSlotAndBookTypeFromSpellName = reinterpret_cast<GetSpellSlotAndBookTypeFromSpellNameT>(Offsets::GetSpellIdFromSpellName);
+        uint32_t bookType;
+        uint32_t spellSlot = GetSpellSlotAndBookTypeFromSpellName(spellName, &bookType);
 
+        uint32_t spellId = 0;
+        if (spellSlot < 1024) {
+            if (bookType == 0) {
+                spellId = *reinterpret_cast<uint32_t *>(uint32_t(Offsets::CGSpellBook_mKnownSpells) +
+                                                        spellSlot * 4);
+            } else {
+                spellId = *reinterpret_cast<uint32_t *>(uint32_t(Offsets::CGSpellBook_mKnownPetSpells) +
+                                                        spellSlot * 4);
+            }
+        }
+
+        return spellId;
+    }
+
+    uint32_t Script_IsSpellInRange(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        auto const lua_error = reinterpret_cast<lua_errorT>(Offsets::lua_error);
         auto const lua_isstring = reinterpret_cast<lua_isstringT>(Offsets::lua_isstring);
-        if (lua_isstring(luaState, 1)) {
-            auto const lua_tostring = reinterpret_cast<lua_tostringT>(Offsets::lua_tostring);
-            auto const spellName = lua_tostring(luaState, 1);
+        auto const lua_isnumber = reinterpret_cast<lua_isnumberT>(Offsets::lua_isnumber);
+        auto const lua_tostring = reinterpret_cast<lua_tostringT>(Offsets::lua_tostring);
+        auto const lua_tonumber = reinterpret_cast<lua_tonumberT>(Offsets::lua_tonumber);
+        auto const lua_pushnumber = reinterpret_cast<lua_pushnumberT>(Offsets::lua_pushnumber);
 
-            auto const GetSpellIdFromSpellName = reinterpret_cast<GetSpellIdFromSpellNameT>(Offsets::GetSpellIdFromSpellName);
-            uint32_t spellId;
-            auto result = GetSpellIdFromSpellName(spellName, &spellId);
+        auto param1IsString = lua_isstring(luaState, 1);
+        auto param1IsNumber = lua_isnumber(luaState, 1);
+        if (param1IsString || param1IsNumber) {
+            uint32_t spellId = 0;
 
-            DEBUG_LOG(spellId << " " << result << " " << spellName);
+            if (param1IsNumber) {
+                spellId = uint32_t(lua_tonumber(luaState, 1));
+
+                if (spellId == 0) {
+                    lua_error(luaState, "Unable to parse spell id");
+                    return 0;
+                }
+            } else {
+                auto const spellName = lua_tostring(luaState, 1);
+
+                spellId = GetSpellIdFromSpellName(spellName);
+                if (spellId == 0) {
+                    lua_error(luaState, "Unable to determine spell id from spell name, possibly because it isn't in your spell book.  Try IsSpellInRange(SPELL_ID) instead");
+                    return 0;
+                }
+            }
+
+            auto spell = game::GetSpellInfo(spellId);
+            if (spell) {
+                std::set<uint32_t> validTargetTypes = {5, 6, 21, 25};
+                if(sizeof spell->EffectImplicitTargetA == 0 || validTargetTypes.count(spell->EffectImplicitTargetA[0]) == 0) {
+                    lua_pushnumber(luaState, -1.0);
+                    return 1;
+                }
+
+                char *target;
+
+                if (lua_isstring(luaState, 2)) {
+                    target = lua_tostring(luaState, 2);
+                } else {
+                    char defaultTarget[] = "target";
+                    target = defaultTarget;
+                }
+
+                uint64_t targetGUID;
+                if (strncmp(target, "0x", 2) == 0 || strncmp(target, "0X", 2) == 0) {
+                    // already a guid
+                    targetGUID = std::stoull(target, nullptr, 16);
+                } else {
+                    auto const getGUIDFromName = reinterpret_cast<Script_GetGUIDFromNameT>(Offsets::GetGUIDFromName);
+                    targetGUID = getGUIDFromName(target);
+                }
+
+                auto playerUnit = game::GetObjectPtr(game::ClntObjMgrGetActivePlayer());
+
+                DEBUG_LOG("Checking if " << playerUnit << "'s spell " << spell << " is in range for " << target
+                                         << " guid " << targetGUID);
+                auto const RangeCheckSelected = reinterpret_cast<RangeCheckSelectedT>(Offsets::RangeCheckSelected);
+                auto const result = RangeCheckSelected(playerUnit, spell, targetGUID, '\0');
+
+                DEBUG_LOG("Range check result " << result);
+
+                if (result != 0) {
+                    lua_pushnumber(luaState, 1.0);
+                } else {
+                    lua_pushnumber(luaState, 0);
+                }
+                return 1;
+            } else {
+                lua_error(luaState, "Spell not found");
+            }
         } else {
-            auto const lua_error = reinterpret_cast<lua_errorT>(Offsets::lua_error);
             lua_error(luaState, "Usage: IsSpellInRange(spellName)");
         }
 
-        return false;
+        return 0;
     }
 
     bool
@@ -400,8 +479,8 @@ namespace Nampower {
                             return false;
                         } else {
                             DEBUG_LOG("Queuing " << desc << " non GCD for after cast/gcd: "
-                                              << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
-                                              << spell->StartRecoveryCategory);
+                                                 << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
+                                                 << spell->StartRecoveryCategory);
 
                             gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
                                                    spell->StartRecoveryCategory,
@@ -602,4 +681,5 @@ namespace Nampower {
         auto const spell = game::GetSpellInfo(cast->spellId);
         BeginCast(gCastData.attemptedCastTimeMs, spell, cast);
     }
+
 }

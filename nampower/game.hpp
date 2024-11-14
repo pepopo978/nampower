@@ -961,7 +961,7 @@ namespace game {
         }
     };//Size=0x0010
 
-    void *GetObjectPtr(std::uint64_t guid);
+    uintptr_t *GetObjectPtr(std::uint64_t guid);
 
     std::uint32_t GetCastTime(void *unit, uint32_t spellId);
 

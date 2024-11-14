@@ -50,9 +50,9 @@ SET NP_TargetingQueueWindowMs "1000"
 
 - `NP_QueueCastTimeSpells` - Whether to enable spell queuing for spells with a cast time.  0 to disable, 1 to enable. Default is 1.
 - `NP_QueueInstantSpells` - Whether to enable spell queuing for instant cast spells tied to gcd.  0 to disable, 1 to enable.  Default is 1.
-- `NP_QueueOnSwingSpells` - Whether to enable on swing spell queuing.  0 to disable, 1 to enable. Default is 1.
 - `NP_QueueChannelingSpells` - Whether to enable channeling spell queuing as well as whether to allow any queuing during channels.  0 to disable, 1 to enable. Default is 1.
 - `NP_QueueTargetingSpells` - Whether to enable terrain targeting spell queuing.  0 to disable, 1 to enable. Default is 1.
+- `NP_QueueOnSwingSpells` - Whether to enable on swing spell queuing.  0 to disable, 1 to enable. Default is 0 (changed with 1.17.2 due to changes to on swing spells).
 
 - `NP_InterruptChannelsOutsideQueueWindow` - Whether to allow interrupting channels (the original client behavior) when trying to cast a spell outside the channeling queue window. Default is 0.
 
@@ -96,6 +96,17 @@ Convert slash commands from other addons like `/equip` to their function form `S
 For example, you can equip a libram before casting a queued heal using
 ```
 /run QueueScript('SlashCmdList.EQUIP("Libram of +heal")')
+```
+
+#### IsSpellInRange(spellName, [target]) or IsSpellInRange(spellId, [target])
+Takes a spell name or spell id and an optional target.  Target can the usual UNIT tokens like "player", "target", "mouseover", etc or a unit guid.
+
+Returns 1 if the spell is in range, 0 if not in range, and -1 if the spell is not valid for this check (must be TARGET_UNIT_PET, TARGET_UNIT_TARGET_ENEMY, TARGET_UNIT_TARGET_ALLY, TARGET_UNIT_TARGET_ANY).
+This is because this uses the same underlying function as `IsActionInRange` which returns 1 for spells that are not single target which can be misleading.
+
+Examples:
+```
+/run local result=IsSpellInRange("Frostbolt"); if result == 1 then print("In range") else if result == 0 then print("Out of range") else print("Not single target") end
 ```
 
 ### SPELL_QUEUE_EVENT
