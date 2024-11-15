@@ -22,15 +22,26 @@ namespace Nampower {
         DEBUG_LOG("Channel start: " << game::GetSpellName(spellId) << " duration " << duration);
 
         if (duration > 0) {
-            auto currentTimeMs = GetTime();
-            gCastData.channeling = true;
-            gCastData.channelEndMs = currentTimeMs + duration;
-            gCastData.channelSpellId = spellId;
-            gCastData.channelDuration = duration;
-            gCastData.channelCastCount = 0;
-            gCastData.channelLastCastTimeMs = 0;
+            // check if spell has "Far sight" flag which is used on mind control style abilities
+            auto spell = game::GetSpellInfo(spellId);
+            if (spell && !(spell->AttributesEx & game::SPELL_ATTR_EX_TOGGLE_FARSIGHT ||
+                           spellId == 19832 || // bwl orb spell
+                           spellId == 23014 || // bwl orb spell
+                           spellId == 13180) // mind control cap
+                    ) {
+                auto currentTimeMs = GetTime();
+                gCastData.channeling = true;
+                gCastData.channelEndMs = currentTimeMs + duration;
+                gCastData.channelSpellId = spellId;
+                gCastData.channelDuration = duration;
+                gCastData.channelCastCount = 0;
+                gCastData.channelLastCastTimeMs = 0;
 
-            gLastCastData.channelStartTimeMs = currentTimeMs;
+                gLastCastData.channelStartTimeMs = currentTimeMs;
+            } else {
+                DEBUG_LOG("Ignoring channel start for " << game::GetSpellName(spellId));
+            }
+
         } else {
             ResetChannelingFlags();
         }
