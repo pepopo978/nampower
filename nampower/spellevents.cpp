@@ -6,6 +6,7 @@
 #include "offsets.hpp"
 #include "logging.hpp"
 #include "spellcast.hpp"
+#include "helper.hpp"
 
 namespace Nampower {
     void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId) {
@@ -57,18 +58,53 @@ namespace Nampower {
 
         ResetCastFlags();
 
-        // try to find the cast params for the spellId that numRetries in spellhistory
-        auto castParams = gCastHistory.findSpellId(spellId);
-        if (castParams) {
-            // Update the cast result even if this was a client failure to allowing casting again if needed
-            castParams->castResult = CastResult::SERVER_FAILURE;
-        }
-
         if ((spellResult == game::SpellCastResult::SPELL_FAILED_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_ITEM_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_SPELL_IN_PROGRESS)
                 ) {
             auto const currentTime = GetTime();
+
+            if (spellResult == game::SpellCastResult::SPELL_FAILED_NOT_READY) {
+                // check if spell is just on cooldown still
+                auto const spellCooldown = GetRemainingCooldownForSpell(spellId);
+                if (spellCooldown > 0) {
+                    auto castParams = gCastHistory.findSpellId(spellId);
+                    if (castParams) {
+                        // mark as failed so it can be cast again
+                        castParams->castResult = CastResult::SERVER_FAILURE;
+                    }
+
+                    // check if we should do cooldown queuing
+                    if (gUserSettings.queueSpellsOnCooldown && spellCooldown < gUserSettings.cooldownQueueWindowMs) {
+                        if (castParams) {
+                            if (castParams->castType == CastType::NON_GCD ||
+                                castParams->castType == CastType::TARGETING_NON_GCD) {
+                                DEBUG_LOG("Non gcd spell " << game::GetSpellName(spellId) << " is still on cooldown "
+                                                           << spellCooldown
+                                                           << " queuing retry");
+                                gCastData.cooldownNonGcdSpellQueued = true;
+                                gCastData.cooldownNonGcdEndMs = spellCooldown + currentTime;
+
+                                TriggerSpellQueuedEvent(QueueEvents::NON_GCD_QUEUED, spellId);
+                                gNonGcdCastQueue.push(*castParams, gUserSettings.replaceMatchingNonGcdCategory);
+                            } else {
+                                DEBUG_LOG("Spell " << game::GetSpellName(spellId) << " is still on cooldown "
+                                                   << spellCooldown
+                                                   << " queuing retry");
+                                gCastData.cooldownNormalSpellQueued = true;
+                                gCastData.cooldownNormalEndMs = spellCooldown + currentTime;
+
+                                TriggerSpellQueuedEvent(QueueEvents::NORMAL_QUEUED, spellId);
+                                gLastNormalCastParams = *castParams;
+                            }
+                            return;
+                        }
+                    } else {
+                        DEBUG_LOG("Spell " << game::GetSpellName(spellId) << " is still on cooldown " << spellCooldown);
+                        return;
+                    }
+                }
+            }
 
             if (!gUserSettings.retryServerRejectedSpells) {
                 DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
@@ -78,6 +114,19 @@ namespace Nampower {
             }
             gLastErrorTimeMs = currentTime;
 
+            // see if we have a recent successful cast of this spell
+            auto successfulCastParams = gCastHistory.findSuccessfulSpellId(spellId);
+            if (successfulCastParams && successfulCastParams->castStartTimeMs > currentTime - 1000) {
+                // we found a recent successful cast of this spell, ignore the failure that was the result
+                // of spamming the cast
+                DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
+                                             << " code " << int(spellResult)
+                                             << ", but a recent cast succeeded, not retrying");
+                return;
+            }
+
+            // otherwise see if we should retry the cast
+            auto castParams = gCastHistory.findSpellId(spellId);
             if (castParams) {
                 // if we find non retried cast params and the original cast time is within the last 500ms, retry the cast
                 if (castParams->castStartTimeMs > currentTime - 500) {
@@ -89,18 +138,28 @@ namespace Nampower {
                             castParams->castType == CastType::TARGETING_NON_GCD) {
                             DEBUG_LOG("Cast failed for non gcd " << game::GetSpellName(spellId)
                                                                  << " code " << int(spellResult)
-                                                                 << ", retry " << castParams->numRetries);
+                                                                 << ", retry " << castParams->numRetries
+                                                                 << " result " << castParams->castResult);
                             gCastData.delayEndMs = currentTime + gBufferTimeMs; // retry after buffer delay
                             TriggerSpellQueuedEvent(QueueEvents::NON_GCD_QUEUED, spellId);
                             gCastData.nonGcdSpellQueued = true;
                             gNonGcdCastQueue.push(*castParams, gUserSettings.replaceMatchingNonGcdCategory);
                         } else {
-                            DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
-                                                         << " code " << int(spellResult)
-                                                         << ", retry " << castParams->numRetries);
-                            TriggerSpellQueuedEvent(QueueEvents::NORMAL_QUEUED, spellId);
-                            gCastData.normalSpellQueued = true;
-                            gLastNormalCastParams = *castParams;
+                            // if gcd is active, do nothing
+                            if (gCastData.gcdEndMs > currentTime) {
+                                DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
+                                                             << " code " << int(spellResult)
+                                                             << ", gcd active not retrying");
+                            } else {
+                                DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
+                                                             << " code " << int(spellResult)
+                                                             << ", retry " << castParams->numRetries
+                                                             << " result " << castParams->castResult);
+
+                                TriggerSpellQueuedEvent(QueueEvents::NORMAL_QUEUED, spellId);
+                                gCastData.normalSpellQueued = true;
+                                gLastNormalCastParams = *castParams;
+                            }
                         }
                     } else {
                         DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
@@ -252,11 +311,15 @@ namespace Nampower {
                                          << " result " << int(spellCastResult) << " latency " << currentLatency);
         }
 
-
         // update cast history
         auto castParams = gCastHistory.findSpellId(spellId);
         if (castParams) {
-            castParams->castResult = spellCastResult == 0 ? CastResult::SERVER_SUCCESS : CastResult::SERVER_FAILURE;
+            if (status == 0) {
+                castParams->castResult = CastResult::SERVER_SUCCESS;
+            } else if (castParams->castResult == CastResult::WAITING_FOR_SERVER) {
+                // only update result if it hasn't already been updated in case we are spamming the same spell
+                castParams->castResult = CastResult::SERVER_FAILURE;
+            }
         }
 
         return castResultHandler(opCode, packet);

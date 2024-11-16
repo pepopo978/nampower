@@ -11,7 +11,7 @@
 namespace Nampower {
     class CastQueue {
     private:
-        static const int MAX_SIZE = 5;
+        static const int MAX_SIZE = 6;
         CastSpellParams queue[MAX_SIZE]{};
         int front;
         int rear;
@@ -110,6 +110,16 @@ namespace Nampower {
             return nullptr;
         }
 
+        CastSpellParams *findSuccessfulSpellId(uint32_t spellId) {
+            for (int i = 0; i < size; i++) {
+                int index = (front + i) % MAX_SIZE;
+                if (queue[index].spellId == spellId && queue[index].castResult == CastResult::SERVER_SUCCESS) {
+                    return &queue[index];
+                }
+            }
+            return nullptr;
+        }
+
         CastSpellParams *findGcdCategory(uint32_t gcdCategory) {
             for (int i = 0; i < size; i++) {
                 int index = (front + i) % MAX_SIZE;
@@ -118,6 +128,13 @@ namespace Nampower {
                 }
             }
             return nullptr;
+        }
+
+        void logHistory() {
+            for (int i = 0; i < size; i++) {
+                int index = (front + i) % MAX_SIZE;
+                DEBUG_LOG("Cast history " << i << ": " << game::GetSpellName(queue[index].spellId) << " result " << queue[index].castResult);
+            }
         }
 
         int getSize() const {

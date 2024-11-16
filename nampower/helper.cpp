@@ -3,6 +3,8 @@
 //
 
 #include "helper.hpp"
+#include "offsets.hpp"
+#include "main.hpp"
 
 namespace Nampower {
     bool SpellIsOnGcd(const game::SpellRec *spell) {
@@ -31,5 +33,67 @@ namespace Nampower {
                 spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_CREATE_ITEM ||
                 spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_OPEN_LOCK ||
                 spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_OPEN_LOCK_ITEM);
+    }
+
+    // if the spell is off cooldown, this will return the gcd, otherwise the cooldown
+    uint32_t GetGcdOrCooldownForSpell(uint32_t spellId) {
+        uint32_t duration;
+        uint64_t startTime;
+        uint32_t enable;
+
+        auto const getSpellCooldown = reinterpret_cast<Spell_C_GetSpellCooldownT>(Offsets::Spell_C_GetSpellCooldown);
+        getSpellCooldown(spellId, 0, &duration, &startTime, &enable);
+
+        return duration;
+    }
+
+    uint64_t GetRemainingGcdOrCooldownForSpell(uint32_t spellId) {
+        uint32_t duration;
+        uint64_t startTime;
+        uint32_t enable;
+
+        auto const getSpellCooldown = reinterpret_cast<Spell_C_GetSpellCooldownT>(Offsets::Spell_C_GetSpellCooldown);
+        getSpellCooldown(spellId, 0, &duration, &startTime, &enable);
+
+        if (startTime != 0) {
+            startTime = startTime & 0XFFFFFFFF; // only look at same bits that lua does
+
+            auto currentLuaTime = GetWowTimeMs() & 0XFFFFFFFF;
+            auto remaining = (startTime + duration) - currentLuaTime;
+            return remaining;
+        }
+
+        return 0;
+    }
+
+    uint64_t GetRemainingCooldownForSpell(uint32_t spellId) {
+        uint32_t duration;
+        uint64_t startTime;
+        uint32_t enable;
+
+        auto const getSpellCooldown = reinterpret_cast<Spell_C_GetSpellCooldownT>(Offsets::Spell_C_GetSpellCooldown);
+        getSpellCooldown(spellId, 0, &duration, &startTime, &enable);
+
+        // ignore gcd cooldown by looking for duration > 1.5
+        if (startTime != 0 && duration > 1.5) {
+            startTime = startTime & 0XFFFFFFFF; // only look at same bits that lua does
+
+            auto currentLuaTime = GetWowTimeMs() & 0XFFFFFFFF;
+            auto remaining = (startTime + duration) - currentLuaTime;
+            return remaining;
+        }
+
+        return 0;
+    }
+
+    bool IsSpellOnCooldown(uint32_t spellId) {
+        uint32_t duration;
+        uint64_t startTime;
+        uint32_t enable;
+
+        auto const getSpellCooldown = reinterpret_cast<Spell_C_GetSpellCooldownT>(Offsets::Spell_C_GetSpellCooldown);
+        getSpellCooldown(spellId, 0, &duration, &startTime, &enable);
+
+        return startTime != 0 && duration > 1.5;
     }
 }

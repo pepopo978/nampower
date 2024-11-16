@@ -53,6 +53,7 @@ SET NP_TargetingQueueWindowMs "1000"
 - `NP_QueueChannelingSpells` - Whether to enable channeling spell queuing as well as whether to allow any queuing during channels.  0 to disable, 1 to enable. Default is 1.
 - `NP_QueueTargetingSpells` - Whether to enable terrain targeting spell queuing.  0 to disable, 1 to enable. Default is 1.
 - `NP_QueueOnSwingSpells` - Whether to enable on swing spell queuing.  0 to disable, 1 to enable. Default is 0 (changed with 1.17.2 due to changes to on swing spells).
+- `NP_QueueSpellsOnCooldown` - Whether to enable queuing for spells coming off cooldown.  0 to disable, 1 to enable. Default is 0.
 
 - `NP_InterruptChannelsOutsideQueueWindow` - Whether to allow interrupting channels (the original client behavior) when trying to cast a spell outside the channeling queue window. Default is 0.
 
@@ -60,6 +61,7 @@ SET NP_TargetingQueueWindowMs "1000"
 - `NP_OnSwingBufferCooldownMs` - The cooldown time in ms after an on swing spell before you can queue on swing spells. Default is 500.
 - `NP_ChannelQueueWindowMs` - The window in ms before a channel finishes where the next will get queued. Default is 1500.
 - `NP_TargetingQueueWindowMs` - The window in ms before a terrain targeting spell finishes where the next will get queued. Default is 500.
+- `NP_CooldownQueueWindowMs` - The window in ms of remaining cooldown where a spell will get queued instead of failing with 'Spell not Ready Yet'. Default is 250.
 
 
 - `NP_MinBufferTimeMs` - The minimum buffer delay in ms added to each cast (covered more below).  The dynamic buffer adjustments will not go below this value. Default is 55.
@@ -162,7 +164,7 @@ There are separate configurable queue windows for:
 - Channeling spells
 - Spells with terrain targeting
 
-There are 3 separate queues for the following types of spells: GCD(max size:1), non GCD(max size:5), and on-hit(max size:1).
+There are 3 separate queues for the following types of spells: GCD(max size:1), non GCD(max size:6), and on-hit(max size:1).
 
 ### Why do I need a buffer?
 From my own testing it seems that a buffer is required on spells to avoid "This ability isn't ready yet"/"Another action in progress" errors.  
@@ -185,7 +187,7 @@ it than this as using the normal buffer of 55ms was still resulting in skipped c
 Only one gcd spell can be queued at a time.  Pressing a new gcd spell will replace any existing queued gcd spell.
 
 #### Non GCD Spells
-Non gcd spells have special handling.  You can queue up to 5 non gcd spells, 
+Non gcd spells have special handling.  You can queue up to 6 non gcd spells, 
 and they will execute in the order queued with `NP_NonGcdBufferTimeMs` delay after each of them to help avoid server rejection.  
 The non gcd queue always has priority over queued normal spells.  
 You can only queue a given spellId once in the non gcd queue, any subsequent attempts will just replace the existing entry in the queue.
@@ -212,6 +214,14 @@ having a tick cut off.  This is controlled by the cvar `NP_ChannelLatencyReducti
 
 Channeling spells can be interrupted outside the channel queue window by casting any spell if `NP_InterruptChannelsOutsideQueueWindow` is set to 1.  During the channel queue window
 you cannot interrupt the channel unless you turn off `NP_QueueChannelingSpells`.  You can always move to interrupt a channel at any time.
+
+#### Spells on Cooldown
+If using `NP_QueueSpellsOnCooldown` when you attempt to cast a spell that has a remaining cooldown of less than `NP_CooldownQueueWindowMs` it will be queued instead of failing with 'Spell not Ready Yet'.
+There is a separate queue of size 1 for normal spells and non gcd spells.  If something is in either of these cooldown queues and you try to cast a spell that is not on cooldown it will be cast immediately and clear the appropriate cooldown queue.
+
+For example, if Fire Blast is on cooldown and I queue it and then try to cast Fireball it will cast Fireball immediately and Fire Blast will not get automatically cast anymore.
+
+This currently doesn't work for item cooldowns as they work differently, will add in the future.
 
 #### NP_OptimizeBufferUsingPacketTimings
 This feature will attempt to optimize your buffer on individual casts using your latency and server packet timings.  

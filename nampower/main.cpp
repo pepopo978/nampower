@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.2.1";
+const char *VERSION = "v2.3.0";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -112,7 +112,7 @@ namespace Nampower {
     }
 
     uint64_t GetWowTimeMs() {
-        auto const osGetAsyncTimeMs = reinterpret_cast<OsGetAsyncTimeMsT>(Offsets::OsGetAsyncTimeMs);
+        auto const osGetAsyncTimeMs = reinterpret_cast<GetTimeMsT>(Offsets::OsGetAsyncTimeMs);
         return osGetAsyncTimeMs();
     }
 
@@ -309,6 +309,26 @@ namespace Nampower {
                         gCastData.normalSpellQueued = false;
                     }
                 }
+            } else if (gCastData.cooldownNonGcdSpellQueued) {
+                auto currentTime = GetTime();
+
+                if (gCastData.cooldownNonGcdEndMs <= currentTime) {
+                    DEBUG_LOG("Non gcd spell cooldown up, casting queued spell");
+                    // trigger the regular non gcd queuing and turn off cooldownNonGcdSpellQueued
+                    gCastData.cooldownNonGcdSpellQueued = false;
+                    gCastData.nonGcdSpellQueued = true;
+                    CastQueuedNonGcdSpell();
+                }
+            } else if (gCastData.cooldownNormalSpellQueued) {
+                auto currentTime = GetTime();
+
+                if (gCastData.cooldownNormalEndMs <= currentTime) {
+                    DEBUG_LOG("Spell cooldown up, casting queued spell");
+                    // trigger the regular non gcd queuing and turn off cooldownNonGcdSpellQueued
+                    gCastData.cooldownNormalSpellQueued = false;
+                    gCastData.normalSpellQueued = true;
+                    CastQueuedNormalSpell();
+                }
             }
         } else if (gUserSettings.queueChannelingSpells && IsNonSwingSpellQueued()) {
             auto const currentTime = GetTime();
@@ -359,6 +379,9 @@ namespace Nampower {
         } else if (strcmp(cvar, "NP_QueueTargetingSpells") == 0) {
             gUserSettings.queueTargetingSpells = atoi(value) != 0;
             DEBUG_LOG("Set NP_QueueTargetingSpells to " << gUserSettings.queueTargetingSpells);
+        } else if (strcmp(cvar, "NP_QueueSpellsOnCooldown") == 0) {
+            gUserSettings.queueSpellsOnCooldown = atoi(value) != 0;
+            DEBUG_LOG("Set NP_QueueSpellsOnCooldown to " << gUserSettings.queueSpellsOnCooldown);
 
         } else if (strcmp(cvar, "NP_InterruptChannelsOutsideQueueWindow") == 0) {
             gUserSettings.interruptChannelsOutsideQueueWindow = atoi(value) != 0;
@@ -400,6 +423,9 @@ namespace Nampower {
         } else if (strcmp(cvar, "NP_TargetingQueueWindowMs") == 0) {
             gUserSettings.targetingQueueWindowMs = atoi(value);
             DEBUG_LOG("Set NP_TargetingQueueWindowMs to " << gUserSettings.targetingQueueWindowMs);
+        } else if (strcmp(cvar, "NP_CooldownQueueWindowMs") == 0) {
+            gUserSettings.cooldownQueueWindowMs = atoi(value);
+            DEBUG_LOG("Set NP_CooldownQueueWindowMs to " << gUserSettings.cooldownQueueWindowMs);
 
         } else if (strcmp(cvar, "NP_ChannelLatencyReductionPercentage") == 0) {
             gUserSettings.channelLatencyReductionPercentage = atoi(value);
@@ -466,6 +492,7 @@ namespace Nampower {
         gUserSettings.queueChannelingSpells = true;
         gUserSettings.queueTargetingSpells = true;
         gUserSettings.queueOnSwingSpells = false;
+        gUserSettings.queueSpellsOnCooldown = false;
 
         gUserSettings.interruptChannelsOutsideQueueWindow = false;
 
@@ -482,6 +509,7 @@ namespace Nampower {
         gUserSettings.onSwingBufferCooldownMs = 500; // time in ms to wait before queuing on swing spell after a swing
         gUserSettings.channelQueueWindowMs = 1500; // time in ms before channel ends to allow queuing spells
         gUserSettings.targetingQueueWindowMs = 500; // time in ms before cast to allow targeting
+        gUserSettings.cooldownQueueWindowMs = 250; // time in ms before cooldown is up to allow queuing spells
 
         gUserSettings.channelLatencyReductionPercentage = 75; // percent of latency to reduce channel time by
 
@@ -513,16 +541,6 @@ namespace Nampower {
                      0,  // unk2
                      0); // unk3
 
-        char NP_QueueOnSwingSpells[] = "NP_QueueOnSwingSpells";
-        CVarRegister(NP_QueueOnSwingSpells, // name
-                     nullptr, // help
-                     0,  // unk1
-                     gUserSettings.queueOnSwingSpells ? defaultTrue : defaultFalse, // default value address
-                     nullptr, // callback
-                     1, // category
-                     0,  // unk2
-                     0); // unk3
-
         char NP_QueueChannelingSpells[] = "NP_QueueChannelingSpells";
         CVarRegister(NP_QueueChannelingSpells, // name
                      nullptr, // help
@@ -538,6 +556,26 @@ namespace Nampower {
                      nullptr, // help
                      0,  // unk1
                      gUserSettings.queueTargetingSpells ? defaultTrue : defaultFalse, // default value address
+                     nullptr, // callback
+                     1, // category
+                     0,  // unk2
+                     0); // unk3
+
+        char NP_QueueOnSwingSpells[] = "NP_QueueOnSwingSpells";
+        CVarRegister(NP_QueueOnSwingSpells, // name
+                     nullptr, // help
+                     0,  // unk1
+                     gUserSettings.queueOnSwingSpells ? defaultTrue : defaultFalse, // default value address
+                     nullptr, // callback
+                     1, // category
+                     0,  // unk2
+                     0); // unk3
+
+        char NP_QueueSpellsOnCooldown[] = "NP_QueueSpellsOnCooldown";
+        CVarRegister(NP_QueueSpellsOnCooldown, // name
+                     nullptr, // help
+                     0,  // unk1
+                     gUserSettings.queueSpellsOnCooldown ? defaultTrue : defaultFalse, // default value address
                      nullptr, // callback
                      1, // category
                      0,  // unk2
@@ -634,6 +672,16 @@ namespace Nampower {
                      0,  // unk2
                      0); // unk3
 
+        char NP_CooldownQueueWindowMs[] = "NP_CooldownQueueWindowMs";
+        CVarRegister(NP_CooldownQueueWindowMs, // name
+                     nullptr, // help
+                     0,  // unk1
+                     std::to_string(gUserSettings.cooldownQueueWindowMs).c_str(), // default value address
+                     nullptr, // callback
+                     1, // category
+                     0,  // unk2
+                     0); // unk3
+
         char NP_OnSwingBufferCooldownMs[] = "NP_OnSwingBufferCooldownMs";
         CVarRegister(NP_OnSwingBufferCooldownMs, // name
                      nullptr, // help
@@ -681,6 +729,7 @@ namespace Nampower {
         load_user_var("NP_QueueOnSwingSpells");
         load_user_var("NP_QueueChannelingSpells");
         load_user_var("NP_QueueTargetingSpells");
+        load_user_var("NP_QueueSpellsOnCooldown");
 
         load_user_var("NP_InterruptChannelsOutsideQueueWindow");
 
@@ -697,6 +746,7 @@ namespace Nampower {
         load_user_var("NP_ChannelQueueWindowMs");
         load_user_var("NP_TargetingQueueWindowMs");
         load_user_var("NP_OnSwingBufferCooldownMs");
+        load_user_var("NP_CooldownQueueWindowMs");
 
         load_user_var("NP_ChannelLatencyReductionPercentage");
 

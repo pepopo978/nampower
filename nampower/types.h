@@ -13,6 +13,7 @@ struct UserSettings {
     bool queueOnSwingSpells;
     bool queueChannelingSpells;
     bool queueTargetingSpells;
+    bool queueSpellsOnCooldown;
 
     bool interruptChannelsOutsideQueueWindow;
     bool retryServerRejectedSpells;
@@ -24,6 +25,7 @@ struct UserSettings {
     uint32_t onSwingBufferCooldownMs;
     uint32_t channelQueueWindowMs;
     uint32_t targetingQueueWindowMs;
+    uint32_t cooldownQueueWindowMs;
 
     uint32_t minBufferTimeMs;
     uint32_t maxBufferIncreaseMs;
@@ -93,6 +95,12 @@ struct CastData {
     uint32_t attemptedCastTimeMs; // this ignoring on swing spells as they are independent
 
     bool onSwingQueued;
+    bool pendingOnSwingCast;
+
+    uint32_t cooldownNormalEndMs;
+    uint32_t cooldownNonGcdEndMs;
+    bool cooldownNormalSpellQueued;
+    bool cooldownNonGcdSpellQueued;
 
     bool normalSpellQueued;
     bool nonGcdSpellQueued;

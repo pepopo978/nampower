@@ -82,7 +82,7 @@ namespace Nampower {
                                                          uint32_t *duration, uint64_t *startTime, uint32_t *enable);
 
     using GetSpellSlotAndTypeT = int (__fastcall *)(const char *, uint32_t *);
-    using OsGetAsyncTimeMsT = uint64_t (__stdcall *)();
+    using GetTimeMsT = uint64_t (__stdcall *)();
 
     using GetClientConnectionT = uintptr_t *(__stdcall *)();
     using GetNetStatsT = void (__thiscall *)(uintptr_t *connection, float *param_1, float *param_2, uint32_t *param_3);

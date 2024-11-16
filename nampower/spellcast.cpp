@@ -13,17 +13,6 @@ namespace Nampower {
         return getSpellSlotAndType(spellName, spellType);
     }
 
-    uint32_t GetGcdForSpell(uint32_t spellId) {
-        uint32_t duration;
-        uint64_t startTime;
-        uint32_t enable;
-
-        auto const getSpellCooldown = reinterpret_cast<Spell_C_GetSpellCooldownT>(Offsets::Spell_C_GetSpellCooldown);
-        getSpellCooldown(spellId, 0, &duration, &startTime, &enable);
-
-        return duration;
-    }
-
     uint32_t GetChannelDuration(const game::SpellRec *spell) {
         auto const duration = game::GetDurationObject(spell->DurationIndex);
         return duration->m_Duration2;
@@ -52,7 +41,7 @@ namespace Nampower {
         gCastData.castEndMs = castTime ? currentTime + castTime + bufferMs : 0;
 
         if (spellOnGcd) {
-            auto gcdTime = GetGcdForSpell(spell->Id);
+            auto gcdTime = GetGcdOrCooldownForSpell(spell->Id);
 
             gCastData.gcdEndMs = currentTime + gcdTime + bufferMs;
             DEBUG_LOG("BeginCast " << game::GetSpellName(spell->Id)
@@ -319,6 +308,17 @@ namespace Nampower {
         DEBUG_LOG("Attempt cast " << spellName << " item " << item << " on guid " << guid
                                   << ", time since last cast " << currentTime - gLastCastData.startTimeMs);
 
+        // clear cooldown queue if we are casting a spell
+        if(spellOnGcd && gCastData.cooldownNormalSpellQueued){
+            gCastData.cooldownNormalSpellQueued = false;
+            TriggerSpellQueuedEvent(NORMAL_QUEUE_POPPED, gLastNormalCastParams.spellId);
+        } else if (gCastData.cooldownNonGcdSpellQueued) {
+            gCastData.cooldownNonGcdSpellQueued = false;
+            // pop the params
+            auto nonGcdParams = gNonGcdCastQueue.pop();
+            TriggerSpellQueuedEvent(NON_GCD_QUEUE_POPPED, nonGcdParams.spellId);
+        }
+
         // on swing spells are independent of cast bar / gcd, handle them separately
         if (spellIsOnSwing) {
             SaveCastParams(&gLastOnSwingCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory,
@@ -336,6 +336,10 @@ namespace Nampower {
             // try to cast the spell
             auto const castSpell = detour->GetTrampolineT<CastSpellT>();
             auto ret = castSpell(playerUnit, spellId, item, guid);
+
+            if(ret){
+                gCastData.pendingOnSwingCast = true;
+            }
 
             if (!ret && gUserSettings.queueOnSwingSpells && !gNoQueueCast) {
                 // if not in cooldown window
@@ -526,8 +530,10 @@ namespace Nampower {
             }
         }
 
-        // try clearing current casting spell id if not using tradeskill or enchant
-        if (!spellIsTradeSkillOrEnchant) {
+        // try clearing current casting spell id if
+        // not using tradeskill or enchant
+        // no on swing spell queued (will interrupt them)
+        if (!spellIsTradeSkillOrEnchant && !gCastData.pendingOnSwingCast) {
             clearCastingSpell();
         }
 
@@ -563,7 +569,7 @@ namespace Nampower {
         // simulate a cancel to clear the cast bar but only when there should be a cast time
         // mining/herbing have cast time but aren't on Gcd, don't cancel them
         if (!ret && gLastCastData.castTimeMs > 0 && gLastCastData.wasOnGcd) {
-            if (*reinterpret_cast<int *>(Offsets::SpellIsTargeting) == 0) {
+            if (*reinterpret_cast<int *>(Offsets::SpellIsTargeting) == 0 && !gCastData.pendingOnSwingCast && !IsSpellOnCooldown(spellId)) {
                 DEBUG_LOG("Canceling spell cast due to previous spell having cast time of "
                                   << gLastCastData.castTimeMs);
 
@@ -586,7 +592,7 @@ namespace Nampower {
                     DEBUG_LOG("Retry cast after cancel still failed");
                 }
             } else {
-                DEBUG_LOG("Initial cast failed, not canceling spell cast due to targeting");
+                DEBUG_LOG("Initial cast failed but not canceling spell cast");
             }
         }
 
@@ -608,10 +614,12 @@ namespace Nampower {
                 gCastData.channelCastCount++;
                 gCastData.channelLastCastTimeMs = currentTime;
             } else {
-                // check if spell is on hit
+                // check if spell is on swing
                 auto const spell = game::GetSpellInfo(spellId);
                 if (spell->Attributes & game::SPELL_ATTR_ON_NEXT_SWING_1) {
                     gLastCastData.onSwingStartTimeMs = currentTime;
+
+                    gCastData.pendingOnSwingCast = false;
 
                     if (gCastData.onSwingQueued) {
                         DEBUG_LOG("On swing spell " << game::GetSpellName(spellId) <<
