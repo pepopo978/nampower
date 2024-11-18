@@ -46,6 +46,10 @@ namespace Nampower {
                 gcdTime = 1500; // items with spells on gcd will return their item gcd, make sure not to use that
             }
 
+            if (castTime > 0 && castTime <= gcdTime) {
+                gcdTime += bufferMs; // add additional buffer to gcd time for fast cast spells to reduce errors
+            }
+
             gCastData.gcdEndMs = currentTime + gcdTime + bufferMs;
             DEBUG_LOG("BeginCast " << game::GetSpellName(spell->Id)
                                    << " cast time: " << castTime

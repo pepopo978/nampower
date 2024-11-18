@@ -54,10 +54,9 @@ namespace Nampower {
 
         auto const getSpellCooldown = reinterpret_cast<Spell_C_GetSpellCooldownT>(Offsets::Spell_C_GetSpellCooldown);
         getSpellCooldown(spellId, 0, &duration, &startTime, &enable);
+        startTime = startTime & 0XFFFFFFFF; // only look at same bits that lua does
 
         if (startTime != 0) {
-            startTime = startTime & 0XFFFFFFFF; // only look at same bits that lua does
-
             auto currentLuaTime = GetWowTimeMs() & 0XFFFFFFFF;
             auto remaining = (startTime + duration) - currentLuaTime;
             return remaining;
@@ -74,10 +73,10 @@ namespace Nampower {
         auto const getSpellCooldown = reinterpret_cast<Spell_C_GetSpellCooldownT>(Offsets::Spell_C_GetSpellCooldown);
         getSpellCooldown(spellId, 0, &duration, &startTime, &enable);
 
+        startTime = startTime & 0XFFFFFFFF; // only look at same bits that lua does
+
         // ignore gcd cooldown by looking for duration > 1.5
         if (startTime != 0 && duration > 1.5) {
-            startTime = startTime & 0XFFFFFFFF; // only look at same bits that lua does
-
             auto currentLuaTime = GetWowTimeMs() & 0XFFFFFFFF;
             auto remaining = (startTime + duration) - currentLuaTime;
             return remaining;

@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.3.1";
+const char *VERSION = "v2.3.2";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -404,6 +404,10 @@ namespace Nampower {
         } else if (strcmp(cvar, "NP_MinBufferTimeMs") == 0) {
             gUserSettings.minBufferTimeMs = atoi(value);
             DEBUG_LOG("Set NP_MinBufferTimeMs to " << gUserSettings.minBufferTimeMs);
+            if (gBufferTimeMs < gUserSettings.minBufferTimeMs) {
+                gBufferTimeMs = gUserSettings.minBufferTimeMs;
+                DEBUG_LOG("Raising current buffer time to " << gBufferTimeMs);
+            }
         } else if (strcmp(cvar, "NP_NonGcdBufferTimeMs") == 0) {
             gUserSettings.nonGcdBufferTimeMs = atoi(value);
             DEBUG_LOG("Set NP_NonGcdBufferTimeMs to " << gUserSettings.nonGcdBufferTimeMs);

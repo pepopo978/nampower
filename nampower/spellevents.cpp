@@ -114,17 +114,6 @@ namespace Nampower {
             }
             gLastErrorTimeMs = currentTime;
 
-            // see if we have a recent successful cast of this spell
-            auto successfulCastParams = gCastHistory.findSuccessfulSpellId(spellId);
-            if (successfulCastParams && successfulCastParams->castStartTimeMs > currentTime - 1000) {
-                // we found a recent successful cast of this spell, ignore the failure that was the result
-                // of spamming the cast
-                DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
-                                             << " code " << int(spellResult)
-                                             << ", but a recent cast succeeded, not retrying");
-                return;
-            }
-
             // otherwise see if we should retry the cast
             auto castParams = gCastHistory.findSpellId(spellId);
             if (castParams) {
@@ -136,6 +125,18 @@ namespace Nampower {
 
                         if (castParams->castType == CastType::NON_GCD ||
                             castParams->castType == CastType::TARGETING_NON_GCD) {
+
+                            // see if we have a recent successful cast of this spell
+                            auto successfulCastParams = gCastHistory.findSuccessfulSpellId(spellId);
+                            if (successfulCastParams && successfulCastParams->castStartTimeMs > currentTime - 1000) {
+                                // we found a recent successful cast of this spell, ignore the failure that was the result
+                                // of spamming the cast
+                                DEBUG_LOG("Cast failed for non gcd " << game::GetSpellName(spellId)
+                                                             << " code " << int(spellResult)
+                                                             << ", but a recent cast succeeded, not retrying");
+                                return;
+                            }
+
                             DEBUG_LOG("Cast failed for non gcd " << game::GetSpellName(spellId)
                                                                  << " code " << int(spellResult)
                                                                  << ", retry " << castParams->numRetries
