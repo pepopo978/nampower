@@ -54,6 +54,7 @@ enum QueueEvents {
 };
 
 enum CastResult {
+    WAITING_FOR_CAST,
     WAITING_FOR_SERVER,
     SERVER_SUCCESS,
     SERVER_FAILURE

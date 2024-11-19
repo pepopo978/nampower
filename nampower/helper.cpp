@@ -47,7 +47,7 @@ namespace Nampower {
         return duration;
     }
 
-    uint64_t GetRemainingGcdOrCooldownForSpell(uint32_t spellId) {
+    uint32_t GetRemainingGcdOrCooldownForSpell(uint32_t spellId) {
         uint32_t duration;
         uint64_t startTime;
         uint32_t enable;
@@ -59,13 +59,13 @@ namespace Nampower {
         if (startTime != 0) {
             auto currentLuaTime = GetWowTimeMs() & 0XFFFFFFFF;
             auto remaining = (startTime + duration) - currentLuaTime;
-            return remaining;
+            return uint32_t(remaining);
         }
 
         return 0;
     }
 
-    uint64_t GetRemainingCooldownForSpell(uint32_t spellId) {
+    uint32_t GetRemainingCooldownForSpell(uint32_t spellId) {
         uint32_t duration;
         uint64_t startTime;
         uint32_t enable;
@@ -79,7 +79,7 @@ namespace Nampower {
         if (startTime != 0 && duration > 1.5) {
             auto currentLuaTime = GetWowTimeMs() & 0XFFFFFFFF;
             auto remaining = (startTime + duration) - currentLuaTime;
-            return remaining;
+            return uint32_t(remaining);
         }
 
         return 0;

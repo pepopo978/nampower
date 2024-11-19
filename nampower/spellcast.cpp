@@ -33,8 +33,11 @@ namespace Nampower {
         auto const spellOnGcd = SpellIsOnGcd(spell);
         gLastCastData.wasOnGcd = spellOnGcd;
 
-        // no cast history for on swing spells
-        gLastCastData.wasItem = gCastHistory.peek() != nullptr && gCastHistory.peek()->item != nullptr;
+        auto lastCastParams = gCastHistory.peek();
+        if (lastCastParams != nullptr) {
+            gLastCastData.wasItem = lastCastParams->item != nullptr;
+            lastCastParams->castResult = CastResult::WAITING_FOR_SERVER;
+        }
 
         auto const bufferMs = GetServerDelayMs();
 
@@ -42,7 +45,7 @@ namespace Nampower {
 
         if (spellOnGcd) {
             auto gcdTime = GetGcdOrCooldownForSpell(spell->Id);
-            if (gcdTime > 1500){
+            if (gcdTime > 1500) {
                 gcdTime = 1500; // items with spells on gcd will return their item gcd, make sure not to use that
             }
 
@@ -240,7 +243,8 @@ namespace Nampower {
 
                 spellId = GetSpellIdFromSpellName(spellName);
                 if (spellId == 0) {
-                    lua_error(luaState, "Unable to determine spell id from spell name, possibly because it isn't in your spell book.  Try IsSpellInRange(SPELL_ID) instead");
+                    lua_error(luaState,
+                              "Unable to determine spell id from spell name, possibly because it isn't in your spell book.  Try IsSpellInRange(SPELL_ID) instead");
                     return 0;
                 }
             }
@@ -248,7 +252,8 @@ namespace Nampower {
             auto spell = game::GetSpellInfo(spellId);
             if (spell) {
                 std::set<uint32_t> validTargetTypes = {5, 6, 21, 25};
-                if(sizeof spell->EffectImplicitTargetA == 0 || validTargetTypes.count(spell->EffectImplicitTargetA[0]) == 0) {
+                if (sizeof spell->EffectImplicitTargetA == 0 ||
+                    validTargetTypes.count(spell->EffectImplicitTargetA[0]) == 0) {
                     lua_pushnumber(luaState, -1.0);
                     return 1;
                 }
@@ -316,7 +321,7 @@ namespace Nampower {
                                   << ", time since last cast " << currentTime - gLastCastData.startTimeMs);
 
         // clear cooldown queue if we are casting a spell
-        if(spellOnGcd && gCastData.cooldownNormalSpellQueued){
+        if (spellOnGcd && gCastData.cooldownNormalSpellQueued) {
             gCastData.cooldownNormalSpellQueued = false;
             TriggerSpellQueuedEvent(NORMAL_QUEUE_POPPED, gLastNormalCastParams.spellId);
         } else if (gCastData.cooldownNonGcdSpellQueued) {
@@ -338,13 +343,13 @@ namespace Nampower {
                                     currentTime,
                                     ON_SWING,
                                     gCastData.numRetries,
-                                    CastResult::WAITING_FOR_SERVER});
+                                    CastResult::WAITING_FOR_CAST});
 
             // try to cast the spell
             auto const castSpell = detour->GetTrampolineT<CastSpellT>();
             auto ret = castSpell(playerUnit, spellId, item, guid);
 
-            if(ret){
+            if (ret) {
                 gCastData.pendingOnSwingCast = true;
             }
 
@@ -564,7 +569,7 @@ namespace Nampower {
                                 currentTime,
                                 castType,
                                 gCastData.numRetries,
-                                CastResult::WAITING_FOR_SERVER});
+                                CastResult::WAITING_FOR_CAST});
         auto ret = castSpell(playerUnit, spellId, item, guid);
 
         // if this is a trade skill or item enchant, do nothing further
@@ -576,7 +581,8 @@ namespace Nampower {
         // simulate a cancel to clear the cast bar but only when there should be a cast time
         // mining/herbing have cast time but aren't on Gcd, don't cancel them
         if (!ret && gLastCastData.castTimeMs > 0 && gLastCastData.wasOnGcd) {
-            if (*reinterpret_cast<int *>(Offsets::SpellIsTargeting) == 0 && !gCastData.pendingOnSwingCast && !IsSpellOnCooldown(spellId)) {
+            if (*reinterpret_cast<int *>(Offsets::SpellIsTargeting) == 0 && !gCastData.pendingOnSwingCast &&
+                !IsSpellOnCooldown(spellId)) {
                 DEBUG_LOG("Canceling spell cast due to previous spell having cast time of "
                                   << gLastCastData.castTimeMs);
 

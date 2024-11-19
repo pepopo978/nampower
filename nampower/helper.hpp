@@ -20,9 +20,9 @@ namespace Nampower {
 
     uint32_t GetGcdOrCooldownForSpell(uint32_t spellId);
 
-    uint64_t GetRemainingGcdOrCooldownForSpell(uint32_t spellId);
+    uint32_t GetRemainingGcdOrCooldownForSpell(uint32_t spellId);
 
-    uint64_t GetRemainingCooldownForSpell(uint32_t spellId);
+    uint32_t GetRemainingCooldownForSpell(uint32_t spellId);
 
     bool IsSpellOnCooldown(uint32_t spellId);
 }
