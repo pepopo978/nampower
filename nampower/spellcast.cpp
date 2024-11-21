@@ -189,6 +189,17 @@ namespace Nampower {
         return result;
     }
 
+    uint32_t Script_SpellStopCastingHook(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        DEBUG_LOG("SpellStopCasting called");
+
+        ClearQueuedSpells();
+        ResetCastFlags();
+        ResetChannelingFlags();
+
+        auto const spellStopCasting = detour->GetTrampolineT<LuaScriptT>();
+        return spellStopCasting(luaState);
+    }
+
     void clearCastingSpell() {
         // clearing current casting spell id if needed
         // this prevents client from failing to cast spells without a casttime

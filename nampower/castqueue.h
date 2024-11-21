@@ -28,6 +28,12 @@ namespace Nampower {
             return size == 0;
         }
 
+        void clear() {
+            front = 0;
+            rear = -1;
+            size = 0;
+        }
+
         void pushFront(const CastSpellParams &params) {
             if (isFull()) {
                 // Shift all elements one position to the right

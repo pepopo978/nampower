@@ -134,5 +134,7 @@ namespace Nampower {
 
     void ResetCastFlags();
 
+    void ClearQueuedSpells();
+
     uint32_t EffectiveCastEndMs();
 }

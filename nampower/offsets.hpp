@@ -101,6 +101,7 @@ enum class Offsets : std::uint32_t {
     Script_SpellTargetUnit = 0x006E6D90,
     Script_SetCVar = 0x00488C10,
     Script_RunScript = 0x0048B980,
+    Script_SpellStopCasting = 0x006E6E80,
 
     // Added script functions
     Script_QueueSpellByName = 0x004B4B38,  // unused address at the end of Script_CastSpellByName.  Need to be < 0x7FEDAC to avoid Invalid Function Pointer

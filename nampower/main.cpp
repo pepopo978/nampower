@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.3.3";
+const char *VERSION = "v2.3.4";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -93,6 +93,7 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_CooldownEventTriggeredT >> gSpell_C_CooldownEventTriggeredDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellGoT>> gSpellGoDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gSpellTargetUnitDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gSpellStopCastingDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gCastSpellByNameNoQueueDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gQueueSpellByNameDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> qQueueScriptDetour;
@@ -266,6 +267,23 @@ namespace Nampower {
         gCastData.castEndMs = 0;
         gCastData.gcdEndMs = 0;
         ResetChannelingFlags();
+    }
+
+    void ClearQueuedSpells() {
+        if (gCastData.normalSpellQueued || gCastData.cooldownNormalSpellQueued) {
+            TriggerSpellQueuedEvent(NORMAL_QUEUE_POPPED, gLastNormalCastParams.spellId);
+            gCastData.normalSpellQueued = false;
+            gCastData.cooldownNormalSpellQueued = false;
+        }
+
+        if (gCastData.nonGcdSpellQueued || gCastData.cooldownNonGcdSpellQueued) {
+            while(!gNonGcdCastQueue.isEmpty()) {
+                auto castParams = gNonGcdCastQueue.pop();
+                TriggerSpellQueuedEvent(NON_GCD_QUEUE_POPPED, castParams.spellId);
+            }
+            gCastData.nonGcdSpellQueued = false;
+            gCastData.cooldownNonGcdSpellQueued = false;
+        }
     }
 
     int *ISceneEndHook(hadesmem::PatchDetourBase *detour, uintptr_t *ptr) {
@@ -843,6 +861,11 @@ namespace Nampower {
         gSpellTargetUnitDetour = std::make_unique<hadesmem::PatchDetour<
                 LuaScriptT >>(process, spellTargetUnitOrig, &Script_SpellTargetUnitHook);
         gSpellTargetUnitDetour->Apply();
+
+        auto const spellStopCastingOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_SpellStopCasting);
+        gSpellStopCastingDetour = std::make_unique<hadesmem::PatchDetour<
+                LuaScriptT >>(process, spellStopCastingOrig, &Script_SpellStopCastingHook);
+        gSpellStopCastingDetour->Apply();
 
         auto const spell_C_TargetSpellOrig = hadesmem::detail::AliasCast<Spell_C_TargetSpellT>(
                 Offsets::Spell_C_TargetSpell);
