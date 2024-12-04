@@ -76,6 +76,7 @@ enum class Offsets : std::uint32_t {
     SpellStartHandler = 0x006E7640,
     SpellCooldownHandler = 0X006E9460,
 
+    Spell_C_GetCastTime = 0X006E3340,
     Spell_C_CastSpell = 0x6E4B60,
     Spell_C_CooldownEventTriggered = 0X006E3050,
     Spell_C_SpellFailed = 0x006E1A00,

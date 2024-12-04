@@ -75,7 +75,7 @@ namespace game {
     const char *GetSpellName(uint32_t spellId) {
         auto const spell = GetSpellInfo(spellId);
 
-        if (!spell || spell->AttributesEx3 & SPELL_ATTR_EX3_HIDE_NAME)
+        if (!spell || spell->AttributesEx3 & SPELL_ATTR_EX3_NO_CASTING_BAR_TEXT)
             return "";
 
         auto const language = *reinterpret_cast<std::uint32_t *>(Offsets::Language);

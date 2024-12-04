@@ -132,8 +132,8 @@ namespace Nampower {
                                 // we found a recent successful cast of this spell, ignore the failure that was the result
                                 // of spamming the cast
                                 DEBUG_LOG("Cast failed for non gcd " << game::GetSpellName(spellId)
-                                                             << " code " << int(spellResult)
-                                                             << ", but a recent cast succeeded, not retrying");
+                                                                     << " code " << int(spellResult)
+                                                                     << ", but a recent cast succeeded, not retrying");
                                 return;
                             }
 
@@ -185,7 +185,11 @@ namespace Nampower {
                 }
             }
         } else if (gCastData.normalSpellQueued) {
-            DEBUG_LOG("Cast failed code " << int(spellResult) << " ignored");
+            DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
+                                          << " spell queued + ignored code " << int(spellResult));
+        } else {
+            DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
+                                          << " ignored code " << int(spellResult));
         }
     }
 

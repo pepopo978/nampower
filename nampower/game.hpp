@@ -480,41 +480,110 @@ namespace game {
         SPELL_ATTR_EX_CAST_WHEN_LEARNED = 0x80000000             // 31
     };
 
-    enum SpellAttributesEx3 {
-        SPELL_ATTR_EX3_UNK0 = 0x1,
-        SPELL_ATTR_EX3_UNK1 = 0x2,
-        SPELL_ATTR_EX3_HIDE_NAME = 0x4,
-        SPELL_ATTR_EX3_BLOCKABLE_SPELL = 0x8,
-        SPELL_ATTR_EX3_IGNORE_RESURRECTION_TIMER = 0x10,
-        SPELL_ATTR_EX3_UNK5 = 0x20,
-        SPELL_ATTR_EX3_UNK6 = 0x40,
-        SPELL_ATTR_EX3_STACK_FOR_DIFF_CASTERS = 0x80,
-        SPELL_ATTR_EX3_TARGET_ONLY_PLAYER = 0x100,
-        SPELL_ATTR_EX3_UNK9 = 0x200,
-        SPELL_ATTR_EX3_MAIN_HAND = 0x400,
-        SPELL_ATTR_EX3_BATTLEGROUND = 0x800,
-        SPELL_ATTR_EX3_CAST_ON_DEAD = 0x1000,
-        SPELL_ATTR_EX3_DONT_DISPLAY_CHANNEL_BAR = 0x2000,
-        SPELL_ATTR_EX3_IS_HONORLESS_TARGET = 0x4000,
-        SPELL_ATTR_EX3_UNK15 = 0x8000,
-        SPELL_ATTR_EX3_UNK16 = 0x10000,
-        SPELL_ATTR_EX3_NO_INITIAL_AGGRO = 0x20000,
-        SPELL_ATTR_EX3_CANT_MISS = 0x40000,
-        SPELL_ATTR_EX3_UNK19 = 0x80000,
-        SPELL_ATTR_EX3_DEATH_PERSISTENT = 0x100000,
-        SPELL_ATTR_EX3_UNK21 = 0x200000,
-        SPELL_ATTR_EX3_REQ_WAND = 0x400000,
-        SPELL_ATTR_EX3_UNK23 = 0x800000,
-        SPELL_ATTR_EX3_REQ_OFFHAND = 0x1000000,
-        SPELL_ATTR_EX3_UNK25 = 0x2000000,
-        SPELL_ATTR_EX3_UNK26 = 0x4000000,
-        SPELL_ATTR_EX3_DRAIN_SOUL = 0x8000000,
-        SPELL_ATTR_EX3_UNK28 = 0x10000000,
-        SPELL_ATTR_EX3_UNK29 = 0x20000000,
-        SPELL_ATTR_EX3_DONT_DISPLAY_RANGE = 0x40000000,
-        SPELL_ATTR_EX3_UNK31 = 0x80000000,
+    enum SpellAttributesEx2
+    {
+        SPELL_ATTR_EX2_ALLOW_DEAD_TARGET            = 0x00000001,            // 0 Can target dead unit or corpse
+        SPELL_ATTR_EX2_NO_SHAPESHIFT_UI             = 0x00000002,            // 1
+        SPELL_ATTR_EX2_IGNORE_LINE_OF_SIGHT         = 0x00000004,            // 2
+        SPELL_ATTR_EX2_ALLOW_LOW_LEVEL_BUFF         = 0x00000008,            // 3
+        SPELL_ATTR_EX2_USE_SHAPESHIFT_BAR           = 0x00000010,            // 4 Client displays icon in stance bar when learned, even if not shapeshift
+        SPELL_ATTR_EX2_AUTO_REPEAT                  = 0x00000020,            // 5
+        SPELL_ATTR_EX2_CANNOT_CAST_ON_TAPPED        = 0x00000040,            // 6 Target must be tapped by caster
+        SPELL_ATTR_EX2_DO_NOT_REPORT_SPELL_FAILURE  = 0x00000080,            // 7
+        SPELL_ATTR_EX2_UNK8                         = 0x00000100,            // 8 Unused
+        SPELL_ATTR_EX2_UNK9                         = 0x00000200,            // 9 Unused
+        SPELL_ATTR_EX2_SPECIAL_TAMING_FLAG          = 0x00000400,            // 10
+        SPELL_ATTR_EX2_NO_TARGET_PER_SECOND_COSTS   = 0x00000800,            // 11
+        SPELL_ATTR_EX2_CHAIN_FROM_CASTER            = 0x00001000,            // 12
+        SPELL_ATTR_EX2_ENCHANT_OWN_ITEM_ONLY        = 0x00002000,            // 13
+        SPELL_ATTR_EX2_ALLOW_WHILE_INVISIBLE        = 0x00004000,            // 14
+        SPELL_ATTR_EX2_ENABLE_AFTER_PARRY           = 0x00008000,            // 15 Deprecated in patch 1.8 and moved to CasterAuraState
+        SPELL_ATTR_EX2_NO_ACTIVE_PETS               = 0x00010000,            // 16
+        SPELL_ATTR_EX2_DO_NOT_RESET_COMBAT_TIMERS   = 0x00020000,            // 17 Don't reset timers for melee autoattacks (swings) or ranged autoattacks (autoshoots)
+        SPELL_ATTR_EX2_REQ_DEAD_PET                 = 0x00040000,            // 18 Only Revive pet has it
+        SPELL_ATTR_EX2_ALLOW_WHILE_NOT_SHAPESHIFTED = 0x00080000,            // 19 Does not necessary need shapeshift (pre-3.x not have passive spells with this attribute)
+        SPELL_ATTR_EX2_INITIATE_COMBAT_POST_CAST    = 0x00100000,            // 20 Client will send CMSG_ATTACK_SWING after SMSG_SPELL_GO
+        SPELL_ATTR_EX2_FAIL_ON_ALL_TARGETS_IMMUNE   = 0x00200000,            // 21 For ice blocks, pala immunity buffs, priest absorb shields
+        SPELL_ATTR_EX2_NO_INITIAL_THREAT            = 0x00400000,            // 22
+        SPELL_ATTR_EX2_PROC_COOLDOWN_ON_FAILURE     = 0x00800000,            // 23
+        SPELL_ATTR_EX2_ITEM_CAST_WITH_OWNER_SKILL   = 0x01000000,            // 24 NYI
+        SPELL_ATTR_EX2_DONT_BLOCK_MANA_REGEN        = 0x02000000,            // 25
+        SPELL_ATTR_EX2_NO_SCHOOL_IMMUNITIES         = 0x04000000,            // 26
+        SPELL_ATTR_EX2_IGNORE_WEAPONSKILL           = 0x08000000,            // 27 NYI (only fishing has it)
+        SPELL_ATTR_EX2_NOT_AN_ACTION                = 0x10000000,            // 28
+        SPELL_ATTR_EX2_CANT_CRIT                    = 0x20000000,            // 29
+        SPELL_ATTR_EX2_ACTIVE_THREAT                = 0x40000000,            // 30 Caster is put in combat for 5.5 seconds on cast at enemy unit
+        SPELL_ATTR_EX2_RETAIN_ITEM_CAST             = 0x80000000             // 31 Food or Drink Buff (like Well Fed)
     };
 
+    enum SpellAttributesEx3
+    {
+        SPELL_ATTR_EX3_PVP_ENABLING                 = 0x00000001,            // 0 Spell landed counts as hostile action against enemy even if it doesn't trigger combat state, propagates PvP flags
+        SPELL_ATTR_EX3_NO_PROC_EQUIP_REQUIREMENT    = 0x00000002,            // 1
+        SPELL_ATTR_EX3_NO_CASTING_BAR_TEXT          = 0x00000004,            // 2
+        SPELL_ATTR_EX3_COMPLETELY_BLOCKED           = 0x00000008,            // 3 All effects prevented on block
+        SPELL_ATTR_EX3_NO_RES_TIMER                 = 0x00000010,            // 4 Corpse reclaim delay does not apply to accepting resurrection (only Rebirth has it)
+        SPELL_ATTR_EX3_NO_DURABILITY_LOSS           = 0x00000020,            // 5
+        SPELL_ATTR_EX3_NO_AVOIDANCE                 = 0x00000040,            // 6 Persistent Area Aura not removed on leaving radius
+        SPELL_ATTR_EX3_DOT_STACKING_RULE            = 0x00000080,            // 7 Create a separate (de)buff stack for each caster
+        SPELL_ATTR_EX3_ONLY_ON_PLAYER               = 0x00000100,            // 8 Can target only players
+        SPELL_ATTR_EX3_NOT_A_PROC                   = 0x00000200,            // 9 Aura periodic trigger is not evaluated as triggered
+        SPELL_ATTR_EX3_REQUIRES_MAIN_HAND_WEAPON    = 0x00000400,            // 10
+        SPELL_ATTR_EX3_ONLY_BATTLEGROUNDS           = 0x00000800,            // 11
+        SPELL_ATTR_EX3_ONLY_ON_GHOSTS               = 0x00001000,            // 12
+        SPELL_ATTR_EX3_HIDE_CHANNEL_BAR             = 0x00002000,            // 13 Client will not display channeling bar
+        SPELL_ATTR_EX3_HIDE_IN_RAID_FILTER          = 0x00004000,            // 14 Only "Honorless Target" has this flag
+        SPELL_ATTR_EX3_NORMAL_RANGED_ATTACK         = 0x00008000,            // 15 Spells with this attribute are processed as ranged attacks in client
+        SPELL_ATTR_EX3_SUPPRESS_CASTER_PROCS        = 0x00010000,            // 16
+        SPELL_ATTR_EX3_SUPPRESS_TARGET_PROCS        = 0x00020000,            // 17
+        SPELL_ATTR_EX3_ALWAYS_HIT                   = 0x00040000,            // 18 Spell should always hit its target
+        SPELL_ATTR_EX3_INSTANT_TARGET_PROCS         = 0x00080000,            // 19 Related to spell batching
+        SPELL_ATTR_EX3_ALLOW_AURA_WHILE_DEAD        = 0x00100000,            // 20 Death persistent spells
+        SPELL_ATTR_EX3_ONLY_PROC_OUTDOORS           = 0x00200000,            // 21
+        SPELL_ATTR_EX3_CASTING_CANCELS_AUTOREPEAT   = 0x00400000,            // 22 NYI (only Shoot with Wand has it)
+        SPELL_ATTR_EX3_NO_DAMAGE_HISTORY            = 0x00800000,            // 23 NYI
+        SPELL_ATTR_EX3_REQUIRES_OFFHAND_WEAPON      = 0x01000000,            // 24
+        SPELL_ATTR_EX3_TREAT_AS_PERIODIC            = 0x02000000,            // 25 Does not cause spell pushback
+        SPELL_ATTR_EX3_CAN_PROC_FROM_PROCS          = 0x04000000,            // 26 Auras with this attribute can proc off procced spells (periodic triggers etc)
+        SPELL_ATTR_EX3_ONLY_PROC_ON_CASTER          = 0x08000000,            // 27
+        SPELL_ATTR_EX3_IGNORE_CASTER_AND_TARGET_RESTRICTIONS = 0x10000000,   // 28 Skips all cast checks, moved from AttributesEx after 1.10 (100% correlation)
+        SPELL_ATTR_EX3_IGNORE_CASTER_MODIFIERS      = 0x20000000,            // 29
+        SPELL_ATTR_EX3_DO_NOT_DISPLAY_RANGE         = 0x40000000,            // 30
+        SPELL_ATTR_EX3_NOT_ON_AOE_IMMUNE            = 0x80000000             // 31
+    };
+
+    enum SpellAttributesEx4
+    {
+        SPELL_ATTR_EX4_IGNORE_RESISTANCES           = 0x00000001,            // 0 From TC 3.3.5, but not present in 1.12 native DBCs. Add it with spell_mod to prevent a spell from being resisted.
+        SPELL_ATTR_EX4_CLASS_TRIGGER_ONLY_ON_TARGET = 0x00000002,            // 1
+        SPELL_ATTR_EX4_AURA_EXPIRES_OFFLINE         = 0x00000004,            // 2 Aura continues to expire while player is offline
+        SPELL_ATTR_EX4_NO_HELPFUL_THREAT            = 0x00000008,            // 3
+        SPELL_ATTR_EX4_NO_HARMFUL_THREAT            = 0x00000010,            // 4
+        SPELL_ATTR_EX4_ALLOW_CLIENT_TARGETING       = 0x00000020,            // 5 NYI
+        SPELL_ATTR_EX4_CANNOT_BE_STOLEN             = 0x00000040,            // 6 Unused
+        SPELL_ATTR_EX4_CAN_CAST_WHILE_CASTING       = 0x00000080,            // 7 NYI (does not seem to work client side either)
+        SPELL_ATTR_EX4_IGNORE_DAMAGE_TAKEN_MODIFIERS= 0x00000100,            // 8
+        SPELL_ATTR_EX4_COMBAT_FEEDBACK_WHEN_USABLE  = 0x00000200,            // 9 Initially disabled / Trigger activate from event (Execute, Riposte, Deep Freeze...)
+    };
+
+// Custom flags assigned in the db
+    enum SpellAttributesCustom
+    {
+        SPELL_CUSTOM_NONE                       = 0x000,
+        SPELL_CUSTOM_ALLOW_STACK_BETWEEN_CASTER = 0x001,     // For example 'Siphon Soul' must be able to stack between the warlocks on a mob
+        SPELL_CUSTOM_NEGATIVE                   = 0x002,
+        SPELL_CUSTOM_POSITIVE                   = 0x004,
+        SPELL_CUSTOM_CHAN_NO_DIST_LIMIT         = 0x008,
+        SPELL_CUSTOM_FIXED_DAMAGE               = 0x010,     // Not affected by damage/healing done bonus
+        SPELL_CUSTOM_IGNORE_ARMOR               = 0x020,
+        SPELL_CUSTOM_BEHIND_TARGET              = 0x040,     // For spells that require the caster to be behind the target
+        SPELL_CUSTOM_FACE_TARGET                = 0x080,     // For spells that require the target to be in front of the caster
+        SPELL_CUSTOM_SINGLE_TARGET_AURA         = 0x100,     // Aura applied by spell can only be on 1 target at a time
+        SPELL_CUSTOM_AURA_APPLY_BREAKS_STEALTH  = 0x200,     // Stealth is removed when this aura is applied
+        SPELL_CUSTOM_NOT_REMOVED_ON_EVADE       = 0x400,     // Aura persists after creature evades
+        SPELL_CUSTOM_SEND_CHANNEL_VISUAL        = 0x800,     // Will periodically send the channeling spell visual kit
+        SPELL_CUSTOM_SEPARATE_AURA_PER_CASTER   = 0x1000,    // Each caster has his own aura slot, instead of replacing others
+    };
     enum SpellTarget {
         TARGET_NONE = 1,
         TARGET_UNIT_CASTER = 2,
@@ -959,6 +1028,16 @@ namespace game {
         __int32 GetDuration() {
             return ((m_Duration / 1000) / 60);
         }
+    };//Size=0x0010
+
+    class CSpellCastingTime
+    {
+    public:
+        __int32		m_CastingTimeIndex;				//0x0000
+        __int32		m_CastTime;					//0x0004
+        char		m_0x0008[4];					//0x0008
+        __int32		m_CastTime2;					//0x000C
+
     };//Size=0x0010
 
     uintptr_t *GetObjectPtr(std::uint64_t guid);

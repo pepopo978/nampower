@@ -396,14 +396,24 @@ namespace Nampower {
             inSpellQueueWindow = false;
         }
 
+        if (spellOnGcd) {
+            auto castType = NORMAL;
+            if (spellIsTargeting) {
+                castType = TARGETING;
+            } else if (spellIsChanneling) {
+                castType = CHANNEL;
+            }
+
+            SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid,
+                           spell->StartRecoveryCategory,
+                           castTime,
+                           currentTime, castType, 0);
+        }
+
         // skip queueing if gNoQueueCast is set
         // skip queueing if spellIsChanneling and gUserSettings.queueChannelingSpells is false
         if (!gNoQueueCast && (!spellIsChanneling || gUserSettings.queueChannelingSpells)) {
             if (spellIsTargeting) {
-                SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory,
-                               castTime,
-                               currentTime, TARGETING, 0);
-
                 if (gUserSettings.queueTargetingSpells) {
                     if (castTime > 0 && inSpellQueueWindow) {
                         if (gUserSettings.queueCastTimeSpells) {
@@ -447,10 +457,6 @@ namespace Nampower {
                     }
                 }
             } else if (castTime > 0 && inSpellQueueWindow) {
-                SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory,
-                               castTime,
-                               currentTime, NORMAL, 0);
-
                 if (gUserSettings.queueCastTimeSpells) {
                     if (spellOnGcd) {
                         DEBUG_LOG("Queuing for after cast/gcd: " << remainingCD << "ms " << spellName);
@@ -490,10 +496,6 @@ namespace Nampower {
                     }
 
                     if (spellOnGcd) {
-                        SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid,
-                                       spell->StartRecoveryCategory, castTime,
-                                       currentTime, NORMAL, 0);
-
                         DEBUG_LOG("Queuing " << desc << " for after cast/gcd: " << remainingCD << "ms " << spellName);
                         TriggerSpellQueuedEvent(NORMAL_QUEUED, spellId);
                         gCastData.normalSpellQueued = true;
