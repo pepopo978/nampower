@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.3.5";
+const char *VERSION = "v2.3.6";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -74,6 +74,7 @@ namespace Nampower {
     CastQueue gCastHistory = CastQueue();
 
     bool gScriptQueued;
+    int gScriptPriority = 1;
     char *queuedScript;
 
     std::unique_ptr<hadesmem::PatchDetour<SpellVisualsInitializeT >> gSpellVisualsInitDetour;
@@ -186,15 +187,25 @@ namespace Nampower {
                 auto script = lua_tostring(luaState, 1);
 
                 if (script != nullptr && strlen(script) > 0) {
-                    DEBUG_LOG("Queuing script " << script);
                     // save the script to be run later
                     queuedScript = script;
                     gScriptQueued = true;
+
+                    // check if priority is set
+                    auto const lua_isnumber = reinterpret_cast<lua_isnumberT>(Offsets::lua_isnumber);
+                    if (lua_isnumber(luaState, 2)) {
+                        auto const lua_tonumber = reinterpret_cast<lua_tonumberT>(Offsets::lua_tonumber);
+                        gScriptPriority = (int) lua_tonumber(luaState, 2);
+
+                        DEBUG_LOG("Queuing script priority " << gScriptPriority << ": " << script);
+                    } else {
+                        DEBUG_LOG("Queuing script: " << script);
+                    }
                 }
             } else {
                 DEBUG_LOG("Invalid script");
                 auto const lua_error = reinterpret_cast<lua_errorT>(Offsets::lua_error);
-                lua_error(luaState, "Usage: QueueScript(\"script\")");
+                lua_error(luaState, "Usage: QueueScript(\"script\", (optional)priority)");
             }
         } else {
             // just call regular runscript
@@ -277,7 +288,7 @@ namespace Nampower {
         }
 
         if (gCastData.nonGcdSpellQueued || gCastData.cooldownNonGcdSpellQueued) {
-            while(!gNonGcdCastQueue.isEmpty()) {
+            while (!gNonGcdCastQueue.isEmpty()) {
                 auto castParams = gNonGcdCastQueue.pop();
                 TriggerSpellQueuedEvent(NON_GCD_QUEUE_POPPED, castParams.spellId);
             }
@@ -286,69 +297,27 @@ namespace Nampower {
         }
     }
 
-    int *ISceneEndHook(hadesmem::PatchDetourBase *detour, uintptr_t *ptr) {
-        auto const iSceneEnd = detour->GetTrampolineT<ISceneEndT>();
+    bool checkForQueuedScript() {
+        auto currentTime = GetTime();
 
-        if (!gCastData.channeling) {
-            if (gScriptQueued) {
-                auto currentTime = GetTime();
+        auto effectiveCastEndMs = EffectiveCastEndMs();
+        // get max of cooldown and gcd
+        auto delay = effectiveCastEndMs > gCastData.gcdEndMs ? effectiveCastEndMs : gCastData.gcdEndMs;
 
-                auto effectiveCastEndMs = EffectiveCastEndMs();
-                // get max of cooldown and gcd
-                auto delay = effectiveCastEndMs > gCastData.gcdEndMs ? effectiveCastEndMs : gCastData.gcdEndMs;
+        if (delay <= currentTime) {
+            DEBUG_LOG("Running queued script priority " << gScriptPriority << ": " << queuedScript);
+            LuaCall(queuedScript);
+            gScriptQueued = false;
+            gScriptPriority = 1;
+            return true;
+        }
 
-                if (delay <= currentTime) {
-                    DEBUG_LOG("Running queued script " << queuedScript);
-                    LuaCall(queuedScript);
-                    gScriptQueued = false;
-                }
+        return false;
+    }
 
-            } else if (gCastData.nonGcdSpellQueued) {
-                auto currentTime = GetTime();
-
-                if (EffectiveCastEndMs() < currentTime) {
-                    CastQueuedNonGcdSpell();
-                }
-            } else if (gCastData.normalSpellQueued) {
-                auto currentTime = GetTime();
-
-                auto effectiveCastEndMs = EffectiveCastEndMs();
-                // get max of cooldown and gcd
-                auto delay = effectiveCastEndMs > gCastData.gcdEndMs ? effectiveCastEndMs : gCastData.gcdEndMs;
-
-                if (delay <= currentTime) {
-                    // if more than MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE seconds have passed since the last cast, ignore
-                    if (currentTime - gLastCastData.startTimeMs < MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE) {
-                        CastQueuedNormalSpell();
-                    } else {
-                        DEBUG_LOG("Ignoring queued cast of " << game::GetSpellName(gLastNormalCastParams.spellId)
-                                                             << " due to max time since last cast");
-                        TriggerSpellQueuedEvent(NORMAL_QUEUE_POPPED, gLastNormalCastParams.spellId);
-                        gCastData.normalSpellQueued = false;
-                    }
-                }
-            } else if (gCastData.cooldownNonGcdSpellQueued) {
-                auto currentTime = GetTime();
-
-                if (gCastData.cooldownNonGcdEndMs <= currentTime) {
-                    DEBUG_LOG("Non gcd spell cooldown up, casting queued spell");
-                    // trigger the regular non gcd queuing and turn off cooldownNonGcdSpellQueued
-                    gCastData.cooldownNonGcdSpellQueued = false;
-                    gCastData.nonGcdSpellQueued = true;
-                    CastQueuedNonGcdSpell();
-                }
-            } else if (gCastData.cooldownNormalSpellQueued) {
-                auto currentTime = GetTime();
-
-                if (gCastData.cooldownNormalEndMs <= currentTime) {
-                    DEBUG_LOG("Spell cooldown up, casting queued spell");
-                    // trigger the regular non gcd queuing and turn off cooldownNonGcdSpellQueued
-                    gCastData.cooldownNormalSpellQueued = false;
-                    gCastData.normalSpellQueued = true;
-                    CastQueuedNormalSpell();
-                }
-            }
-        } else if (gUserSettings.queueChannelingSpells && IsNonSwingSpellQueued()) {
+    void checkForStopChanneling() {
+        if (gUserSettings.queueChannelingSpells && IsNonSwingSpellQueued()) {
+            // for channels just end channeling
             auto const currentTime = GetTime();
             auto const elapsed = currentTime - gLastCastData.channelStartTimeMs;
 
@@ -377,6 +346,105 @@ namespace Nampower {
                 ResetChannelingFlags();
             }
         }
+    }
+
+    void processQueues() {
+        if (!gCastData.channeling) {
+            // check for high priority script
+            if (gScriptQueued && gScriptPriority == 1) {
+                if (checkForQueuedScript()) {
+                    // script ran, stop processing
+                    return;
+                }
+            }
+
+            // check for non gcd spell
+            if (gCastData.nonGcdSpellQueued) {
+                auto currentTime = GetTime();
+
+                if (EffectiveCastEndMs() < currentTime) {
+                    CastQueuedNonGcdSpell();
+                    return;
+                }
+            }
+
+            // check for cooldown non gcd spell
+            if (gCastData.cooldownNonGcdSpellQueued) {
+                auto currentTime = GetTime();
+
+                if (gCastData.cooldownNonGcdEndMs <= currentTime) {
+                    DEBUG_LOG("Non gcd spell cooldown up, casting queued spell");
+                    // trigger the regular non gcd queuing and turn off cooldownNonGcdSpellQueued
+                    gCastData.cooldownNonGcdSpellQueued = false;
+                    gCastData.nonGcdSpellQueued = true;
+                    CastQueuedNonGcdSpell();
+                    return;
+                }
+            }
+
+            // check for medium priority script
+            if (gScriptQueued && gScriptPriority == 2) {
+                if (checkForQueuedScript()) {
+                    // script ran, stop processing
+                    return;
+                }
+            }
+
+            // check for normal spell
+            if (gCastData.normalSpellQueued) {
+                auto currentTime = GetTime();
+
+                auto effectiveCastEndMs = EffectiveCastEndMs();
+                // get max of cooldown and gcd
+                auto delay = effectiveCastEndMs > gCastData.gcdEndMs ? effectiveCastEndMs : gCastData.gcdEndMs;
+
+                if (delay <= currentTime) {
+                    // if more than MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE seconds have passed since the last cast, ignore
+                    if (currentTime - gLastCastData.startTimeMs < MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE) {
+                        CastQueuedNormalSpell();
+                        return;
+                    } else {
+                        DEBUG_LOG("Ignoring queued cast of " << game::GetSpellName(gLastNormalCastParams.spellId)
+                                                             << " due to max time since last cast");
+                        TriggerSpellQueuedEvent(NORMAL_QUEUE_POPPED, gLastNormalCastParams.spellId);
+                        gCastData.normalSpellQueued = false;
+                    }
+                }
+            }
+
+            // check for cooldown normal spell
+            if (gCastData.cooldownNormalSpellQueued) {
+                auto currentTime = GetTime();
+
+                if (gCastData.cooldownNormalEndMs <= currentTime) {
+                    DEBUG_LOG("Spell cooldown up, casting queued spell");
+                    // trigger the regular non gcd queuing and turn off cooldownNonGcdSpellQueued
+                    gCastData.cooldownNormalSpellQueued = false;
+                    gCastData.normalSpellQueued = true;
+                    CastQueuedNormalSpell();
+                    return;
+                }
+            }
+
+            if (gScriptQueued && gScriptPriority == 3) {
+                if (checkForQueuedScript()) {
+                    // script ran, stop processing
+                    return;
+                }
+            }
+        }
+    }
+
+    int *ISceneEndHook(hadesmem::PatchDetourBase *detour, uintptr_t *ptr) {
+        auto const iSceneEnd = detour->GetTrampolineT<ISceneEndT>();
+
+        // check if it's time to end channeling
+        if (gCastData.channeling) {
+            checkForStopChanneling();
+        }
+
+        // process any queued spells/scripts
+        processQueues();
 
         return iSceneEnd(ptr);
     }
