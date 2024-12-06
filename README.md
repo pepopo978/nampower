@@ -91,7 +91,7 @@ to cast 2 frostbolts in a row.  Currently, can only queue 1 GCD spell at a time 
 Will force a spell cast to never queue even if your settings would normally queue.  Can be used to fix addons that don't work with queued spells.
 
 #### QueueScript(script, [priority])
-Queues any arbitrary script using the same logic as a regular spell using NP_SpellQueueWindowMs as the window.  The script will run BEFORE any other queued spells.  If no spell is being cast and you are not on the gcd the script will be run immediately.
+Queues any arbitrary script using the same logic as a regular spell using NP_SpellQueueWindowMs as the window.  If no spell is being cast and you are not on the gcd the script will be run immediately.
 
 Priority is optional and defaults to 1.  
 Priority 1 means the script will run before any other queued spells.
