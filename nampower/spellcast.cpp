@@ -323,10 +323,13 @@ namespace Nampower {
         auto const spellName = game::GetSpellName(spellId);
         auto currentTime = GetTime();
         auto const castTime = game::GetCastTime(playerUnit, spellId);
+        gCastData.attemptedCastTimeMs = castTime;
+
         auto const spellOnGcd = SpellIsOnGcd(spell);
         auto const spellIsChanneling = SpellIsChanneling(spell);
         auto const spellIsTargeting = SpellIsTargeting(spell);
         auto const spellIsTradeSkillOrEnchant = SpellIsTradeskillOrEnchant(spell);
+
 
         DEBUG_LOG("Attempt cast " << spellName << " item " << item << " on guid " << guid
                                   << ", time since last cast " << currentTime - gLastCastData.startTimeMs);
@@ -378,8 +381,6 @@ namespace Nampower {
 
             return ret;
         }
-
-        gCastData.attemptedCastTimeMs = castTime;
 
         auto const castSpell = detour->GetTrampolineT<CastSpellT>();
 
@@ -529,7 +530,7 @@ namespace Nampower {
         if (!spellIsTradeSkillOrEnchant) {
             // is there a cast? (ignore for on swing spells)
             if (remainingEffectiveCastTime) {
-                DEBUG_LOG("Cooldown active " << remainingEffectiveCastTime << "ms remaining");
+                DEBUG_LOG("Cast or delay active " << remainingEffectiveCastTime << "ms remaining");
                 return false;
             } else {
                 gCastData.castEndMs = 0;
