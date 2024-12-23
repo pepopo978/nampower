@@ -126,6 +126,7 @@ Usable does not equal castable.  This is most often used to check if a reactive 
 If using spell name it must be a spell you have in your spellbook.  If using spell id it can be any spell id.
 
 Returns: 
+
 1st param: 1 if the spell is usable, 0 if not usable.
 2nd param: Always 0 if spell is not usable for a different reason other than mana.  1 if out of mana, 0 if not out of mana.
 
@@ -136,6 +137,7 @@ Examples:
 
 #### GetCurrentCastingInfo()
 Returns:
+
 1st param: Casting spell id or 0
 2nd param: Visual spell id or 0
 
@@ -148,6 +150,7 @@ Examples:
 
 #### GetSpellIdForName(spellName)
 Returns:
+
 1st param: the max rank spell id for a spell name if it exists in your spellbook.  Returns 0 if the spell is not in your spellbook.
 
 Examples:
@@ -158,6 +161,7 @@ Examples:
 
 #### GetSpellSlotAndType(spellName)
 Returns:
+
 1st param: the spell slot number for a spell name if it exists in your spellbook.  Returns 0 if the spell is not in your spellbook.
 2nd param: the book type of the spell, either "spell", "pet" or "unknown".
 
