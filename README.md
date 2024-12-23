@@ -4,7 +4,7 @@ Added spell queuing, automatic retry on error, and quickcasting with lots of cus
 
 Some other key improvements over Namreeb's version:
 - Using a buffer to avoid server rejections from casting too quickly (namreeb's uses 0 buffer).  See 'Why do I need a buffer?' below for more info.
-- Using high_resolution_clock instead of GetTickCount for fasting timing on when to start casts
+- Using high_resolution_clock instead of GetTickCount for faster timing on when to start casts
 - Fix broken cast animations when casting spells back to back
 
 ### Compatability with other addons
