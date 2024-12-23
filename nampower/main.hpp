@@ -81,6 +81,7 @@ namespace Nampower {
     using Spell_C_GetCastTimeT = uint32_t (__fastcall *)(uint32_t spellId, uint32_t isPetSpell, int unk);
     using Spell_C_GetSpellCooldownT = int (__fastcall *)(uint32_t spellId, uint32_t isPetSpell,
                                                          uint32_t *duration, uint64_t *startTime, uint32_t *enable);
+    using Spell_C_IsSpellUsableT = int (__fastcall *)(const game::SpellRec *spellRec, uint32_t *usesManaReturn);
 
     using GetSpellSlotAndTypeT = int (__fastcall *)(const char *, uint32_t *);
     using GetTimeMsT = uint64_t (__stdcall *)();

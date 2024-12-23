@@ -1051,4 +1051,6 @@ namespace game {
     const char *GetSpellName(uint32_t spellId);
 
     std::uint64_t ClntObjMgrGetActivePlayer();
+
+    uintptr_t *ClntObjMgrObjectPtr(uint32_t mask, std::uint64_t guid);
 }

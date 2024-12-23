@@ -23,7 +23,15 @@ namespace Nampower {
 
     uint32_t Script_IsSpellInRange(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
 
+    uint32_t Script_IsSpellUsable(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
+
     uint32_t Script_SpellStopCastingHook(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
+
+    uint32_t Script_GetCurrentCastingInfo(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
+
+    uint32_t Script_GetSpellIdForName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
+
+    uint32_t Script_GetSpellSlotAndTypeForName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
 
     bool Spell_C_CastSpellHook(hadesmem::PatchDetourBase *detour, uint32_t *playerUnit, uint32_t spellId, void *item,
                                std::uint64_t guid);

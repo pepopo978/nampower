@@ -42,6 +42,14 @@ namespace game {
         return getObjectPtr(guid);
     }
 
+    uintptr_t *ClntObjMgrObjectPtr(uint32_t mask, std::uint64_t guid) {
+        using ClntObjMgrObjectPtrT = uintptr_t* (__stdcall *)(uint32_t mask, std::uint64_t guid);
+        auto const clntObjMgrObjectPtr = reinterpret_cast<ClntObjMgrObjectPtrT>(Offsets::ClntObjMgrObjectPtr);
+
+        return clntObjMgrObjectPtr(mask, guid);
+    }
+
+
     std::uint32_t GetCastTime(void *unit, uint32_t spellId) {
         auto const vmt = *reinterpret_cast<std::uint8_t **>(unit);
         int

@@ -289,12 +289,8 @@ namespace Nampower {
 
                 auto playerUnit = game::GetObjectPtr(game::ClntObjMgrGetActivePlayer());
 
-                DEBUG_LOG("Checking if " << playerUnit << "'s spell " << spell << " is in range for " << target
-                                         << " guid " << targetGUID);
                 auto const RangeCheckSelected = reinterpret_cast<RangeCheckSelectedT>(Offsets::RangeCheckSelected);
                 auto const result = RangeCheckSelected(playerUnit, spell, targetGUID, '\0');
-
-                DEBUG_LOG("Range check result " << result);
 
                 if (result != 0) {
                     lua_pushnumber(luaState, 1.0);
@@ -307,6 +303,168 @@ namespace Nampower {
             }
         } else {
             lua_error(luaState, "Usage: IsSpellInRange(spellName)");
+        }
+
+        return 0;
+    }
+
+    uint32_t Script_IsSpellUsable(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        auto const lua_error = reinterpret_cast<lua_errorT>(Offsets::lua_error);
+        auto const lua_isstring = reinterpret_cast<lua_isstringT>(Offsets::lua_isstring);
+        auto const lua_isnumber = reinterpret_cast<lua_isnumberT>(Offsets::lua_isnumber);
+        auto const lua_tostring = reinterpret_cast<lua_tostringT>(Offsets::lua_tostring);
+        auto const lua_tonumber = reinterpret_cast<lua_tonumberT>(Offsets::lua_tonumber);
+        auto const lua_pushnumber = reinterpret_cast<lua_pushnumberT>(Offsets::lua_pushnumber);
+
+        auto param1IsString = lua_isstring(luaState, 1);
+        auto param1IsNumber = lua_isnumber(luaState, 1);
+        if (param1IsString || param1IsNumber) {
+            uint32_t spellId = 0;
+
+            if (param1IsNumber) {
+                spellId = uint32_t(lua_tonumber(luaState, 1));
+
+                if (spellId == 0) {
+                    lua_error(luaState, "Unable to parse spell id");
+                    return 0;
+                }
+            } else {
+                auto const spellName = lua_tostring(luaState, 1);
+
+                spellId = GetSpellIdFromSpellName(spellName);
+                if (spellId == 0) {
+                    lua_error(luaState,
+                              "Unable to determine spell id from spell name, possibly because it isn't in your spell book.  Try IsSpellUsable(SPELL_ID) instead");
+                    return 0;
+                }
+            }
+
+            auto spell = game::GetSpellInfo(spellId);
+            if (spell) {
+                auto const IsSpellUsable = reinterpret_cast<Spell_C_IsSpellUsableT>(Offsets::Spell_C_IsSpellUsable);
+
+                uint32_t outOfMana = 0;
+                auto const result = IsSpellUsable(spell, &outOfMana) & 0xFF;
+
+                if (result != 0) {
+                    lua_pushnumber(luaState, 1.0);
+                } else {
+                    lua_pushnumber(luaState, 0);
+                }
+
+                if (outOfMana) {
+                    lua_pushnumber(luaState, 1.0);
+                } else {
+                    lua_pushnumber(luaState, 0);
+                }
+
+                return 2;
+            } else {
+                lua_error(luaState, "Spell not found");
+            }
+        } else {
+            lua_error(luaState, "Usage: IsSpellUsable(spellName)");
+        }
+
+        return 0;
+    }
+
+    uint32_t Script_GetCurrentCastingInfo(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        auto const lua_error = reinterpret_cast<lua_errorT>(Offsets::lua_error);
+        auto const lua_tostring = reinterpret_cast<lua_tostringT>(Offsets::lua_tostring);
+        auto const lua_tonumber = reinterpret_cast<lua_tonumberT>(Offsets::lua_tonumber);
+        auto const lua_pushnumber = reinterpret_cast<lua_pushnumberT>(Offsets::lua_pushnumber);
+
+        // check for casting item
+        // seemed to always be zero?
+        //        auto const castingItemPtr = reinterpret_cast<uint64_t *>(Offsets::CastingItemIdPtr);
+        //        auto const castingItem = game::ClntObjMgrObjectPtr(0x2, *castingItemPtr);
+        //        if (castingItem) {
+        //            auto const itemSpellPtr = reinterpret_cast<int32_t *>(castingItem + 8);
+        //            auto const itemSpellId = *reinterpret_cast<uint32_t *>(*itemSpellPtr + 0xC);
+        //            lua_pushnumber(luaState, itemSpellId);
+        //        } else {
+        //            lua_pushnumber(luaState, 0);
+        //        }
+
+        auto const castingSpellId = reinterpret_cast<uint32_t *>(Offsets::CastingSpellId);
+        lua_pushnumber(luaState, *castingSpellId);
+
+        auto const visualSpellId = reinterpret_cast<uint32_t *>(Offsets::VisualSpellId);
+        lua_pushnumber(luaState, *visualSpellId);
+
+        // check for attack action id?
+        // was crashing, not entirely sure what it was doing
+        //        auto const activePlayer = game::ClntObjMgrGetActivePlayer();
+        //        auto const attackPtr = game::ClntObjMgrObjectPtr(0x10, activePlayer) + 0xC48;
+        //        DEBUG_LOG(attackPtr);
+        //        if(attackPtr) {
+        //            auto const attack = *reinterpret_cast<uint64_t *>(attackPtr);
+        //            DEBUG_LOG(attack);
+        //            if (attack != 0) {
+        //                lua_pushnumber(luaState, 1);
+        //            } else {
+        //                lua_pushnumber(luaState, 0);
+        //            }
+        //        } else {
+        //            lua_pushnumber(luaState, 0);
+        //        }
+
+        return 2;
+    }
+
+    uint32_t Script_GetSpellIdForName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        auto const lua_error = reinterpret_cast<lua_errorT>(Offsets::lua_error);
+        auto const lua_isstring = reinterpret_cast<lua_isstringT>(Offsets::lua_isstring);
+        auto const lua_tostring = reinterpret_cast<lua_tostringT>(Offsets::lua_tostring);
+        auto const lua_pushnumber = reinterpret_cast<lua_pushnumberT>(Offsets::lua_pushnumber);
+
+        if (lua_isstring(luaState, 1)) {
+            auto const spellName = lua_tostring(luaState, 1);
+            auto const spellId = GetSpellIdFromSpellName(spellName);
+            lua_pushnumber(luaState, spellId);
+            return 1;
+        } else {
+            lua_error(luaState, "Usage: GetSpellIdForName(spellName)");
+        }
+
+        return 0;
+    }
+
+    uint32_t Script_GetSpellSlotAndTypeForName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        auto const lua_error = reinterpret_cast<lua_errorT>(Offsets::lua_error);
+        auto const lua_isstring = reinterpret_cast<lua_isstringT>(Offsets::lua_isstring);
+        auto const lua_tostring = reinterpret_cast<lua_tostringT>(Offsets::lua_tostring);
+        auto const lua_pushnumber = reinterpret_cast<lua_pushnumberT>(Offsets::lua_pushnumber);
+        auto const lua_pushstring = reinterpret_cast<lua_pushstringT>(Offsets::lua_pushstring);
+
+        if (lua_isstring(luaState, 1)) {
+            auto const spellName = lua_tostring(luaState, 1);
+            uint32_t spellType;
+            auto spellSlot = GetSpellSlotAndType(spellName, &spellType);
+
+            // returns large number if spell not found
+            if (spellSlot > 100000) {
+                spellSlot = 0;
+                spellType = 999;
+            }
+            lua_pushnumber(luaState, spellSlot);
+
+            if (spellType == 0) {
+                char spell[] = "spell";
+                lua_pushstring(luaState, spell);
+            } else if (spellType == 1) {
+                char pet[] = "pet";
+                lua_pushstring(luaState, pet);
+            } else {
+                char unknown[] = "unknown";
+                lua_pushstring(luaState, unknown);
+            }
+            DEBUG_LOG(spellName);
+            DEBUG_LOG("Spell slot " << spellSlot << " type " << spellType);
+            return 2;
+        } else {
+            lua_error(luaState, "Usage: GetSpellSlotAndTypeForName(spellName)");
         }
 
         return 0;

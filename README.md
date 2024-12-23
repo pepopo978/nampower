@@ -118,6 +118,54 @@ Examples:
 /run local result=IsSpellInRange("Frostbolt"); if result == 1 then print("In range") else if result == 0 then print("Out of range") else print("Not single target") end
 ```
 
+#### IsSpellUsable(spellName) or IsSpellUsable(spellId)
+Takes a spell name or spell id.  
+
+Usable does not equal castable.  This is most often used to check if a reactive spell is usable.
+
+If using spell name it must be a spell you have in your spellbook.  If using spell id it can be any spell id.
+
+Returns: 
+1st param: 1 if the spell is usable, 0 if not usable.
+2nd param: Always 0 if spell is not usable for a different reason other than mana.  1 if out of mana, 0 if not out of mana.
+
+Examples:
+```
+/run local result=IsSpellUsable("Frostbolt"); if result == 1 then print("Frostbolt usable") else print("Frostbolt not usable") end
+```
+
+#### GetCurrentCastingInfo()
+Returns:
+1st param: Casting spell id or 0
+2nd param: Visual spell id or 0
+
+For normal spells these will be the same.  For some spells like auto-repeating and channeling spells only the visual spell id will be set.
+
+Examples:
+```
+/run local castingSpellId,visualSpellId=GetCurrentCastingInfo();print(castingSpellId);print(visualSpellId)
+```
+
+#### GetSpellIdForName(spellName)
+Returns:
+1st param: the max rank spell id for a spell name if it exists in your spellbook.  Returns 0 if the spell is not in your spellbook.
+
+Examples:
+```
+/run local spellId=GetSpellIdForName("Frostbolt");print(spellId)
+/run local spellId=GetSpellIdForName("Frostbolt(Rank 1)");print(spellId)
+```
+
+#### GetSpellSlotAndType(spellName)
+Returns:
+1st param: the spell slot number for a spell name if it exists in your spellbook.  Returns 0 if the spell is not in your spellbook.
+2nd param: the book type of the spell, either "spell", "pet" or "unknown".
+
+Examples:
+```
+/run local slot,bookType=GetSpellSlotAndType("Frostbolt");print(slot);print(bookType)
+```
+
 ### SPELL_QUEUE_EVENT
 I've added a new event you can register in game to get updates when spells are added and popped from the queue.
 

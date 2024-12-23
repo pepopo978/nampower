@@ -34,6 +34,7 @@
 enum class Offsets : std::uint32_t {
     StartSpellVisualCheck = 0X006E79B5,
 
+    ClntObjMgrObjectPtr = 0x00468460,
     GetObjectPtr = 0x464870,
     GetActivePlayer = 0x468550,
     GetDurationObject = 0x00C0D828,
@@ -42,6 +43,7 @@ enum class Offsets : std::uint32_t {
     SpellDb = 0xC0D788,
     CursorMode = 0xBE2C4C,
     SpellIsTargeting = 0xCECAC0,
+    CastingItemIdPtr = 0X00CECAB0,
     CastingSpellId = 0xCECA88,
     VisualSpellId = 0X00CEAC58,
     GetSpellSlotAndType = 0X004B3950,
@@ -85,6 +87,7 @@ enum class Offsets : std::uint32_t {
     Spell_C_HandleSpriteClick = 0x006E5B10,
     Spell_C_TargetSpell = 0x006E5250,
     Spell_C_GetSpellCooldown = 0X006E2EA0,
+    Spell_C_IsSpellUsable = 0X006E3D60,
 
     CVarLookup = 0x0063DEC0,
     RegisterCVar = 0X0063DB90,
@@ -109,6 +112,10 @@ enum class Offsets : std::uint32_t {
     Script_CastSpellByNameNoQueue = 0X004B4B64,
     Script_QueueScript = 0X0048B968, // unused address at the end of Script_StopCinematic
     Script_IsSpellInRange = 0x004E76D8,
+    Script_IsSpellUsable = 0X004E77A4,
+    Script_GetCurrentCastingInfo = 0X004E77F8,
+    Script_GetSpellIdForName = 0X004E7828,
+    Script_GetSpellSlotAndTypeForName = 0X004E7844,
 
     lua_isstring = 0x006F3510,
     lua_isnumber = 0X006F34D0,

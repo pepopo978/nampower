@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.3.7";
+const char *VERSION = "v2.4.0";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -99,6 +99,10 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gQueueSpellByNameDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> qQueueScriptDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gIsSpellInRangeDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gIsSpellUsableDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetCurrentCastingInfoDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetSpellIdForNameDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetSpellSlotAndTypeForNameDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_HandleSpriteClickT>> gSpell_C_HandleSpriteClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_TargetSpellT>> gSpell_C_TargetSpellDetour;
 
@@ -969,6 +973,33 @@ namespace Nampower {
                                                                                      Script_IsSpellInRange);
         gIsSpellInRangeDetour->Apply();
 
+        auto const isSpellUsableOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_IsSpellUsable);
+        gIsSpellUsableDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
+                                                                                    isSpellUsableOrig,
+                                                                                    Script_IsSpellUsable);
+        gIsSpellUsableDetour->Apply();
+
+        auto const gGetCurrentCastingInfoOrig = hadesmem::detail::AliasCast<LuaScriptT>(
+                Offsets::Script_GetCurrentCastingInfo);
+        gGetCurrentCastingInfoDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
+                                                                                            gGetCurrentCastingInfoOrig,
+                                                                                            Script_GetCurrentCastingInfo);
+        gGetCurrentCastingInfoDetour->Apply();
+
+        auto const gGetSpellIdForNameOrig = hadesmem::detail::AliasCast<LuaScriptT>(
+                Offsets::Script_GetSpellIdForName);
+        gGetSpellIdForNameDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
+                                                                                            gGetSpellIdForNameOrig,
+                                                                                            Script_GetSpellIdForName);
+        gGetSpellIdForNameDetour->Apply();
+
+        auto const gGetSpellSlotAndTypeForNameOrig = hadesmem::detail::AliasCast<LuaScriptT>(
+                Offsets::Script_GetSpellSlotAndTypeForName);
+        gGetSpellSlotAndTypeForNameDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
+                                                                                            gGetSpellSlotAndTypeForNameOrig,
+                                                                                            Script_GetSpellSlotAndTypeForName);
+        gGetSpellSlotAndTypeForNameDetour->Apply();
+
 //        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
 //                Offsets::Spell_C_CooldownEventTriggered);
 //        gSpell_C_CooldownEventTriggeredDetour = std::make_unique<hadesmem::PatchDetour<Spell_C_CooldownEventTriggeredT >>(
@@ -1013,6 +1044,21 @@ namespace Nampower {
 
         char isSpellInRange[] = "IsSpellInRange";
         RegisterLuaFunction(isSpellInRange, reinterpret_cast<uintptr_t *>(Offsets::Script_IsSpellInRange));
+
+        char isSpellUsable[] = "IsSpellUsable";
+        RegisterLuaFunction(isSpellUsable, reinterpret_cast<uintptr_t *>(Offsets::Script_IsSpellUsable));
+
+        char getCurrentCastingInfo[] = "GetCurrentCastingInfo";
+        RegisterLuaFunction(getCurrentCastingInfo,
+                            reinterpret_cast<uintptr_t *>(Offsets::Script_GetCurrentCastingInfo));
+
+        char getSpellIdForName[] = "GetSpellIdForName";
+        RegisterLuaFunction(getSpellIdForName,
+                            reinterpret_cast<uintptr_t *>(Offsets::Script_GetSpellIdForName));
+
+        char getSpellSlotAndTypeForName[] = "GetSpellSlotAndTypeForName";
+        RegisterLuaFunction(getSpellSlotAndTypeForName,
+                            reinterpret_cast<uintptr_t *>(Offsets::Script_GetSpellSlotAndTypeForName));
     }
 
     std::once_flag load_flag;
