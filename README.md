@@ -139,13 +139,18 @@ Examples:
 Returns:
 
 1st param: Casting spell id or 0
-2nd param: Visual spell id or 0
+2nd param: Visual spell id or 0.  This won't always get cleared after a spell finishes.
+3rd param: Auto repeating spell id or 0.
+4th param: 1 if casting spell with a cast time, 0 if not.
+5th param: 1 if channeling, 0 if not.
+6th param: 1 if on swing spell is pending, 0 if not.
+7th param: 1 if auto attacking, 0 if not.
 
 For normal spells these will be the same.  For some spells like auto-repeating and channeling spells only the visual spell id will be set.
 
 Examples:
 ```
-/run local castingSpellId,visualSpellId=GetCurrentCastingInfo();print(castingSpellId);print(visualSpellId)
+/run local castId,visId,autoId,casting,channeling,onswing,autoattack=GetCurrentCastingInfo();print(castId);print(visId);print(autoId);print(casting);print(channeling);print(onswing);print(autoattack);
 ```
 
 #### GetSpellIdForName(spellName)

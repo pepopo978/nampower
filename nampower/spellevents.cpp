@@ -58,6 +58,10 @@ namespace Nampower {
 
         ResetCastFlags();
 
+        if(spellId == gCastData.onSwingSpellId) {
+            ResetOnSwingFlags();
+        }
+
         if ((spellResult == game::SpellCastResult::SPELL_FAILED_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_ITEM_NOT_READY ||
              spellResult == game::SpellCastResult::SPELL_FAILED_SPELL_IN_PROGRESS)

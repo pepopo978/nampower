@@ -44,7 +44,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.4.0";
+const char *VERSION = "v2.4.1";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -282,6 +282,11 @@ namespace Nampower {
         gCastData.castEndMs = 0;
         gCastData.gcdEndMs = 0;
         ResetChannelingFlags();
+    }
+
+    void ResetOnSwingFlags() {
+        gCastData.onSwingQueued = false;
+        gCastData.onSwingSpellId = 0;
     }
 
     void ClearQueuedSpells() {

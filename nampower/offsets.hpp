@@ -45,6 +45,7 @@ enum class Offsets : std::uint32_t {
     SpellIsTargeting = 0xCECAC0,
     CastingItemIdPtr = 0X00CECAB0,
     CastingSpellId = 0xCECA88,
+    AutoRepeatingSpellId = 0xCEAC30,
     VisualSpellId = 0X00CEAC58,
     GetSpellSlotAndType = 0X004B3950,
     OsGetAsyncTimeMs = 0X0042B790,

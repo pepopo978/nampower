@@ -57,8 +57,10 @@ namespace Nampower {
 
     extern bool gScriptQueued;
 
-    using RangeCheckSelectedT = bool (__fastcall *)(uintptr_t *playerUnit,const game::SpellRec *, std::uint64_t targetGuid, char ignoreErrors);
-    using CastSpellT = bool (__fastcall *)(uintptr_t *playerUnit, uint32_t spellId, void *item, std::uint64_t targetGuid);
+    using RangeCheckSelectedT = bool (__fastcall *)(uintptr_t *playerUnit, const game::SpellRec *,
+                                                    std::uint64_t targetGuid, char ignoreErrors);
+    using CastSpellT = bool (__fastcall *)(uintptr_t *playerUnit, uint32_t spellId, void *item,
+                                           std::uint64_t targetGuid);
     using SendCastT = void (__fastcall *)(game::SpellCast *, char unk);
     using CancelSpellT = void (__fastcall *)(bool, bool, game::SpellCastResult);
     using CancelAutoRepeatSpellT = void (__stdcall *)();
@@ -99,7 +101,7 @@ namespace Nampower {
     using lua_tostringT = char *(__fastcall *)(uintptr_t *, int);
     using lua_tonumberT = double (__fastcall *)(uintptr_t *, int);
     using lua_pushnumberT = void (__fastcall *)(uintptr_t *, double);
-    using lua_pushstringT = void (__fastcall *)(uintptr_t *, char*);
+    using lua_pushstringT = void (__fastcall *)(uintptr_t *, char *);
     using lua_pushnilT = void (__fastcall *)(uintptr_t *);
     using lua_errorT = void (__cdecl *)(uintptr_t *, const char *);
 
@@ -135,6 +137,8 @@ namespace Nampower {
     void ResetChannelingFlags();
 
     void ResetCastFlags();
+
+    void ResetOnSwingFlags();
 
     void ClearQueuedSpells();
 

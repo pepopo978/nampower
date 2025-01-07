@@ -28,6 +28,7 @@ namespace Nampower {
 
         if (gCastData.channeling) {
             gCastData.channelDuration = GetChannelDuration(spell);
+            gCastData.channelEndMs = currentTime + gCastData.channelDuration;
         }
 
         auto const spellOnGcd = SpellIsOnGcd(spell);
@@ -375,42 +376,45 @@ namespace Nampower {
         auto const lua_tonumber = reinterpret_cast<lua_tonumberT>(Offsets::lua_tonumber);
         auto const lua_pushnumber = reinterpret_cast<lua_pushnumberT>(Offsets::lua_pushnumber);
 
-        // check for casting item
-        // seemed to always be zero?
-        //        auto const castingItemPtr = reinterpret_cast<uint64_t *>(Offsets::CastingItemIdPtr);
-        //        auto const castingItem = game::ClntObjMgrObjectPtr(0x2, *castingItemPtr);
-        //        if (castingItem) {
-        //            auto const itemSpellPtr = reinterpret_cast<int32_t *>(castingItem + 8);
-        //            auto const itemSpellId = *reinterpret_cast<uint32_t *>(*itemSpellPtr + 0xC);
-        //            lua_pushnumber(luaState, itemSpellId);
-        //        } else {
-        //            lua_pushnumber(luaState, 0);
-        //        }
-
         auto const castingSpellId = reinterpret_cast<uint32_t *>(Offsets::CastingSpellId);
         lua_pushnumber(luaState, *castingSpellId);
+
+        auto const isCasting = gCastData.castEndMs > GetTime();
+        auto const isChanneling = gCastData.channeling;
 
         auto const visualSpellId = reinterpret_cast<uint32_t *>(Offsets::VisualSpellId);
         lua_pushnumber(luaState, *visualSpellId);
 
-        // check for attack action id?
-        // was crashing, not entirely sure what it was doing
-        //        auto const activePlayer = game::ClntObjMgrGetActivePlayer();
-        //        auto const attackPtr = game::ClntObjMgrObjectPtr(0x10, activePlayer) + 0xC48;
-        //        DEBUG_LOG(attackPtr);
-        //        if(attackPtr) {
-        //            auto const attack = *reinterpret_cast<uint64_t *>(attackPtr);
-        //            DEBUG_LOG(attack);
-        //            if (attack != 0) {
-        //                lua_pushnumber(luaState, 1);
-        //            } else {
-        //                lua_pushnumber(luaState, 0);
-        //            }
-        //        } else {
-        //            lua_pushnumber(luaState, 0);
-        //        }
+        auto const autoRepeatingSpellId = reinterpret_cast<uint32_t *>(Offsets::AutoRepeatingSpellId);
+        lua_pushnumber(luaState, *autoRepeatingSpellId);
 
-        return 2;
+        auto playerUnit = game::GetObjectPtr(game::ClntObjMgrGetActivePlayer());
+        if (isCasting) {
+            lua_pushnumber(luaState, 1);
+        } else {
+            lua_pushnumber(luaState, 0);
+        }
+
+        if (isChanneling) {
+            lua_pushnumber(luaState, 1);
+        } else {
+            lua_pushnumber(luaState, 0);
+        }
+
+        if (gCastData.pendingOnSwingCast) {
+            lua_pushnumber(luaState, 1);
+        } else {
+            lua_pushnumber(luaState, 0);
+        }
+
+        auto const attackPtr = playerUnit + 0x312; // auto attacking
+        if (attackPtr && *reinterpret_cast<uint32_t *>(attackPtr) > 0) {
+            lua_pushnumber(luaState, 1);
+        } else {
+            lua_pushnumber(luaState, 0);
+        }
+
+        return 7;
     }
 
     uint32_t Script_GetSpellIdForName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
@@ -460,8 +464,6 @@ namespace Nampower {
                 char unknown[] = "unknown";
                 lua_pushstring(luaState, unknown);
             }
-            DEBUG_LOG(spellName);
-            DEBUG_LOG("Spell slot " << spellSlot << " type " << spellType);
             return 2;
         } else {
             lua_error(luaState, "Usage: GetSpellSlotAndTypeForName(spellName)");
@@ -523,6 +525,7 @@ namespace Nampower {
 
             if (ret) {
                 gCastData.pendingOnSwingCast = true;
+                gCastData.onSwingSpellId = spellId;
             }
 
             if (!ret && gUserSettings.queueOnSwingSpells && !gNoQueueCast) {

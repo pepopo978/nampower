@@ -97,6 +97,7 @@ struct CastData {
 
     bool onSwingQueued;
     bool pendingOnSwingCast;
+    uint32_t onSwingSpellId;
 
     uint32_t cooldownNormalEndMs;
     uint32_t cooldownNonGcdEndMs;
