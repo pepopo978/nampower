@@ -246,7 +246,7 @@ namespace Nampower {
 
         packet->m_read = rpos;
 
-        auto const activePlayer = game::ClntObjMgrGetActivePlayer();
+        auto const activePlayer = game::ClntObjMgrGetActivePlayerGuid();
 
         if (guid == activePlayer) {
             auto const currentTime = GetTime();
@@ -368,7 +368,7 @@ namespace Nampower {
             uint64_t casterGuid;
             packet->GetPackedGuid(casterGuid);
 
-            if (casterGuid == game::ClntObjMgrGetActivePlayer()) {
+            if (casterGuid == game::ClntObjMgrGetActivePlayerGuid()) {
                 uint32_t spellId;
                 packet->Get(spellId);
 

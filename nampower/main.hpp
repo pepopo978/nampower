@@ -59,7 +59,7 @@ namespace Nampower {
 
     using RangeCheckSelectedT = bool (__fastcall *)(uintptr_t *playerUnit, const game::SpellRec *,
                                                     std::uint64_t targetGuid, char ignoreErrors);
-    using CastSpellT = bool (__fastcall *)(uintptr_t *playerUnit, uint32_t spellId, void *item,
+    using CastSpellT = bool (__fastcall *)(uintptr_t *playerUnit, uint32_t spellId, uintptr_t *item,
                                            std::uint64_t targetGuid);
     using SendCastT = void (__fastcall *)(game::SpellCast *, char unk);
     using CancelSpellT = void (__fastcall *)(bool, bool, game::SpellCastResult);
@@ -71,6 +71,8 @@ namespace Nampower {
     using EndSceneT = int (__fastcall *)(uintptr_t *unk);
     using SpellChannelStartHandlerT = int (__stdcall *)(uint32_t, CDataStore *);
     using SpellChannelUpdateHandlerT = int (__stdcall *)(uint32_t, CDataStore *);
+    using OnSpriteRightClickT = int (__fastcall *)(uint64_t objectGUID);
+    using CGGameUI_TargetT = void (__stdcall *)(uint64_t objectGUID);
     using Spell_C_SpellFailedT = void (__fastcall *)(uint32_t, game::SpellCastResult, int, int, char unk3);
     using Spell_C_GetAutoRepeatingSpellT = int (__cdecl *)();
     using SpellGoT = void (__fastcall *)(uint64_t *, uint64_t *, uint32_t, CDataStore *);

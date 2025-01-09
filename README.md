@@ -76,6 +76,7 @@ SET NP_TargetingQueueWindowMs "1000"
 - `NP_ReplaceMatchingNonGcdCategory` - Whether to replace any queued non gcd spell when a new non gcd spell with the same StartRecoveryCategory is cast (more explanation below).  0 to disable, 1 to enable. Default is 0.
 - `NP_OptimizeBufferUsingPacketTimings` - Whether to attempt to optimize your buffer using your latency and server packet timings (more explanation below).  0 to disable, 1 to enable. Default is 0.
 
+- `NP_PreventRightClickTargetChange` - Whether to prevent right-clicking from changing your current target.  If you don't have a target right click will still change your target even with this on.  This is mainly to prevent accidentally changing targets in combat when trying to adjust your camera.  0 to disable, 1 to enable. Default is 0.
 
 - `NP_ChannelLatencyReductionPercentage` - The percentage of your latency to subtract from the end of a channel duration to optimize cast time while hopefully not losing any ticks (more explanation below). Default is 75.
 
@@ -192,7 +193,7 @@ Examples:
 ### SPELL_QUEUE_EVENT
 I've added a new event you can register in game to get updates when spells are added and popped from the queue.
 
-The event is `SPELL_QUEUE_EVENT` and has 2 arguments:
+The event is `SPELL_QUEUE_EVENT` and has 2 result values:
 
 `(int eventCode, int spellId)`
 
@@ -231,9 +232,11 @@ NampowerSettings:RegisterEvent("SPELL_QUEUE_EVENT", spellQueueEvent)
 ### SPELL_CAST_EVENT
 Another new event you can register in game to get updates when spells are cast with some additional information.
 
-The event is `SPELL_CAST_EVENT` and has 4 arguments:
+The event is `SPELL_CAST_EVENT` and has 5 return values:
 
-`(int spellId, int castType, string targetGuid, int isItem)`
+`(int success, int spellId, int castType, string targetGuid, int itemId)`
+
+success = 1 if cast succeeded, 0 if failed
 
 Possible Cast Types:
 ```
@@ -249,7 +252,7 @@ targetGuid will be 0 unless an explicit target is specified which currently only
 - It was specified as the 2nd param of CastSpellByName (added by superwow)
 - Mouseover casts that use SpellTargetUnit to specify a target
 
-isItem will be 1 if the spell cast was triggered by an item, 0 otherwise.
+itemId is the id of the item that triggered the spell, 0 if it wasn't triggered by an item
 
 Example:
 ```

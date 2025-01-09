@@ -80,6 +80,12 @@ namespace game {
         return spellDb->m_recordsById[spellId];
     }
 
+    uint32_t GetItemId(CGItem_C *item) {
+        uintptr_t *itemInfo = item->m_itemInfo;
+
+        return *reinterpret_cast<uint32_t *>(itemInfo + 3); // item id offset
+    }
+
     const char *GetSpellName(uint32_t spellId) {
         auto const spell = GetSpellInfo(spellId);
 
@@ -91,10 +97,14 @@ namespace game {
         return spell->SpellName[language];
     }
 
-    std::uint64_t ClntObjMgrGetActivePlayer() {
-        auto const getActivePlayer = hadesmem::detail::AliasCast<decltype(&ClntObjMgrGetActivePlayer)>(
+    std::uint64_t ClntObjMgrGetActivePlayerGuid() {
+        auto const getActivePlayer = hadesmem::detail::AliasCast<decltype(&ClntObjMgrGetActivePlayerGuid)>(
                 Offsets::GetActivePlayer);
 
         return getActivePlayer();
+    }
+
+    std::uint64_t GetCurrentTargetGuid() {
+        return *reinterpret_cast<uint64_t *>(Offsets::LockedTargetGuid);
     }
 }

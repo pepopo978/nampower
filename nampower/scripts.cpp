@@ -130,7 +130,7 @@ namespace Nampower {
                     targetGUID = getGUIDFromName(target);
                 }
 
-                auto playerUnit = game::GetObjectPtr(game::ClntObjMgrGetActivePlayer());
+                auto playerUnit = game::GetObjectPtr(game::ClntObjMgrGetActivePlayerGuid());
 
                 auto const RangeCheckSelected = reinterpret_cast<RangeCheckSelectedT>(Offsets::RangeCheckSelected);
                 auto const result = RangeCheckSelected(playerUnit, spell, targetGUID, '\0');
@@ -218,7 +218,7 @@ namespace Nampower {
         auto const autoRepeatingSpellId = reinterpret_cast<uint32_t *>(Offsets::AutoRepeatingSpellId);
         lua_pushnumber(luaState, *autoRepeatingSpellId);
 
-        auto playerUnit = game::GetObjectPtr(game::ClntObjMgrGetActivePlayer());
+        auto playerUnit = game::GetObjectPtr(game::ClntObjMgrGetActivePlayerGuid());
         if (isCasting) {
             lua_pushnumber(luaState, 1);
         } else {

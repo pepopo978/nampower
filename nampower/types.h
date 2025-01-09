@@ -21,6 +21,8 @@ struct UserSettings {
     bool replaceMatchingNonGcdCategory;
     bool optimizeBufferUsingPacketTimings;
 
+    bool preventRightClickTargetChange;
+
     uint32_t spellQueueWindowMs;
     uint32_t onSwingBufferCooldownMs;
     uint32_t channelQueueWindowMs;
@@ -64,7 +66,7 @@ struct CastSpellParams {
     /* Original cast spell function arguments */
     uint32_t *playerUnit;
     uint32_t spellId;
-    void *item;
+    uintptr_t *item;
     uint64_t guid;
     /* *********************** */
 

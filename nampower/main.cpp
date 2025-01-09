@@ -101,6 +101,7 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetSpellIdForNameDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetSpellNameAndRankForIdDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetSpellSlotAndTypeForNameDetour;
+    std::unique_ptr<hadesmem::PatchDetour<OnSpriteRightClickT>> gOnSpriteRightClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_HandleSpriteClickT>> gSpell_C_HandleSpriteClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_TargetSpellT>> gSpell_C_TargetSpellDetour;
 
@@ -371,6 +372,20 @@ namespace Nampower {
         }
     }
 
+    int OnSpriteRightClickHook(hadesmem::PatchDetourBase *detour, uint64_t objectGUID) {
+        auto const onSpriteRightClick = detour->GetTrampolineT<OnSpriteRightClickT>();
+
+        auto const currentTargetGuid = game::GetCurrentTargetGuid();
+
+        // if we have a target that is not the right click target, ignore the right click
+        if (gUserSettings.preventRightClickTargetChange && currentTargetGuid &&
+            currentTargetGuid != objectGUID) {
+            return 1;
+        }
+
+        return onSpriteRightClick(objectGUID);
+    }
+
     int *ISceneEndHook(hadesmem::PatchDetourBase *detour, uintptr_t *ptr) {
         auto const iSceneEnd = detour->GetTrampolineT<ISceneEndT>();
 
@@ -422,6 +437,10 @@ namespace Nampower {
         } else if (strcmp(cvar, "NP_OptimizeBufferUsingPacketTimings") == 0) {
             gUserSettings.optimizeBufferUsingPacketTimings = atoi(value) != 0;
             DEBUG_LOG("Set NP_OptimizeBufferUsingPacketTimings to " << gUserSettings.optimizeBufferUsingPacketTimings);
+
+        } else if (strcmp(cvar, "NP_PreventRightClickTargetChange") == 0) {
+            gUserSettings.preventRightClickTargetChange = atoi(value) != 0;
+            DEBUG_LOG("Set NP_PreventRightClickTargetChange to " << gUserSettings.preventRightClickTargetChange);
 
         } else if (strcmp(cvar, "NP_MinBufferTimeMs") == 0) {
             gUserSettings.minBufferTimeMs = atoi(value);
@@ -526,6 +545,8 @@ namespace Nampower {
         gUserSettings.quickcastTargetingSpells = false;
         gUserSettings.replaceMatchingNonGcdCategory = false;
         gUserSettings.optimizeBufferUsingPacketTimings = false;
+
+        gUserSettings.preventRightClickTargetChange = false;
 
         gUserSettings.minBufferTimeMs = 55; // time in ms to buffer cast to minimize server failure
         gUserSettings.nonGcdBufferTimeMs = 100; // time in ms to buffer non-GCD spells to minimize server failure
@@ -739,6 +760,16 @@ namespace Nampower {
                      0,  // unk2
                      0); // unk3
 
+        char NP_PreventRightClickTargetChange[] = "NP_PreventRightClickTargetChange";
+        CVarRegister(NP_PreventRightClickTargetChange, // name
+                     nullptr, // help
+                     0,  // unk1
+                     gUserSettings.preventRightClickTargetChange ? defaultTrue : defaultFalse, // default value address
+                     nullptr, // callback
+                     1, // category
+                     0,  // unk2
+                     0); // unk3
+
         char NP_ChannelLatencyReductionPercentage[] = "NP_ChannelLatencyReductionPercentage";
         CVarRegister(NP_ChannelLatencyReductionPercentage, // name
                      nullptr, // help
@@ -763,6 +794,8 @@ namespace Nampower {
         load_user_var("NP_QuickcastTargetingSpells");
         load_user_var("NP_ReplaceMatchingNonGcdCategory");
         load_user_var("NP_OptimizeBufferUsingPacketTimings");
+
+        load_user_var("NP_PreventRightClickTargetChange");
 
         load_user_var("NP_MinBufferTimeMs");
         load_user_var("NP_NonGcdBufferTimeMs");
@@ -929,23 +962,30 @@ namespace Nampower {
         auto const gGetSpellIdForNameOrig = hadesmem::detail::AliasCast<LuaScriptT>(
                 Offsets::Script_GetSpellIdForName);
         gGetSpellIdForNameDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                            gGetSpellIdForNameOrig,
-                                                                                            Script_GetSpellIdForName);
+                                                                                        gGetSpellIdForNameOrig,
+                                                                                        Script_GetSpellIdForName);
         gGetSpellIdForNameDetour->Apply();
 
         auto const gGetSpellNameAndRankForIdOrig = hadesmem::detail::AliasCast<LuaScriptT>(
                 Offsets::Script_GetSpellNameAndRankForId);
         gGetSpellNameAndRankForIdDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                            gGetSpellNameAndRankForIdOrig,
-                                                                                            Script_GetSpellNameAndRankForId);
+                                                                                               gGetSpellNameAndRankForIdOrig,
+                                                                                               Script_GetSpellNameAndRankForId);
         gGetSpellNameAndRankForIdDetour->Apply();
 
         auto const gGetSpellSlotAndTypeForNameOrig = hadesmem::detail::AliasCast<LuaScriptT>(
                 Offsets::Script_GetSpellSlotAndTypeForName);
         gGetSpellSlotAndTypeForNameDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                            gGetSpellSlotAndTypeForNameOrig,
-                                                                                            Script_GetSpellSlotAndTypeForName);
+                                                                                                 gGetSpellSlotAndTypeForNameOrig,
+                                                                                                 Script_GetSpellSlotAndTypeForName);
         gGetSpellSlotAndTypeForNameDetour->Apply();
+
+        auto const gOnSpriteRightClickOrig = hadesmem::detail::AliasCast<OnSpriteRightClickT>(
+                Offsets::OnSpriteRightClick);
+        gOnSpriteRightClickDetour = std::make_unique<hadesmem::PatchDetour<OnSpriteRightClickT >>(process,
+                                                                                                  gOnSpriteRightClickOrig,
+                                                                                                  OnSpriteRightClickHook);
+        gOnSpriteRightClickDetour->Apply();
 
 //        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
 //                Offsets::Spell_C_CooldownEventTriggered);

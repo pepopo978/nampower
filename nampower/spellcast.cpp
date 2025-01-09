@@ -80,7 +80,6 @@ namespace Nampower {
         gLastCastData.startTimeMs = currentTime;
 
         // if queued cast, simulate spellcast start
-
     }
 
     void CastQueuedNonGcdSpell() {
@@ -136,7 +135,7 @@ namespace Nampower {
     void SaveCastParams(CastSpellParams *params,
                         uint32_t *playerUnit,
                         uint32_t spellId,
-                        void *item,
+                        uintptr_t *item,
                         std::uint64_t guid,
                         uint32_t gcDCategory,
                         uint32_t castTimeMs,
@@ -163,20 +162,20 @@ namespace Nampower {
                 spellId);
     }
 
-    void TriggerSpellCastEvent(uint32_t spellId, CastType castType, std::uint64_t guid, bool isItem) {
-        char format[] = "%d%d%s%d";
-        char* guidStr = new char[21]; // 2 for 0x prefix, 18 for the number, and 1 for '\0'
+    void
+    TriggerSpellCastEvent(bool result, uint32_t spellId, CastType castType, std::uint64_t guid, uint32_t itemId) {
+        char format[] = "%d%d%d%s%d";
+        char *guidStr = new char[21]; // 2 for 0x prefix, 18 for the number, and 1 for '\0'
         std::snprintf(guidStr, 21, "0x%016llX", static_cast<unsigned long long>(guid));
 
-        DEBUG_LOG(guidStr);
-
-        ((int (__cdecl *)(int, char *, uint32_t, uint32_t, char *, uint32_t)) Offsets::SignalEventParam)(
+        ((int (__cdecl *)(int, char *, uint32_t, uint32_t, uint32_t, char *, uint32_t)) Offsets::SignalEventParam)(
                 540,  // SPELL_CAST_EVENT event we are adding
                 format,
+                result,
                 spellId,
                 castType,
                 guidStr,
-                isItem);
+                itemId);
     }
 
     void clearCastingSpell() {
@@ -190,7 +189,7 @@ namespace Nampower {
     }
 
     bool
-    Spell_C_CastSpellHook(hadesmem::PatchDetourBase *detour, uint32_t *playerUnit, uint32_t spellId, void *item,
+    Spell_C_CastSpellHook(hadesmem::PatchDetourBase *detour, uint32_t *playerUnit, uint32_t spellId, uintptr_t *item,
                           std::uint64_t guid) {
         // save the detour to allow quickly calling this hook
         castSpellDetour = detour;
@@ -207,6 +206,11 @@ namespace Nampower {
         auto const spellIsTargeting = SpellIsTargeting(spell);
         auto const spellIsTradeSkillOrEnchant = SpellIsTradeskillOrEnchant(spell);
 
+
+        uint32_t itemId = 0;
+        if (item) {
+            itemId = game::GetItemId((game::CGItem_C *) item);
+        }
 
         DEBUG_LOG("Attempt cast " << spellName << " item " << item << " on guid " << guid
                                   << ", time since last cast " << currentTime - gLastCastData.startTimeMs);
@@ -228,7 +232,6 @@ namespace Nampower {
                            castTime,
                            currentTime, ON_SWING, 0);
 
-            TriggerSpellCastEvent(spellId, ON_SWING, guid, item != nullptr);
             gCastHistory.pushFront({playerUnit, spellId, item, guid,
                                     spell->StartRecoveryCategory,
                                     castTime,
@@ -240,6 +243,8 @@ namespace Nampower {
             // try to cast the spell
             auto const castSpell = detour->GetTrampolineT<CastSpellT>();
             auto ret = castSpell(playerUnit, spellId, item, guid);
+
+            TriggerSpellCastEvent(ret, spellId, ON_SWING, guid, itemId);
 
             if (ret) {
                 gCastData.pendingOnSwingCast = true;
@@ -456,7 +461,6 @@ namespace Nampower {
             castType = CastType::NON_GCD;
         }
 
-        TriggerSpellCastEvent(spellId, castType, guid, item != nullptr);
         gCastHistory.pushFront({playerUnit, spellId, item, guid,
                                 spell->StartRecoveryCategory,
                                 castTime,
@@ -468,6 +472,7 @@ namespace Nampower {
 
         // if this is a trade skill or item enchant, do nothing further
         if (spellIsTradeSkillOrEnchant) {
+            TriggerSpellCastEvent(ret, spellId, castType, guid, itemId);
             return ret;
         }
 
@@ -503,6 +508,8 @@ namespace Nampower {
             }
         }
 
+        TriggerSpellCastEvent(ret, spellId, castType, guid, itemId);
+
         return ret;
     }
 
@@ -512,7 +519,7 @@ namespace Nampower {
         auto const spellGo = detour->GetTrampolineT<SpellGoT>();
         spellGo(casterGUID, targetGUID, spellId, spellData);
 
-        auto const castByActivePlayer = game::ClntObjMgrGetActivePlayer() == *casterGUID;
+        auto const castByActivePlayer = game::ClntObjMgrGetActivePlayerGuid() == *casterGUID;
 
         if (castByActivePlayer) {
             auto const currentTime = GetTime();
@@ -566,8 +573,21 @@ namespace Nampower {
                                                             << " quickcast: "
                                                             << gUserSettings.quickcastTargetingSpells
                                                             << " queuetrigger: " << gCastData.castingQueuedSpell);
+
+                    // store the current target
+                    auto const targetGuid = game::GetCurrentTargetGuid();
+
                     LuaCall("CameraOrSelectOrMoveStart()");
                     LuaCall("CameraOrSelectOrMoveStop()");
+
+
+                    // check if target changed
+                    if (targetGuid != game::GetCurrentTargetGuid()) {
+                        DEBUG_LOG("Target changed during quick cast, restoring previous target " << targetGuid);
+                        auto const targetUnit = reinterpret_cast<CGGameUI_TargetT>(Offsets::CGGameUI_Target);
+                        targetUnit(targetGuid);
+                    }
+
                 }
             }
         }

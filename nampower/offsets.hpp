@@ -69,6 +69,10 @@ enum class Offsets : std::uint32_t {
     CreateCastbar = 0x6E7A53,
     CheckAndReportSpellInhibitFlags = 0x006094f0,
 
+    LockedTargetGuid = 0x00B4E2D8,
+    OnSpriteRightClick = 0x00492820,
+    CGGameUI_Target = 0X00493540,
+
     SpellVisualsHandleCastStart = 0X006EC220,
 
     SpellChannelStartHandler = 0x006E7550,
