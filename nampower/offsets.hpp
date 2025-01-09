@@ -116,7 +116,8 @@ enum class Offsets : std::uint32_t {
     Script_IsSpellUsable = 0X004E77A4,
     Script_GetCurrentCastingInfo = 0X004E77F8,
     Script_GetSpellIdForName = 0X004E7828,
-    Script_GetSpellSlotAndTypeForName = 0X004E7844,
+    Script_GetSpellNameAndRankForId = 0X004E7844,
+    Script_GetSpellSlotAndTypeForName = 0X004E784A,
 
     lua_isstring = 0x006F3510,
     lua_isnumber = 0X006F34D0,
@@ -137,5 +138,7 @@ enum class Offsets : std::uint32_t {
 
     IntIntParamFormat = 0X00843342,
     StringIntParamFormat = 0X00847FBC,
+
     QueueEventStringPtr = 0X00BE175C, // unused event 369 0x171
+    CastEventStringPtr = 0X00BE1A08, // unused event 540 0x21C
 };

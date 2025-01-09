@@ -166,7 +166,19 @@ Examples:
 /run local spellId=GetSpellIdForName("Frostbolt(Rank 1)");print(spellId)
 ```
 
-#### GetSpellSlotAndType(spellName)
+#### GetSpellNameAndRankForId(id)
+Returns:
+
+1st param: the spell name for a spell id
+2nd param: the spell rank for a spell id as a string such as "Rank 1"
+
+Examples:
+```
+/run local spellName,spellRank=GetSpellNameAndRankForId(116);print(spellName);print(spellRank)
+prints "Frostbolt" and "Rank 1"
+```
+
+#### GetSpellSlotAndTypeForName(spellName)
 Returns:
 
 1st param: the spell slot number for a spell name if it exists in your spellbook.  Returns 0 if the spell is not in your spellbook.
@@ -174,13 +186,14 @@ Returns:
 
 Examples:
 ```
-/run local slot,bookType=GetSpellSlotAndType("Frostbolt");print(slot);print(bookType)
+/run local slot,bookType=GetSpellSlotAndTypeForName("Frostbolt");print(slot);print(bookType)
 ```
 
 ### SPELL_QUEUE_EVENT
 I've added a new event you can register in game to get updates when spells are added and popped from the queue.
 
 The event is `SPELL_QUEUE_EVENT` and has 2 arguments:
+
 `(int eventCode, int spellId)`
 
 Possible Event codes:
@@ -213,6 +226,39 @@ local function spellQueueEvent(eventCode, spellId)
 end
 
 NampowerSettings:RegisterEvent("SPELL_QUEUE_EVENT", spellQueueEvent)
+```
+
+### SPELL_CAST_EVENT
+Another new event you can register in game to get updates when spells are cast with some additional information.
+
+The event is `SPELL_CAST_EVENT` and has 4 arguments:
+
+`(int spellId, int castType, string targetGuid, int isItem)`
+
+Possible Cast Types:
+```
+NORMAL=1
+NON_GCD=2
+ON_SWING=3
+CHANNEL=4
+TARGETING=5 (targeting is the term I used for spells with terrain targeting)
+TARGETING_NON_GCD=6
+```
+
+targetGuid will be 0 unless an explicit target is specified which currently only happens in 2 circumstances:
+- It was specified as the 2nd param of CastSpellByName (added by superwow)
+- Mouseover casts that use SpellTargetUnit to specify a target
+
+isItem will be 1 if the spell cast was triggered by an item, 0 otherwise.
+
+Example:
+```
+Cursive:RegisterEvent("SPELL_CAST_EVENT", function(spellId, castType, targetGuid, isItem)
+	print(spellId)
+	print(castType)
+	print(targetGuid)
+	print(isItem)
+end);
 ```
 
 ### Bug Reporting

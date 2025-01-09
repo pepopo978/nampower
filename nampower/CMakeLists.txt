@@ -22,6 +22,8 @@ set(SOURCE_FILES
         spellchannel.cpp
         spellevents.hpp
         spellevents.cpp
+        scripts.hpp
+        scripts.cpp
 )
 
 add_library(${DLL_NAME} SHARED ${SOURCE_FILES})

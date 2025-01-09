@@ -33,6 +33,7 @@
 #include "main.hpp"
 #include "spellevents.hpp"
 #include "spellcast.hpp"
+#include "scripts.hpp"
 #include "spellchannel.hpp"
 
 #include <cstdint>
@@ -44,7 +45,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.4.1";
+const char *VERSION = "v2.5.0";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -73,10 +74,6 @@ namespace Nampower {
 
     CastQueue gCastHistory = CastQueue();
 
-    bool gScriptQueued;
-    int gScriptPriority = 1;
-    char *queuedScript;
-
     std::unique_ptr<hadesmem::PatchDetour<SpellVisualsInitializeT >> gSpellVisualsInitDetour;
     std::unique_ptr<hadesmem::PatchDetour<LoadScriptFunctionsT >> gLoadScriptFunctionsDetour;
 
@@ -102,6 +99,7 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gIsSpellUsableDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetCurrentCastingInfoDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetSpellIdForNameDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetSpellNameAndRankForIdDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetSpellSlotAndTypeForNameDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_HandleSpriteClickT>> gSpell_C_HandleSpriteClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_TargetSpellT>> gSpell_C_TargetSpellDetour;
@@ -171,53 +169,6 @@ namespace Nampower {
         }
 
         return gBufferTimeMs;
-    }
-
-
-    bool Script_QueueScript(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
-        DEBUG_LOG("Trying to queue script");
-
-        auto const currentTime = GetTime();
-        auto effectiveCastEndMs = EffectiveCastEndMs();
-        auto remainingEffectiveCastTime = (effectiveCastEndMs > currentTime) ? effectiveCastEndMs - currentTime : 0;
-        auto remainingGcd = (gCastData.gcdEndMs > currentTime) ? gCastData.gcdEndMs - currentTime : 0;
-        auto inSpellQueueWindow = InSpellQueueWindow(remainingEffectiveCastTime, remainingGcd, false);
-
-        if (inSpellQueueWindow) {
-            // check if valid string
-            auto const lua_isstring = reinterpret_cast<lua_isstringT>(Offsets::lua_isstring);
-            if (lua_isstring(luaState, 1)) {
-                auto const lua_tostring = reinterpret_cast<lua_tostringT>(Offsets::lua_tostring);
-                auto script = lua_tostring(luaState, 1);
-
-                if (script != nullptr && strlen(script) > 0) {
-                    // save the script to be run later
-                    queuedScript = script;
-                    gScriptQueued = true;
-
-                    // check if priority is set
-                    auto const lua_isnumber = reinterpret_cast<lua_isnumberT>(Offsets::lua_isnumber);
-                    if (lua_isnumber(luaState, 2)) {
-                        auto const lua_tonumber = reinterpret_cast<lua_tonumberT>(Offsets::lua_tonumber);
-                        gScriptPriority = (int) lua_tonumber(luaState, 2);
-
-                        DEBUG_LOG("Queuing script priority " << gScriptPriority << ": " << script);
-                    } else {
-                        DEBUG_LOG("Queuing script: " << script);
-                    }
-                }
-            } else {
-                DEBUG_LOG("Invalid script");
-                auto const lua_error = reinterpret_cast<lua_errorT>(Offsets::lua_error);
-                lua_error(luaState, "Usage: QueueScript(\"script\", (optional)priority)");
-            }
-        } else {
-            // just call regular runscript
-            auto const runScript = reinterpret_cast<LuaScriptT >(Offsets::Script_RunScript);
-            return runScript(luaState);
-        }
-
-        return false;
     }
 
     bool InSpellQueueWindow(uint32_t remainingCastTime, uint32_t remainingGcd, bool spellIsTargeting) {
@@ -306,24 +257,6 @@ namespace Nampower {
         }
     }
 
-    bool checkForQueuedScript() {
-        auto currentTime = GetTime();
-
-        auto effectiveCastEndMs = EffectiveCastEndMs();
-        // get max of cooldown and gcd
-        auto delay = effectiveCastEndMs > gCastData.gcdEndMs ? effectiveCastEndMs : gCastData.gcdEndMs;
-
-        if (delay <= currentTime) {
-            DEBUG_LOG("Running queued script priority " << gScriptPriority << ": " << queuedScript);
-            LuaCall(queuedScript);
-            gScriptQueued = false;
-            gScriptPriority = 1;
-            return true;
-        }
-
-        return false;
-    }
-
     void checkForStopChanneling() {
         if (gUserSettings.queueChannelingSpells && IsNonSwingSpellQueued()) {
             // for channels just end channeling
@@ -360,11 +293,9 @@ namespace Nampower {
     void processQueues() {
         if (!gCastData.channeling) {
             // check for high priority script
-            if (gScriptQueued && gScriptPriority == 1) {
-                if (checkForQueuedScript()) {
-                    // script ran, stop processing
-                    return;
-                }
+            if (RunQueuedScript(1)) {
+                // script ran, stop processing
+                return;
             }
 
             // check for non gcd spell
@@ -392,11 +323,9 @@ namespace Nampower {
             }
 
             // check for medium priority script
-            if (gScriptQueued && gScriptPriority == 2) {
-                if (checkForQueuedScript()) {
-                    // script ran, stop processing
-                    return;
-                }
+            if (RunQueuedScript(2)) {
+                // script ran, stop processing
+                return;
             }
 
             // check for normal spell
@@ -435,11 +364,9 @@ namespace Nampower {
                 }
             }
 
-            if (gScriptQueued && gScriptPriority == 3) {
-                if (checkForQueuedScript()) {
-                    // script ran, stop processing
-                    return;
-                }
+            if (RunQueuedScript(3)) {
+                // script ran, stop processing
+                return;
             }
         }
     }
@@ -860,8 +787,16 @@ namespace Nampower {
         // The new string you want to point to
         const char *SPELL_QUEUE_EVENT = "SPELL_QUEUE_EVENT";
 
-        // Make 0x00BE175C which is the unused event string ptr point to SPELL_QUEUE_EVENT
+        // Make 0x00BE175C which is the unused event string ptr point to SPELL_QUEUE_EVENT (369)
         *strPtr = reinterpret_cast<uintptr_t>(SPELL_QUEUE_EVENT);
+
+        strPtr = reinterpret_cast<uintptr_t *>(Offsets::CastEventStringPtr);
+
+        // The new string you want to point to
+        const char *SPELL_CAST_EVENT = "SPELL_CAST_EVENT";
+
+        // Make 0X00BE1A08 which is the unused event string ptr point to SPELL_CAST_EVENT (540)
+        *strPtr = reinterpret_cast<uintptr_t>(SPELL_CAST_EVENT);
 
         auto const setCVarOrig = hadesmem::detail::AliasCast<SetCVarT>(Offsets::Script_SetCVar);
         gSetCVarDetour = std::make_unique<hadesmem::PatchDetour<SetCVarT >>(process, setCVarOrig, &Script_SetCVarHook);
@@ -998,6 +933,13 @@ namespace Nampower {
                                                                                             Script_GetSpellIdForName);
         gGetSpellIdForNameDetour->Apply();
 
+        auto const gGetSpellNameAndRankForIdOrig = hadesmem::detail::AliasCast<LuaScriptT>(
+                Offsets::Script_GetSpellNameAndRankForId);
+        gGetSpellNameAndRankForIdDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
+                                                                                            gGetSpellNameAndRankForIdOrig,
+                                                                                            Script_GetSpellNameAndRankForId);
+        gGetSpellNameAndRankForIdDetour->Apply();
+
         auto const gGetSpellSlotAndTypeForNameOrig = hadesmem::detail::AliasCast<LuaScriptT>(
                 Offsets::Script_GetSpellSlotAndTypeForName);
         gGetSpellSlotAndTypeForNameDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
@@ -1060,6 +1002,10 @@ namespace Nampower {
         char getSpellIdForName[] = "GetSpellIdForName";
         RegisterLuaFunction(getSpellIdForName,
                             reinterpret_cast<uintptr_t *>(Offsets::Script_GetSpellIdForName));
+
+        char getSpellNameAndRankForId[] = "GetSpellNameAndRankForId";
+        RegisterLuaFunction(getSpellNameAndRankForId,
+                            reinterpret_cast<uintptr_t *>(Offsets::Script_GetSpellNameAndRankForId));
 
         char getSpellSlotAndTypeForName[] = "GetSpellSlotAndTypeForName";
         RegisterLuaFunction(getSpellSlotAndTypeForName,
