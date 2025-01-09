@@ -15,6 +15,8 @@ Additionally, if you use pfui mouseover macros there is a timing issue that can 
 
 If you have superwow HIGHLY recommend replacing pfui/modules/mouseover.lua with this version https://gist.github.com/pepopo978/690f1fa8bafae04abb8ac657a9fd969e
 
+If you use healcomm replacing all instances of it with this version https://github.com/MarcelineVQ/LunaUnitFrames/blob/TurtleWoW/libs/HealComm-1.0/HealComm-1.0.lua will work properly with queuing (requires superwow).
+
 ### Installation
 Grab the latest nampower.dll from https://github.com/pepopo978/nampower/releases and place in the same directory as WoW.exe.  You can also get the helper addon mentioned below and place that in Interface/Addons.
 
