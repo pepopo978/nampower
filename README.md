@@ -188,7 +188,7 @@ Returns:
 
 Examples:
 ```
-/run local slot, bookType, spellId=GetSpellSlotAndTypeForName("Frostbolt");print(slot);print(bookType);print(spellId)
+/run local slot, bookType, spellId=GetSpellSlotTypeIdForName("Frostbolt");print(slot);print(bookType);print(spellId)
 ```
 
 The previous version of this `GetSpellSlotAndTypeForName` was removed as it was returning a 0 indexed slot number which was confusing to use in lua.
