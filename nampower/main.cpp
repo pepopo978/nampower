@@ -45,7 +45,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.5.0";
+const char *VERSION = "v2.6.0";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -974,10 +974,10 @@ namespace Nampower {
         gGetSpellNameAndRankForIdDetour->Apply();
 
         auto const gGetSpellSlotAndTypeForNameOrig = hadesmem::detail::AliasCast<LuaScriptT>(
-                Offsets::Script_GetSpellSlotAndTypeForName);
+                Offsets::Script_GetSpellSlotTypeIdForName);
         gGetSpellSlotAndTypeForNameDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
                                                                                                  gGetSpellSlotAndTypeForNameOrig,
-                                                                                                 Script_GetSpellSlotAndTypeForName);
+                                                                                                 Script_GetSpellSlotTypeIdForName);
         gGetSpellSlotAndTypeForNameDetour->Apply();
 
         auto const gOnSpriteRightClickOrig = hadesmem::detail::AliasCast<OnSpriteRightClickT>(
@@ -1047,9 +1047,9 @@ namespace Nampower {
         RegisterLuaFunction(getSpellNameAndRankForId,
                             reinterpret_cast<uintptr_t *>(Offsets::Script_GetSpellNameAndRankForId));
 
-        char getSpellSlotAndTypeForName[] = "GetSpellSlotAndTypeForName";
-        RegisterLuaFunction(getSpellSlotAndTypeForName,
-                            reinterpret_cast<uintptr_t *>(Offsets::Script_GetSpellSlotAndTypeForName));
+        char getSpellSlotTypeIdForName[] = "GetSpellSlotTypeIdForName";
+        RegisterLuaFunction(getSpellSlotTypeIdForName,
+                            reinterpret_cast<uintptr_t *>(Offsets::Script_GetSpellSlotTypeIdForName));
     }
 
     std::once_flag load_flag;

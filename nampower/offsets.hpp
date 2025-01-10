@@ -121,7 +121,7 @@ enum class Offsets : std::uint32_t {
     Script_GetCurrentCastingInfo = 0X004E77F8,
     Script_GetSpellIdForName = 0X004E7828,
     Script_GetSpellNameAndRankForId = 0X004E7844,
-    Script_GetSpellSlotAndTypeForName = 0X004E784A,
+    Script_GetSpellSlotTypeIdForName = 0X004E784A,
 
     lua_isstring = 0x006F3510,
     lua_isnumber = 0X006F34D0,

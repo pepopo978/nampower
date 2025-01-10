@@ -179,16 +179,19 @@ Examples:
 prints "Frostbolt" and "Rank 1"
 ```
 
-#### GetSpellSlotAndTypeForName(spellName)
+#### GetSpellSlotTypeIdForName(spellName)
 Returns:
 
-1st param: the spell slot number for a spell name if it exists in your spellbook.  Returns 0 if the spell is not in your spellbook.
+1st param: the 1 indexed (lua calls expect this) spell slot number for a spell name if it exists in your spellbook.  Returns 0 if the spell is not in your spellbook.
 2nd param: the book type of the spell, either "spell", "pet" or "unknown".
+3rd param: the spell id of the spell.  Returns 0 if the spell is not in your spellbook.
 
 Examples:
 ```
-/run local slot,bookType=GetSpellSlotAndTypeForName("Frostbolt");print(slot);print(bookType)
+/run local slot, bookType, spellId=GetSpellSlotAndTypeForName("Frostbolt");print(slot);print(bookType);print(spellId)
 ```
+
+The previous version of this `GetSpellSlotAndTypeForName` was removed as it was returning a 0 indexed slot number which was confusing to use in lua.
 
 ### SPELL_QUEUE_EVENT
 I've added a new event you can register in game to get updates when spells are added and popped from the queue.

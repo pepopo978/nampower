@@ -24,7 +24,7 @@ namespace Nampower {
 
     uint32_t Script_GetSpellNameAndRankForId(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
 
-    uint32_t Script_GetSpellSlotAndTypeForName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
+    uint32_t Script_GetSpellSlotTypeIdForName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
 
     bool Script_QueueScript(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
 

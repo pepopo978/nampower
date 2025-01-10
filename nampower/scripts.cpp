@@ -280,32 +280,52 @@ namespace Nampower {
         return 0;
     }
 
-    uint32_t Script_GetSpellSlotAndTypeForName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+    uint32_t Script_GetSpellSlotTypeIdForName(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
         if (lua_isstring(luaState, 1)) {
             auto const spellName = lua_tostring(luaState, 1);
-            uint32_t spellType;
-            auto spellSlot = GetSpellSlotAndTypeForName(spellName, &spellType);
+            uint32_t bookType;
+            auto spellSlot = GetSpellSlotAndTypeForName(spellName, &bookType);
 
             // returns large number if spell not found
             if (spellSlot > 100000) {
+                lua_pushnumber(luaState, 0);
                 spellSlot = 0;
-                spellType = 999;
-            }
-            lua_pushnumber(luaState, spellSlot);
+                bookType = 999;
 
-            if (spellType == 0) {
+                lua_pushnumber(luaState, spellSlot);
+            } else {
+                lua_pushnumber(luaState, spellSlot + 1); // lua is 1 indexed
+            }
+
+            if (bookType == 0) {
                 char spell[] = "spell";
                 lua_pushstring(luaState, spell);
-            } else if (spellType == 1) {
+            } else if (bookType == 1) {
                 char pet[] = "pet";
                 lua_pushstring(luaState, pet);
             } else {
                 char unknown[] = "unknown";
                 lua_pushstring(luaState, unknown);
             }
-            return 2;
+
+            if (spellSlot > 0 && spellSlot < 1024)
+            {
+                uint32_t spellId = 0;
+                if (bookType == 0) {
+                    spellId = *reinterpret_cast<uint32_t *>(uint32_t(Offsets::CGSpellBook_mKnownSpells) +
+                                                            spellSlot * 4);
+                } else {
+                    spellId = *reinterpret_cast<uint32_t *>(uint32_t(Offsets::CGSpellBook_mKnownPetSpells) +
+                                                            spellSlot * 4);
+                }
+                lua_pushnumber(luaState, spellId);
+            } else {
+                lua_pushnumber(luaState, 0);
+            }
+
+            return 3;
         } else {
-            lua_error(luaState, "Usage: GetSpellSlotAndTypeForName(spellName)");
+            lua_error(luaState, "Usage: GetSpellSlotTypeIdForName(spellName)");
         }
 
         return 0;
