@@ -256,7 +256,7 @@ targetGuid will be "0x000000000" unless an explicit target is specified which cu
 - It was specified as the 2nd param of CastSpellByName (added by superwow)
 - Mouseover casts that use SpellTargetUnit to specify a target
 
-Example:
+Example (uses ace RegisterEvent):
 ```
 Cursive:RegisterEvent("SPELL_CAST_EVENT", function(success, spellId, castType, targetGuid, itemId)
 	print(success)
@@ -287,6 +287,21 @@ Spell school enum:  https://github.com/vmangos/core/blob/94f05231d4f1b160468744d
 Spell effect enum: https://github.com/vmangos/core/blob/94f05231d4f1b160468744d4caa398cf8b337c48/src/game/Spells/SpellDefines.h#L142
 
 Aura type enum: https://github.com/vmangos/core/blob/94f05231d4f1b160468744d4caa398cf8b337c48/src/game/Spells/SpellAuraDefines.h#L43
+
+Example (uses ace RegisterEvent):
+```
+Cursive:RegisterEvent("SPELL_DAMAGE_EVENT_SELF",
+    function(targetGuidStr,
+             casterGuidStr,
+             spellId,
+             amount,
+             spellSchool,
+             mitigationStr,
+             hitInfo,
+             effectAuraStr)
+        print(targetGuidStr .. " " .. casterGuidStr .. " " .. tostring(spellId) .. " " .. tostring(amount) .. " " .. tostring(spellSchool) .. " " .. mitigationStr .. " " .. hitInfo .. " " .. effectAuraStr)
+    end);
+```
 
 ### Bug Reporting
 If you encounter any bugs please report them in the issues tab.  Please include the nampower_debug.txt file in the same directory as your WoW.exe to help me diagnose the issue.  If you are able to reproduce the bug please include the steps to reproduce it.  In a future version once bugs are ironed out I'll make logging optional.
