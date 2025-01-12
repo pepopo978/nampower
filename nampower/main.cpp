@@ -45,7 +45,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.6.0";
+const char *VERSION = "v2.7.0";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -76,6 +76,7 @@ namespace Nampower {
 
     std::unique_ptr<hadesmem::PatchDetour<SpellVisualsInitializeT >> gSpellVisualsInitDetour;
     std::unique_ptr<hadesmem::PatchDetour<LoadScriptFunctionsT >> gLoadScriptFunctionsDetour;
+    std::unique_ptr<hadesmem::PatchDetour<FrameScript_CreateEventsT >> gCreateEventsDetour;
 
     std::unique_ptr<hadesmem::PatchDetour<SetCVarT>> gSetCVarDetour;
     std::unique_ptr<hadesmem::PatchDetour<CastSpellT>> gCastDetour;
@@ -85,8 +86,6 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_SpellFailedT>> gSpellFailedDetour;
     std::unique_ptr<hadesmem::PatchRaw> gCastbarPatch;
     std::unique_ptr<hadesmem::PatchDetour<ISceneEndT>> gIEndSceneDetour;
-    std::unique_ptr<hadesmem::PatchDetour<SpellChannelStartHandlerT>> gSpellChannelStartHandlerDetour;
-    std::unique_ptr<hadesmem::PatchDetour<SpellChannelUpdateHandlerT>> gSpellChannelUpdateHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_GetAutoRepeatingSpellT>> gSpell_C_GetAutoRepeatingSpellDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_CooldownEventTriggeredT >> gSpell_C_CooldownEventTriggeredDetour;
     std::unique_ptr<hadesmem::PatchDetour<SpellGoT>> gSpellGoDetour;
@@ -101,6 +100,7 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetSpellIdForNameDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetSpellNameAndRankForIdDetour;
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetSpellSlotAndTypeForNameDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gChannelStopCastingNextTickDetour;
     std::unique_ptr<hadesmem::PatchDetour<OnSpriteRightClickT>> gOnSpriteRightClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_HandleSpriteClickT>> gSpell_C_HandleSpriteClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_TargetSpellT>> gSpell_C_TargetSpellDetour;
@@ -109,7 +109,12 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellDelayedDetour;
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gCastResultHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellFailedHandlerDetour;
+    std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellChannelStartHandlerDetour;
+    std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellChannelUpdateHandlerDetour;
+
     std::unique_ptr<hadesmem::PatchDetour<FastCallPacketHandlerT>> gSpellStartHandlerDetour;
+    std::unique_ptr<hadesmem::PatchDetour<FastCallPacketHandlerT>> gPeriodicAuraLogHandlerDetour;
+    std::unique_ptr<hadesmem::PatchDetour<FastCallPacketHandlerT>> gSpellNonMeleeDmgLogHandlerDetour;
 
     uint32_t GetTime() {
         return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -225,6 +230,7 @@ namespace Nampower {
         gCastData.channeling = false;
         gCastData.channelEndMs = 0;
         gCastData.channelSpellId = 0;
+        gCastData.channelTickTimeMs = 0;
         gCastData.channelLastCastTimeMs = 0;
         gCastData.channelCastCount = 0;
     }
@@ -400,7 +406,7 @@ namespace Nampower {
         return iSceneEnd(ptr);
     }
 
-    void update_from_cvar(const char *cvar, const char *value) {
+    void updateFromCvar(const char *cvar, const char *value) {
         if (strcmp(cvar, "NP_QueueCastTimeSpells") == 0) {
             gUserSettings.queueCastTimeSpells = atoi(value) != 0;
             DEBUG_LOG("Set NP_QueueCastTimeSpells to " << gUserSettings.queueCastTimeSpells);
@@ -489,14 +495,14 @@ namespace Nampower {
             auto const cVarValue = lua_tostring(luaPtr, 2);
             // if cvar starts with "NP_", then we need to handle it
             if (strncmp(cVarName, "NP_", 3) == 0) {
-                update_from_cvar(cVarName, cVarValue);
+                updateFromCvar(cVarName, cVarValue);
             }
         } // original function handles errors
 
         return cvarSetOrig(luaPtr);
     }
 
-    int *get_cvar(const char *cvar) {
+    int *getCvar(const char *cvar) {
         auto const cvarLookup = hadesmem::detail::AliasCast<CVarLookupT>(Offsets::CVarLookup);
         uintptr_t *cvarPtr = cvarLookup(cvar);
 
@@ -507,16 +513,16 @@ namespace Nampower {
         return nullptr;
     }
 
-    void load_user_var(const char *cvar) {
-        int *value = get_cvar(cvar);
+    void loadUserVar(const char *cvar) {
+        int *value = getCvar(cvar);
         if (value) {
-            update_from_cvar(cvar, std::to_string(*value).c_str());
+            updateFromCvar(cvar, std::to_string(*value).c_str());
         } else {
             DEBUG_LOG("Using default value for " << cvar);
         }
     }
 
-    void load_config() {
+    void loadConfig() {
         gStartTime = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::high_resolution_clock::now().time_since_epoch()).count());
 
@@ -781,55 +787,64 @@ namespace Nampower {
                      0); // unk3
 
         // update from cvars
-        load_user_var("NP_QueueCastTimeSpells");
-        load_user_var("NP_QueueInstantSpells");
-        load_user_var("NP_QueueOnSwingSpells");
-        load_user_var("NP_QueueChannelingSpells");
-        load_user_var("NP_QueueTargetingSpells");
-        load_user_var("NP_QueueSpellsOnCooldown");
+        loadUserVar("NP_QueueCastTimeSpells");
+        loadUserVar("NP_QueueInstantSpells");
+        loadUserVar("NP_QueueOnSwingSpells");
+        loadUserVar("NP_QueueChannelingSpells");
+        loadUserVar("NP_QueueTargetingSpells");
+        loadUserVar("NP_QueueSpellsOnCooldown");
 
-        load_user_var("NP_InterruptChannelsOutsideQueueWindow");
+        loadUserVar("NP_InterruptChannelsOutsideQueueWindow");
 
-        load_user_var("NP_RetryServerRejectedSpells");
-        load_user_var("NP_QuickcastTargetingSpells");
-        load_user_var("NP_ReplaceMatchingNonGcdCategory");
-        load_user_var("NP_OptimizeBufferUsingPacketTimings");
+        loadUserVar("NP_RetryServerRejectedSpells");
+        loadUserVar("NP_QuickcastTargetingSpells");
+        loadUserVar("NP_ReplaceMatchingNonGcdCategory");
+        loadUserVar("NP_OptimizeBufferUsingPacketTimings");
 
-        load_user_var("NP_PreventRightClickTargetChange");
+        loadUserVar("NP_PreventRightClickTargetChange");
 
-        load_user_var("NP_MinBufferTimeMs");
-        load_user_var("NP_NonGcdBufferTimeMs");
-        load_user_var("NP_MaxBufferIncreaseMs");
+        loadUserVar("NP_MinBufferTimeMs");
+        loadUserVar("NP_NonGcdBufferTimeMs");
+        loadUserVar("NP_MaxBufferIncreaseMs");
 
-        load_user_var("NP_SpellQueueWindowMs");
-        load_user_var("NP_ChannelQueueWindowMs");
-        load_user_var("NP_TargetingQueueWindowMs");
-        load_user_var("NP_OnSwingBufferCooldownMs");
-        load_user_var("NP_CooldownQueueWindowMs");
+        loadUserVar("NP_SpellQueueWindowMs");
+        loadUserVar("NP_ChannelQueueWindowMs");
+        loadUserVar("NP_TargetingQueueWindowMs");
+        loadUserVar("NP_OnSwingBufferCooldownMs");
+        loadUserVar("NP_CooldownQueueWindowMs");
 
-        load_user_var("NP_ChannelLatencyReductionPercentage");
+        loadUserVar("NP_ChannelLatencyReductionPercentage");
 
         gBufferTimeMs = gUserSettings.minBufferTimeMs;
     }
 
-    void init_hooks() {
-        const hadesmem::Process process(::GetCurrentProcessId());
-
+    void initCustomEvents() {
         auto strPtr = reinterpret_cast<uintptr_t *>(Offsets::QueueEventStringPtr);
-
-        // The new string you want to point to
         const char *SPELL_QUEUE_EVENT = "SPELL_QUEUE_EVENT";
-
         // Make 0x00BE175C which is the unused event string ptr point to SPELL_QUEUE_EVENT (369)
         *strPtr = reinterpret_cast<uintptr_t>(SPELL_QUEUE_EVENT);
 
         strPtr = reinterpret_cast<uintptr_t *>(Offsets::CastEventStringPtr);
-
-        // The new string you want to point to
         const char *SPELL_CAST_EVENT = "SPELL_CAST_EVENT";
-
         // Make 0X00BE1A08 which is the unused event string ptr point to SPELL_CAST_EVENT (540)
         *strPtr = reinterpret_cast<uintptr_t>(SPELL_CAST_EVENT);
+
+        strPtr = reinterpret_cast<uintptr_t *>(Offsets::SpellDamageEventSelfStringPtr);
+        const char *SPELL_DAMAGE_EVENT_SELF = "SPELL_DAMAGE_EVENT_SELF";
+        // Make 0X00BE1A2C which is the unused event string ptr point to SPELL_DAMAGE_EVENT_SELF (549)
+        *strPtr = reinterpret_cast<uintptr_t>(SPELL_DAMAGE_EVENT_SELF);
+
+        strPtr = reinterpret_cast<uintptr_t *>(Offsets::SpellDamageEventOtherStringPtr);
+        const char *SPELL_DAMAGE_EVENT_OTHER = "SPELL_DAMAGE_EVENT_OTHER";
+        // Make 0X00BE1A30 which is the unused event string ptr point to SPELL_DAMAGE_EVENT_OTHER (550)
+        *strPtr = reinterpret_cast<uintptr_t>(SPELL_DAMAGE_EVENT_OTHER);
+    }
+
+
+    void initHooks() {
+        const hadesmem::Process process(::GetCurrentProcessId());
+
+        initCustomEvents();
 
         auto const setCVarOrig = hadesmem::detail::AliasCast<SetCVarT>(Offsets::Script_SetCVar);
         gSetCVarDetour = std::make_unique<hadesmem::PatchDetour<SetCVarT >>(process, setCVarOrig, &Script_SetCVarHook);
@@ -870,18 +885,33 @@ namespace Nampower {
                                                                                                    &SpellStartHandlerHook);
         gSpellStartHandlerDetour->Apply();
 
-        auto const spellChannelStartHandlerOrig = hadesmem::detail::AliasCast<SpellChannelStartHandlerT>(
+        auto const periodicAuraLogHandlerOrig = hadesmem::detail::AliasCast<FastCallPacketHandlerT>(
+                Offsets::PeriodicAuraLogHandler);
+        gPeriodicAuraLogHandlerDetour = std::make_unique<hadesmem::PatchDetour<FastCallPacketHandlerT>>(process,
+                                                                                                        periodicAuraLogHandlerOrig,
+                                                                                                        &PeriodicAuraLogHandlerHook);
+        gPeriodicAuraLogHandlerDetour->Apply();
+
+        auto const spellNonMeleeDmgLogHandlerOrig = hadesmem::detail::AliasCast<FastCallPacketHandlerT>(
+                Offsets::SpellNonMeleeDmgLogHandler);
+        gSpellNonMeleeDmgLogHandlerDetour = std::make_unique<hadesmem::PatchDetour<FastCallPacketHandlerT>>(process,
+                                                                                                           spellNonMeleeDmgLogHandlerOrig,
+                                                                                                           &SpellNonMeleeDmgLogHandlerHook);
+        gSpellNonMeleeDmgLogHandlerDetour->Apply();
+
+
+        auto const spellChannelStartHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(
                 Offsets::SpellChannelStartHandler);
         gSpellChannelStartHandlerDetour =
-                std::make_unique<hadesmem::PatchDetour<SpellChannelStartHandlerT >>(process,
+                std::make_unique<hadesmem::PatchDetour<PacketHandlerT>>(process,
                                                                                     spellChannelStartHandlerOrig,
                                                                                     &SpellChannelStartHandlerHook);
         gSpellChannelStartHandlerDetour->Apply();
 
-        auto const spellChannelUpdateHandlerOrig = hadesmem::detail::AliasCast<SpellChannelUpdateHandlerT>(
+        auto const spellChannelUpdateHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(
                 Offsets::SpellChannelUpdateHandler);
         gSpellChannelUpdateHandlerDetour =
-                std::make_unique<hadesmem::PatchDetour<SpellChannelUpdateHandlerT >>(process,
+                std::make_unique<hadesmem::PatchDetour<PacketHandlerT>>(process,
                                                                                      spellChannelUpdateHandlerOrig,
                                                                                      &SpellChannelUpdateHandlerHook);
         gSpellChannelUpdateHandlerDetour->Apply();
@@ -987,6 +1017,13 @@ namespace Nampower {
                                                                                                   OnSpriteRightClickHook);
         gOnSpriteRightClickDetour->Apply();
 
+//        auto const gChannelStopCastingNextTickOrig = hadesmem::detail::AliasCast<LuaScriptT>(
+//                Offsets::Script_ChannelStopCastingNextTick);
+//        gChannelStopCastingNextTickDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
+//                                                                                                 gChannelStopCastingNextTickOrig,
+//                                                                                                 Script_ChannelStopCastingNextTick);
+//        gChannelStopCastingNextTickDetour->Apply();
+
 //        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
 //                Offsets::Spell_C_CooldownEventTriggered);
 //        gSpell_C_CooldownEventTriggeredDetour = std::make_unique<hadesmem::PatchDetour<Spell_C_CooldownEventTriggeredT >>(
@@ -1009,8 +1046,18 @@ namespace Nampower {
     void SpellVisualsInitializeHook(hadesmem::PatchDetourBase *detour) {
         auto const spellVisualsInitialize = detour->GetTrampolineT<SpellVisualsInitializeT>();
         spellVisualsInitialize();
-        load_config();
-        init_hooks();
+        loadConfig();
+        initHooks();
+    }
+
+    void FrameScript_CreateEventsHook(hadesmem::PatchDetourBase *detour, int param_1, uint32_t maxEventId) {
+        auto const createEvents = detour->GetTrampolineT<FrameScript_CreateEventsT>();
+
+        if (maxEventId == 549) {
+            maxEventId = 551; // add two more events
+        }
+
+        createEvents(param_1, maxEventId);
     }
 
     void LoadScriptFunctionsHook(hadesmem::PatchDetourBase *detour) {
@@ -1052,10 +1099,10 @@ namespace Nampower {
                             reinterpret_cast<uintptr_t *>(Offsets::Script_GetSpellSlotTypeIdForName));
     }
 
-    std::once_flag load_flag;
+    std::once_flag loadFlag;
 
     void load() {
-        std::call_once(load_flag, []() {
+        std::call_once(loadFlag, []() {
                            // hook spell visuals initialize
                            const hadesmem::Process process(::GetCurrentProcessId());
 
@@ -1072,6 +1119,10 @@ namespace Nampower {
                                                                                                                        loadScriptFunctionsOrig,
                                                                                                                        &LoadScriptFunctionsHook);
                            gLoadScriptFunctionsDetour->Apply();
+
+                           auto const createEventsOrig = hadesmem::detail::AliasCast<FrameScript_CreateEventsT >(Offsets::FrameScript_CreateEvents);
+                            gCreateEventsDetour = std::make_unique<hadesmem::PatchDetour<FrameScript_CreateEventsT >>(process, createEventsOrig, &FrameScript_CreateEventsHook);
+                            gCreateEventsDetour->Apply();
                        }
         );
     }

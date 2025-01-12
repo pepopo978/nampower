@@ -95,4 +95,10 @@ namespace Nampower {
 
         return startTime != 0 && duration > 1.5;
     }
+
+    char *ConvertGuidToString(uint64_t guid){
+        char *guidStr = new char[21]; // 2 for 0x prefix, 18 for the number, and 1 for '\0'
+        std::snprintf(guidStr, 21, "0x%016llX", static_cast<unsigned long long>(guid));
+        return guidStr;
+    }
 }

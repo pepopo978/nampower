@@ -196,9 +196,9 @@ The previous version of this `GetSpellSlotAndTypeForName` was removed as it was 
 ### SPELL_QUEUE_EVENT
 I've added a new event you can register in game to get updates when spells are added and popped from the queue.
 
-The event is `SPELL_QUEUE_EVENT` and has 2 result values:
-
-`(int eventCode, int spellId)`
+The event is `SPELL_QUEUE_EVENT` and has 2 parameters:
+1.  int eventCode - see below
+2.  int spellId
 
 Possible Event codes:
 ```
@@ -233,14 +233,15 @@ NampowerSettings:RegisterEvent("SPELL_QUEUE_EVENT", spellQueueEvent)
 ```
 
 ### SPELL_CAST_EVENT
-Another new event you can register in game to get updates when spells are cast with some additional information.
+New event you can register in game to get updates when spells are cast with some additional information.
 
-The event is `SPELL_CAST_EVENT` and has 5 return values:
-
-`(int success, int spellId, int castType, string targetGuid, int itemId)`
-
-success = 1 if cast succeeded, 0 if failed
-
+The event is `SPELL_CAST_EVENT` and has 5 parameters:
+1.  int success - 1 if cast succeeded, 0 if failed
+2.  int spellId
+3.  int castType - see below
+4.  string targetGuid - guid string like "0xF5300000000000A5"
+5.  int itemId - the id of the item that triggered the spell, 0 if it wasn't triggered by an item
+ 
 Possible Cast Types:
 ```
 NORMAL=1
@@ -251,21 +252,41 @@ TARGETING=5 (targeting is the term I used for spells with terrain targeting)
 TARGETING_NON_GCD=6
 ```
 
-targetGuid will be 0 unless an explicit target is specified which currently only happens in 2 circumstances:
+targetGuid will be "0x000000000" unless an explicit target is specified which currently only happens in 2 circumstances:
 - It was specified as the 2nd param of CastSpellByName (added by superwow)
 - Mouseover casts that use SpellTargetUnit to specify a target
 
-itemId is the id of the item that triggered the spell, 0 if it wasn't triggered by an item
-
 Example:
 ```
-Cursive:RegisterEvent("SPELL_CAST_EVENT", function(spellId, castType, targetGuid, isItem)
+Cursive:RegisterEvent("SPELL_CAST_EVENT", function(success, spellId, castType, targetGuid, itemId)
+	print(success)
 	print(spellId)
 	print(castType)
 	print(targetGuid)
-	print(isItem)
+	print(itemId)
 end);
 ```
+
+###  SPELL_DAMAGE_EVENT_SELF and SPELL_DAMAGE_EVENT_OTHER
+New events you can register in game to get updates whenever spell damage occurs. SPELL_DAMAGE_EVENT_SELF will only trigger for damage you deal, while SPELL_DAMAGE_EVENT_OTHER will only trigger for damage dealt by others.
+
+Both of these events have the following parameters:
+1.  string targetGuid - guid string like "0xF5300000000000A5"
+2.  string casterGuid - guid string like "0xF5300000000000A5"
+3.  int spellId
+4.  int amount - the amount of damage dealt.  If the 4th value in effectAuraStr is 89 (SPELL_AURA_PERIODIC_DAMAGE_PERCENT) I believe this is the percentage of health lost.
+5.  string mitigationStr - comma separated string containing "aborb,block,resist" amounts
+6.  int hitInfo - see below but generally 0 unless the spell was a crit in which case it will be 2
+7.  int spellSchool - the damage school of the spell, see below
+8.  string effectAuraStr - comma separated string containing the three spell effect numbers and the aura type (usually means a Dot but not all Dots will have an aura type) if applicable.  So "effect1,effect2,effect3,auraType"
+
+Spell hit info enum: https://github.com/vmangos/core/blob/94f05231d4f1b160468744d4caa398cf8b337c48/src/game/Spells/SpellDefines.h#L109 
+
+Spell school enum:  https://github.com/vmangos/core/blob/94f05231d4f1b160468744d4caa398cf8b337c48/src/game/Spells/SpellDefines.h#L641
+
+Spell effect enum: https://github.com/vmangos/core/blob/94f05231d4f1b160468744d4caa398cf8b337c48/src/game/Spells/SpellDefines.h#L142
+
+Aura type enum: https://github.com/vmangos/core/blob/94f05231d4f1b160468744d4caa398cf8b337c48/src/game/Spells/SpellAuraDefines.h#L43
 
 ### Bug Reporting
 If you encounter any bugs please report them in the issues tab.  Please include the nampower_debug.txt file in the same directory as your WoW.exe to help me diagnose the issue.  If you are able to reproduce the bug please include the steps to reproduce it.  In a future version once bugs are ironed out I'll make logging optional.

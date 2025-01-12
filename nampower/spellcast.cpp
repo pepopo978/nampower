@@ -156,7 +156,7 @@ namespace Nampower {
 
     void TriggerSpellQueuedEvent(QueueEvents queueEventCode, uint32_t spellId) {
         ((int (__cdecl *)(int, char *, uint32_t, uint32_t)) Offsets::SignalEventParam)(
-                369,  // SPELL_QUEUE_EVENT event we are adding
+                game::SPELL_QUEUE_EVENT,  // SPELL_QUEUE_EVENT event we are adding
                 (char *) Offsets::IntIntParamFormat,
                 queueEventCode,
                 spellId);
@@ -169,7 +169,7 @@ namespace Nampower {
         std::snprintf(guidStr, 21, "0x%016llX", static_cast<unsigned long long>(guid));
 
         ((int (__cdecl *)(int, char *, uint32_t, uint32_t, uint32_t, char *, uint32_t)) Offsets::SignalEventParam)(
-                540,  // SPELL_CAST_EVENT event we are adding
+                game::SPELL_CAST_EVENT,  // SPELL_CAST_EVENT event we are adding
                 format,
                 result,
                 spellId,

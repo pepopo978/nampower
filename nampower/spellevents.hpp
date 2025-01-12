@@ -28,4 +28,10 @@ namespace Nampower {
                                             int param_3, int clearCooldowns);
 
     int SpellCooldownHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, CDataStore *packet);
+
+    int PeriodicAuraLogHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t unk, uint32_t opCode, uint32_t unk2,
+                                   CDataStore *packet);
+
+    int SpellNonMeleeDmgLogHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t unk, uint32_t opCode, uint32_t unk2,
+                                       CDataStore *packet);
 }

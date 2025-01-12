@@ -58,7 +58,7 @@ namespace Nampower {
 
         ResetCastFlags();
 
-        if(spellId == gCastData.onSwingSpellId) {
+        if (spellId == gCastData.onSwingSpellId) {
             ResetOnSwingFlags();
         }
 
@@ -190,10 +190,10 @@ namespace Nampower {
             }
         } else if (gCastData.normalSpellQueued) {
             DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
-                                          << " spell queued + ignored code " << int(spellResult));
+                                         << " spell queued + ignored code " << int(spellResult));
         } else {
             DEBUG_LOG("Cast failed for " << game::GetSpellName(spellId)
-                                          << " ignored code " << int(spellResult));
+                                         << " ignored code " << int(spellResult));
         }
     }
 
@@ -426,5 +426,185 @@ namespace Nampower {
         }
 
         return result;
+    }
+
+    void
+    TriggerSpellDamageEvent(uint64_t targetGuid,
+                            uint64_t casterGuid,
+                            uint32_t spellId,
+                            uint32_t amount,
+                            uint32_t spellSchool,
+                            uint32_t absorb,
+                            uint32_t blocked,
+                            int32_t resist,
+                            uint32_t auraType,
+                            uint32_t hitInfo) {
+        char format[] = "%s%s%d%d%s%d%d%s";
+
+        char *targetGuidStr = ConvertGuidToString(targetGuid);
+
+        char *casterGuidStr = ConvertGuidToString(casterGuid);
+
+        auto event = game::SPELL_DAMAGE_EVENT_OTHER;
+
+        if (casterGuid == game::ClntObjMgrGetActivePlayerGuid()) {
+            event = game::SPELL_DAMAGE_EVENT_SELF;
+        }
+
+        auto spell = game::GetSpellInfo(spellId);
+
+        std::ostringstream mitigationStream;
+        mitigationStream << absorb << "," << blocked << "," << resist;
+
+        std::ostringstream effectsAuraTypeStream;
+        if (spell) {
+            effectsAuraTypeStream << spell->Effect[0] << "," << spell->Effect[1] << "," << spell->Effect[2];
+        } else {
+            effectsAuraTypeStream << "0,0,0";
+        }
+        // add aura type to the end
+        effectsAuraTypeStream << "," << auraType;
+
+        ((int (__cdecl *)(int eventCode,
+                          char *format,
+                          char *targetGuid,
+                          char *casterGuid,
+                          uint32_t spellId,
+                          uint32_t amount,
+                          const char *mitigationStr,
+                          uint32_t hitInfo,
+                          uint32_t spellSchool,
+                          const char *effectAuraStr)) Offsets::SignalEventParam)(
+                event,
+                format,
+                targetGuidStr,
+                casterGuidStr,
+                spellId,
+                amount,
+                mitigationStream.str().c_str(),
+                hitInfo,
+                spellSchool,
+                effectsAuraTypeStream.str().c_str());
+    }
+
+    int PeriodicAuraLogHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t unk, uint32_t opCode, uint32_t unk2,
+                                   CDataStore *packet) {
+        auto const rpos = packet->m_read;
+
+        uint64_t targetGuid;
+        packet->GetPackedGuid(targetGuid);
+
+        uint64_t casterGuid;
+        packet->GetPackedGuid(casterGuid);
+
+        uint32_t spellId;
+        packet->Get(spellId);
+
+        uint32_t count;
+        packet->Get(count);
+
+        uint32_t auraType;
+        packet->Get(auraType);
+
+        uint32_t amount;
+        uint32_t powerType;
+
+        switch (auraType) {
+            case 3: // SPELL_AURA_PERIODIC_DAMAGE
+            case 89: // SPELL_AURA_PERIODIC_DAMAGE_PERCENT
+                packet->Get(amount);  // damage amount
+
+                uint32_t spellSchool;
+                packet->Get(spellSchool);
+
+                uint32_t absorb;
+                packet->Get(absorb);
+
+                int32_t resist;
+                packet->Get(resist);
+
+                TriggerSpellDamageEvent(targetGuid, casterGuid, spellId, amount, spellSchool, absorb, 0, resist,
+                                        auraType,
+                                        0);
+                break;
+            case 8: // SPELL_AURA_PERIODIC_HEAL
+            case 20: // SPELL_AURA_OBS_MOD_HEALTH
+                packet->Get(amount);  // heal amount
+
+                // No custom event for these for now
+                break;
+            case 21: // SPELL_AURA_OBS_MOD_MANA
+            case 24: // SPELL_AURA_PERIODIC_ENERGIZE
+                packet->Get(powerType);
+
+                packet->Get(amount);  // power type amount
+
+                // No custom event for these for now
+                break;
+            case 64: // SPELL_AURA_PERIODIC_MANA_LEECH
+                packet->Get(powerType);
+                packet->Get(amount);  // power type amount
+
+                uint32_t multiplier;
+                packet->Get(multiplier);  // gain multiplier
+
+                // No custom event for these for now
+                break;
+            default:
+                break;
+        }
+
+        packet->m_read = rpos;
+
+        auto const periodicAuraLogHandler = detour->GetTrampolineT<FastCallPacketHandlerT>();
+        return periodicAuraLogHandler(unk, opCode, unk2, packet);
+    }
+
+    int SpellNonMeleeDmgLogHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t unk, uint32_t opCode, uint32_t unk2,
+                                       CDataStore *packet) {
+        auto const rpos = packet->m_read;
+
+        uint64_t targetGuid;
+        packet->GetPackedGuid(targetGuid);
+
+        uint64_t casterGuid;
+        packet->GetPackedGuid(casterGuid);
+
+        uint32_t spellId;
+        packet->Get(spellId);
+
+        uint32_t damage;
+        packet->Get(damage);
+
+        uint8_t school;
+        packet->Get(school);
+
+        uint32_t absorb;
+        packet->Get(absorb);
+
+        int32_t resist;
+        packet->Get(resist);
+
+        uint8_t periodicLog;
+        packet->Get(periodicLog);
+
+        uint8_t unused;
+        packet->Get(unused);
+
+        uint32_t blocked;
+        packet->Get(blocked);
+
+        uint32_t hitInfo;
+        packet->Get(hitInfo);
+
+        uint8_t extendData;
+        packet->Get(extendData);
+
+        packet->m_read = rpos;
+
+        TriggerSpellDamageEvent(targetGuid, casterGuid, spellId, damage, school, absorb, blocked, resist, 0, hitInfo);
+
+        auto const spellNonMeleeDmgLogHandler = detour->GetTrampolineT<FastCallPacketHandlerT>();
+        return spellNonMeleeDmgLogHandler(unk, opCode, unk2, packet);
     }
 }

@@ -331,6 +331,12 @@ namespace Nampower {
         return 0;
     }
 
+    uint32_t Script_ChannelStopCastingNextTick(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        DEBUG_LOG("ChannelStopCastingNextTick called");
+        gCastData.cancelChannelNextTick = true;
+
+        return 0;
+    }
 
     bool Script_QueueScript(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
         DEBUG_LOG("Trying to queue script");

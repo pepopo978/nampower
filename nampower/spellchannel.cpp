@@ -8,7 +8,7 @@
 #include "offsets.hpp"
 
 namespace Nampower {
-    int SpellChannelStartHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t currentTime, CDataStore *packet) {
+    int SpellChannelStartHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, CDataStore *packet) {
         auto const rpos = packet->m_read;
 
         uint32_t spellId;
@@ -34,24 +34,26 @@ namespace Nampower {
                 gCastData.channelEndMs = currentTimeMs + duration;
                 gCastData.channelSpellId = spellId;
                 gCastData.channelDuration = duration;
+
                 gCastData.channelCastCount = 0;
+                gCastData.channelTickTimeMs = spell->EffectAmplitude[0];  // the base tick time should be the first effect
                 gCastData.channelLastCastTimeMs = 0;
 
                 gLastCastData.channelStartTimeMs = currentTimeMs;
             } else {
-                DEBUG_LOG("Ignoring channel start for " << game::GetSpellName(spellId));
+                DEBUG_LOG("Ignoring/resetting channeling for " << game::GetSpellName(spellId));
+                ResetChannelingFlags();
             }
-
         } else {
             ResetChannelingFlags();
         }
 
-        auto const spellChannelStartHandler = detour->GetTrampolineT<SpellChannelStartHandlerT>();
-        return spellChannelStartHandler(currentTime, packet);
+        auto const spellChannelStartHandler = detour->GetTrampolineT<PacketHandlerT>();
+        return spellChannelStartHandler(opCode, packet);
     }
 
     // this gets called on damage and when channel ends with the end time of the channel
-    int SpellChannelUpdateHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t currentTime, CDataStore *packet) {
+    int SpellChannelUpdateHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, CDataStore *packet) {
         auto const rpos = packet->m_read;
 
         uint32_t channelRemainingTime;
@@ -70,7 +72,7 @@ namespace Nampower {
             gCastData.channelEndMs = GetTime() + channelRemainingTime;
         }
 
-        auto const spellChannelUpdateHandler = detour->GetTrampolineT<SpellChannelUpdateHandlerT>();
-        return spellChannelUpdateHandler(currentTime, packet);
+        auto const spellChannelUpdateHandler = detour->GetTrampolineT<PacketHandlerT>();
+        return spellChannelUpdateHandler(opCode, packet);
     }
 }

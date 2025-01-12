@@ -69,8 +69,6 @@ namespace Nampower {
     using FastCallPacketHandlerT = int (__fastcall *)(uint32_t unk, uint32_t opCode, uint32_t unk2, CDataStore *packet);
     using ISceneEndT = int *(__fastcall *)(uintptr_t *unk);
     using EndSceneT = int (__fastcall *)(uintptr_t *unk);
-    using SpellChannelStartHandlerT = int (__stdcall *)(uint32_t, CDataStore *);
-    using SpellChannelUpdateHandlerT = int (__stdcall *)(uint32_t, CDataStore *);
     using OnSpriteRightClickT = int (__fastcall *)(uint64_t objectGUID);
     using CGGameUI_TargetT = void (__stdcall *)(uint64_t objectGUID);
     using Spell_C_SpellFailedT = void (__fastcall *)(uint32_t, game::SpellCastResult, int, int, char unk3);
@@ -95,6 +93,7 @@ namespace Nampower {
 
     using LoadScriptFunctionsT = void (__stdcall *)();
     using FrameScript_RegisterFunctionT = void (__fastcall *)(char *name, uintptr_t *func);
+    using FrameScript_CreateEventsT = void (__fastcall *)(int param_1, uint32_t maxEventId);
 
     using LuaScriptT = uint32_t (__fastcall *)(uintptr_t *luaState);
     using Script_GetGUIDFromNameT = std::uint64_t (__fastcall *)(const char *);

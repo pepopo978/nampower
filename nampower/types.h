@@ -114,10 +114,14 @@ struct CastData {
 
     bool cancellingSpell;
     bool channeling;
+    bool cancelChannelNextTick;
     uint32_t channelEndMs;
+
+    uint32_t channelTickTimeMs;
+    uint32_t channelLastCastTimeMs;
+
     uint32_t channelSpellId;
     uint32_t channelDuration;
     uint32_t channelCastCount;
-    uint32_t channelLastCastTimeMs;
 };
 

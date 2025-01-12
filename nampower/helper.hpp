@@ -25,4 +25,6 @@ namespace Nampower {
     uint32_t GetRemainingCooldownForSpell(uint32_t spellId);
 
     bool IsSpellOnCooldown(uint32_t spellId);
+
+    char *ConvertGuidToString(uint64_t guid);
 }

@@ -1098,6 +1098,12 @@ namespace game {
         CHAT_MSG_BATTLEGROUND = 546,
         CHAT_MSG_BATTLEGROUND_LEADER = 547,
         LOTTERY_ITEM_UPDATE = 548,
+
+        // ADDED EVENTS
+        SPELL_QUEUE_EVENT = 369,
+        SPELL_CAST_EVENT = 540,
+        SPELL_DAMAGE_EVENT_SELF = 549,
+        SPELL_DAMAGE_EVENT_OTHER = 550,
     };
 
     class CDuration {

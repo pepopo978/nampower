@@ -82,6 +82,8 @@ enum class Offsets : std::uint32_t {
     CastResultHandler = 0x006E7330,
     SpellStartHandler = 0x006E7640,
     SpellCooldownHandler = 0X006E9460,
+    PeriodicAuraLogHandler = 0X00626DD0,
+    SpellNonMeleeDmgLogHandler = 0X005E85E0,
 
     Spell_C_GetCastTime = 0X006E3340,
     Spell_C_CastSpell = 0x6E4B60,
@@ -103,6 +105,7 @@ enum class Offsets : std::uint32_t {
 
     LoadScriptFunctions = 0x00490250,
     FrameScript_RegisterFunction = 0x00704120,
+    FrameScript_CreateEvents = 0X00703D90,
 
     // Existing script functions
     GetGUIDFromName = 0X00515970,
@@ -122,6 +125,7 @@ enum class Offsets : std::uint32_t {
     Script_GetSpellIdForName = 0X004E7828,
     Script_GetSpellNameAndRankForId = 0X004E7844,
     Script_GetSpellSlotTypeIdForName = 0X004E784A,
+    Script_ChannelStopCastingNextTick = 0X004E7858,
 
     lua_isstring = 0x006F3510,
     lua_isnumber = 0X006F34D0,
@@ -145,4 +149,6 @@ enum class Offsets : std::uint32_t {
 
     QueueEventStringPtr = 0X00BE175C, // unused event 369 0x171
     CastEventStringPtr = 0X00BE1A08, // unused event 540 0x21C
+    SpellDamageEventSelfStringPtr = 0X00BE1A2C, // unused event 549 0x225
+    SpellDamageEventOtherStringPtr = 0X00BE1A30, // unused event 550 0x226
 };
