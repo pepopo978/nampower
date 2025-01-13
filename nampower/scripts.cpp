@@ -333,7 +333,9 @@ namespace Nampower {
 
     uint32_t Script_ChannelStopCastingNextTick(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
         DEBUG_LOG("ChannelStopCastingNextTick called");
-        gCastData.cancelChannelNextTick = true;
+        if(gCastData.channeling) {
+            gCastData.cancelChannelNextTick = true;
+        }
 
         return 0;
     }

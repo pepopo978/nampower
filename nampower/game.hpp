@@ -1110,7 +1110,7 @@ namespace game {
     public:
         char m_DurationIndex;                //0x0000
         __int32 m_Duration;                    //0x0004
-        char m_0x0008[4];                    //0x0008
+        char unknown[4];                    //0x0008
         __int32 m_Duration2;                    //0x000C
 
         __int32 GetDuration() {

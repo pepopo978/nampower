@@ -449,6 +449,10 @@ namespace Nampower {
 
         if (casterGuid == game::ClntObjMgrGetActivePlayerGuid()) {
             event = game::SPELL_DAMAGE_EVENT_SELF;
+
+            if (gCastData.channeling && gCastData.channelSpellId == spellId) {
+                gCastData.channelNumTicks++;
+            }
         }
 
         auto spell = game::GetSpellInfo(spellId);

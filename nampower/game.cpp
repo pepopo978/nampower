@@ -63,7 +63,7 @@ namespace game {
     CDuration *GetDurationObject(uint32_t durationIndex) {
         auto const durationListPtr = *reinterpret_cast<std::uint32_t *>(Offsets::GetDurationObject);
         if (durationListPtr) {
-            auto const durationObjectPtr = *reinterpret_cast<std::uint32_t *>(durationListPtr + durationIndex * 4);
+            auto const durationObjectPtr = *reinterpret_cast<std::uint32_t *>(durationListPtr + durationIndex*4);
             if (durationObjectPtr) {
                 return reinterpret_cast<CDuration *>(durationObjectPtr);
             }

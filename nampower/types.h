@@ -23,6 +23,8 @@ struct UserSettings {
 
     bool preventRightClickTargetChange;
 
+    bool doubleCastToEndChannelEarly;
+
     uint32_t spellQueueWindowMs;
     uint32_t onSwingBufferCooldownMs;
     uint32_t channelQueueWindowMs;
@@ -80,6 +82,9 @@ struct CastSpellParams {
 };
 
 struct LastCastData {
+    uint32_t attemptTimeMs;  // last cast attempt time in ms
+    uint32_t attemptSpellId; // last cast attempt spell id
+
     uint32_t castTimeMs;  // spell's cast time in ms
 
     uint32_t startTimeMs;  // event time in ms
@@ -113,15 +118,14 @@ struct CastData {
     uint32_t numRetries;
 
     bool cancellingSpell;
+
     bool channeling;
     bool cancelChannelNextTick;
+    uint32_t channelStartMs;
     uint32_t channelEndMs;
-
     uint32_t channelTickTimeMs;
-    uint32_t channelLastCastTimeMs;
-
+    uint32_t channelNumTicks;
     uint32_t channelSpellId;
     uint32_t channelDuration;
-    uint32_t channelCastCount;
 };
 

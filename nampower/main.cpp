@@ -45,7 +45,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.7.0";
+const char *VERSION = "v2.8.0";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -184,6 +184,10 @@ namespace Nampower {
 
         if (gCastData.channeling) {
             if (gUserSettings.queueChannelingSpells) {
+                if (gCastData.cancelChannelNextTick) {
+                    return true;
+                }
+
                 auto const remainingChannelTime = (gCastData.channelEndMs > currentTime) ? gCastData.channelEndMs -
                                                                                            currentTime : 0;
                 return remainingChannelTime < gUserSettings.channelQueueWindowMs;
@@ -227,12 +231,16 @@ namespace Nampower {
     }
 
     void ResetChannelingFlags() {
+        gCastData.cancelChannelNextTick = false;
+
         gCastData.channeling = false;
+        gCastData.channelStartMs = 0;
         gCastData.channelEndMs = 0;
         gCastData.channelSpellId = 0;
+
         gCastData.channelTickTimeMs = 0;
-        gCastData.channelLastCastTimeMs = 0;
-        gCastData.channelCastCount = 0;
+        gCastData.channelNumTicks = 0;
+
     }
 
     void ResetCastFlags() {
@@ -293,6 +301,43 @@ namespace Nampower {
                                              << " triggering queued spells");
 
                 ResetChannelingFlags();
+            } else if (gCastData.cancelChannelNextTick && currentTime - gCastData.channelStartMs < 60000) {
+                auto nextTickTimeMs = gCastData.channelStartMs;
+
+                // find the next tick time
+                while (nextTickTimeMs < currentTime + gBufferTimeMs) {
+                    nextTickTimeMs += gCastData.channelTickTimeMs;
+                }
+
+                uint32_t remainingTickTime = 0;
+                if (nextTickTimeMs > currentTime) {
+                    remainingTickTime = nextTickTimeMs - currentTime;
+                }
+
+                if(remainingTickTime > 0) {
+                    if (currentLatency > 0 && gUserSettings.channelLatencyReductionPercentage != 0) {
+                        if (remainingTickTime > latencyReduction) {
+                            remainingTickTime -= latencyReduction;
+                        } else {
+                            remainingTickTime = 0;
+                        }
+                    } else {
+                        auto doubleBufferTime = gBufferTimeMs * 2;
+
+                        if(remainingTickTime > doubleBufferTime) {
+                            remainingTickTime -= doubleBufferTime;
+                        } else {
+                            remainingTickTime = 0;
+                        }
+                    }
+                }
+
+                if (remainingTickTime <= 0) {
+                    DEBUG_LOG("Ending channel due to cancelChannelNextTick. "
+                                      << "Remaining tick time: " << nextTickTimeMs - currentTime
+                                      << " latency reduction: " << latencyReduction);
+                    ResetChannelingFlags();
+                }
             }
         }
     }
@@ -448,6 +493,10 @@ namespace Nampower {
             gUserSettings.preventRightClickTargetChange = atoi(value) != 0;
             DEBUG_LOG("Set NP_PreventRightClickTargetChange to " << gUserSettings.preventRightClickTargetChange);
 
+        } else if (strcmp(cvar, "NP_DoubleCastToEndChannelEarly") == 0) {
+            gUserSettings.doubleCastToEndChannelEarly = atoi(value) != 0;
+            DEBUG_LOG("Set NP_DoubleCastToEndChannelEarly to " << gUserSettings.doubleCastToEndChannelEarly);
+
         } else if (strcmp(cvar, "NP_MinBufferTimeMs") == 0) {
             gUserSettings.minBufferTimeMs = atoi(value);
             DEBUG_LOG("Set NP_MinBufferTimeMs to " << gUserSettings.minBufferTimeMs);
@@ -553,6 +602,8 @@ namespace Nampower {
         gUserSettings.optimizeBufferUsingPacketTimings = false;
 
         gUserSettings.preventRightClickTargetChange = false;
+
+        gUserSettings.doubleCastToEndChannelEarly = false;
 
         gUserSettings.minBufferTimeMs = 55; // time in ms to buffer cast to minimize server failure
         gUserSettings.nonGcdBufferTimeMs = 100; // time in ms to buffer non-GCD spells to minimize server failure
@@ -776,6 +827,16 @@ namespace Nampower {
                      0,  // unk2
                      0); // unk3
 
+        char NP_DoubleCastToEndChannelEarly[] = "NP_DoubleCastToEndChannelEarly";
+        CVarRegister(NP_DoubleCastToEndChannelEarly, // name
+                     nullptr, // help
+                     0,  // unk1
+                     gUserSettings.doubleCastToEndChannelEarly ? defaultTrue : defaultFalse, // default value address
+                     nullptr, // callback
+                     1, // category
+                     0,  // unk2
+                     0); // unk3
+
         char NP_ChannelLatencyReductionPercentage[] = "NP_ChannelLatencyReductionPercentage";
         CVarRegister(NP_ChannelLatencyReductionPercentage, // name
                      nullptr, // help
@@ -802,6 +863,8 @@ namespace Nampower {
         loadUserVar("NP_OptimizeBufferUsingPacketTimings");
 
         loadUserVar("NP_PreventRightClickTargetChange");
+
+        loadUserVar("NP_DoubleCastToEndChannelEarly");
 
         loadUserVar("NP_MinBufferTimeMs");
         loadUserVar("NP_NonGcdBufferTimeMs");
@@ -895,8 +958,8 @@ namespace Nampower {
         auto const spellNonMeleeDmgLogHandlerOrig = hadesmem::detail::AliasCast<FastCallPacketHandlerT>(
                 Offsets::SpellNonMeleeDmgLogHandler);
         gSpellNonMeleeDmgLogHandlerDetour = std::make_unique<hadesmem::PatchDetour<FastCallPacketHandlerT>>(process,
-                                                                                                           spellNonMeleeDmgLogHandlerOrig,
-                                                                                                           &SpellNonMeleeDmgLogHandlerHook);
+                                                                                                            spellNonMeleeDmgLogHandlerOrig,
+                                                                                                            &SpellNonMeleeDmgLogHandlerHook);
         gSpellNonMeleeDmgLogHandlerDetour->Apply();
 
 
@@ -904,16 +967,16 @@ namespace Nampower {
                 Offsets::SpellChannelStartHandler);
         gSpellChannelStartHandlerDetour =
                 std::make_unique<hadesmem::PatchDetour<PacketHandlerT>>(process,
-                                                                                    spellChannelStartHandlerOrig,
-                                                                                    &SpellChannelStartHandlerHook);
+                                                                        spellChannelStartHandlerOrig,
+                                                                        &SpellChannelStartHandlerHook);
         gSpellChannelStartHandlerDetour->Apply();
 
         auto const spellChannelUpdateHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(
                 Offsets::SpellChannelUpdateHandler);
         gSpellChannelUpdateHandlerDetour =
                 std::make_unique<hadesmem::PatchDetour<PacketHandlerT>>(process,
-                                                                                     spellChannelUpdateHandlerOrig,
-                                                                                     &SpellChannelUpdateHandlerHook);
+                                                                        spellChannelUpdateHandlerOrig,
+                                                                        &SpellChannelUpdateHandlerHook);
         gSpellChannelUpdateHandlerDetour->Apply();
 
         auto const spellFailedOrig = hadesmem::detail::AliasCast<Spell_C_SpellFailedT>(Offsets::Spell_C_SpellFailed);
@@ -1017,12 +1080,12 @@ namespace Nampower {
                                                                                                   OnSpriteRightClickHook);
         gOnSpriteRightClickDetour->Apply();
 
-//        auto const gChannelStopCastingNextTickOrig = hadesmem::detail::AliasCast<LuaScriptT>(
-//                Offsets::Script_ChannelStopCastingNextTick);
-//        gChannelStopCastingNextTickDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-//                                                                                                 gChannelStopCastingNextTickOrig,
-//                                                                                                 Script_ChannelStopCastingNextTick);
-//        gChannelStopCastingNextTickDetour->Apply();
+        auto const gChannelStopCastingNextTickOrig = hadesmem::detail::AliasCast<LuaScriptT>(
+                Offsets::Script_ChannelStopCastingNextTick);
+        gChannelStopCastingNextTickDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
+                                                                                                 gChannelStopCastingNextTickOrig,
+                                                                                                 Script_ChannelStopCastingNextTick);
+        gChannelStopCastingNextTickDetour->Apply();
 
 //        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
 //                Offsets::Spell_C_CooldownEventTriggered);
@@ -1097,6 +1160,10 @@ namespace Nampower {
         char getSpellSlotTypeIdForName[] = "GetSpellSlotTypeIdForName";
         RegisterLuaFunction(getSpellSlotTypeIdForName,
                             reinterpret_cast<uintptr_t *>(Offsets::Script_GetSpellSlotTypeIdForName));
+
+        char channelStopCastingNextTick[] = "ChannelStopCastingNextTick";
+        RegisterLuaFunction(channelStopCastingNextTick,
+                            reinterpret_cast<uintptr_t *>(Offsets::Script_ChannelStopCastingNextTick));
     }
 
     std::once_flag loadFlag;
@@ -1120,9 +1187,12 @@ namespace Nampower {
                                                                                                                        &LoadScriptFunctionsHook);
                            gLoadScriptFunctionsDetour->Apply();
 
-                           auto const createEventsOrig = hadesmem::detail::AliasCast<FrameScript_CreateEventsT >(Offsets::FrameScript_CreateEvents);
-                            gCreateEventsDetour = std::make_unique<hadesmem::PatchDetour<FrameScript_CreateEventsT >>(process, createEventsOrig, &FrameScript_CreateEventsHook);
-                            gCreateEventsDetour->Apply();
+                           auto const createEventsOrig = hadesmem::detail::AliasCast<FrameScript_CreateEventsT>(
+                                   Offsets::FrameScript_CreateEvents);
+                           gCreateEventsDetour = std::make_unique<hadesmem::PatchDetour<FrameScript_CreateEventsT >>(process,
+                                                                                                                     createEventsOrig,
+                                                                                                                     &FrameScript_CreateEventsHook);
+                           gCreateEventsDetour->Apply();
                        }
         );
     }

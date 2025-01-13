@@ -78,6 +78,8 @@ SET NP_TargetingQueueWindowMs "1000"
 
 - `NP_PreventRightClickTargetChange` - Whether to prevent right-clicking from changing your current target.  If you don't have a target right click will still change your target even with this on.  This is mainly to prevent accidentally changing targets in combat when trying to adjust your camera.  0 to disable, 1 to enable. Default is 0.
 
+- `NP_DoubleCastToEndChannelEarly` - Whether to allow double casting a spell within 350ms to end channeling on the next tick.  Takes into account your ChannelLatencyReductionPercentage.  0 to disable, 1 to enable. Default is 0.
+
 - `NP_ChannelLatencyReductionPercentage` - The percentage of your latency to subtract from the end of a channel duration to optimize cast time while hopefully not losing any ticks (more explanation below). Default is 75.
 
 ### Custom Lua Functions
@@ -192,6 +194,9 @@ Examples:
 ```
 
 The previous version of this `GetSpellSlotAndTypeForName` was removed as it was returning a 0 indexed slot number which was confusing to use in lua.
+
+#### ChannelStopCastingNextTick()
+Will stop channeling early on the next tick.  This is useful for stopping a channel early to cast a different spell.  Uses your ChannelLatencyReductionPercentage to determine when to stop the channel.
 
 ### SPELL_QUEUE_EVENT
 I've added a new event you can register in game to get updates when spells are added and popped from the queue.

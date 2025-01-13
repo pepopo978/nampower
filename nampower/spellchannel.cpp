@@ -31,13 +31,35 @@ namespace Nampower {
                     ) {
                 auto currentTimeMs = GetTime();
                 gCastData.channeling = true;
+                gCastData.channelStartMs = currentTimeMs;
                 gCastData.channelEndMs = currentTimeMs + duration;
                 gCastData.channelSpellId = spellId;
                 gCastData.channelDuration = duration;
 
-                gCastData.channelCastCount = 0;
-                gCastData.channelTickTimeMs = spell->EffectAmplitude[0];  // the base tick time should be the first effect
-                gCastData.channelLastCastTimeMs = 0;
+                auto originalDuration = game::GetDurationObject(spell->DurationIndex)->m_Duration;
+
+                float durationReduction = 1.0f;
+
+                if (originalDuration > 0 && originalDuration < 1000000) {
+                    durationReduction = float(duration) / float(originalDuration);
+                } else {
+                    DEBUG_LOG("Invalid originalDuration of " << originalDuration << " for " << game::GetSpellName(spellId));
+                }
+
+
+                gCastData.channelTickTimeMs = uint32_t(float(spell->EffectAmplitude[0]) *
+                                                       durationReduction);  // the base tick time should be the first effect, scale it based on the duration reduction due to haste mechanics
+
+                DEBUG_LOG("Original tick time " << spell->EffectAmplitude[0] << " scaled tick time "
+                                                << gCastData.channelTickTimeMs);
+
+                if (gCastData.channelTickTimeMs <= 0 || gCastData.channelTickTimeMs > duration) {
+                    DEBUG_LOG("Invalid channel tick time for " << game::GetSpellName(spellId)
+                                                               << ", defaulting to duration");
+                    gCastData.channelTickTimeMs = duration;
+                }
+
+                gCastData.channelNumTicks = 0;
 
                 gLastCastData.channelStartTimeMs = currentTimeMs;
             } else {

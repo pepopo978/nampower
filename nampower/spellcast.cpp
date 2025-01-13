@@ -8,9 +8,9 @@
 #include "logging.hpp"
 
 namespace Nampower {
-    uint32_t GetChannelDuration(const game::SpellRec *spell) {
+    uint32_t GetChannelBaseDuration(const game::SpellRec *spell) {
         auto const duration = game::GetDurationObject(spell->DurationIndex);
-        return duration->m_Duration2;
+        return duration->m_Duration;
     }
 
     void BeginCast(uint32_t castTime, const game::SpellRec *spell, const game::SpellCast *cast) {
@@ -22,7 +22,7 @@ namespace Nampower {
         gLastCastData.wasQueued = false; // reset the last spell queued flag
 
         if (gCastData.channeling) {
-            gCastData.channelDuration = GetChannelDuration(spell);
+            gCastData.channelDuration = GetChannelBaseDuration(spell);
             gCastData.channelEndMs = currentTime + gCastData.channelDuration;
         }
 
@@ -206,6 +206,17 @@ namespace Nampower {
         auto const spellIsTargeting = SpellIsTargeting(spell);
         auto const spellIsTradeSkillOrEnchant = SpellIsTradeskillOrEnchant(spell);
 
+        // check for double press to interrupt channeling early
+        if (gCastData.channeling && !gCastData.cancelChannelNextTick && gCastData.numRetries == 0 && gUserSettings.doubleCastToEndChannelEarly) {
+            // check if same spell is being cast again within 350ms
+            if (gLastCastData.attemptSpellId == spellId && currentTime - gLastCastData.attemptTimeMs < 350) {
+                DEBUG_LOG("Double cast detected for " << spellName << ", ending channel early");
+                gCastData.cancelChannelNextTick = true;
+            }
+        }
+
+        gLastCastData.attemptTimeMs = currentTime;
+        gLastCastData.attemptSpellId = spellId;
 
         uint32_t itemId = 0;
         if (item) {
@@ -523,11 +534,8 @@ namespace Nampower {
 
         if (castByActivePlayer) {
             auto const currentTime = GetTime();
-            // only care about our own casts and gLastCastData.lastSpellId(ignore spell procs)
-            if (gCastData.channeling) {
-                gCastData.channelCastCount++;
-                gCastData.channelLastCastTimeMs = currentTime;
-            } else {
+            // only care about our own casts
+            if (!gCastData.channeling) {
                 // check if spell is on swing
                 auto const spell = game::GetSpellInfo(spellId);
                 if (spell->Attributes & game::SPELL_ATTR_ON_NEXT_SWING_1) {
