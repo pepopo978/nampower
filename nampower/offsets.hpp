@@ -37,6 +37,7 @@ enum class Offsets : std::uint32_t {
     ClntObjMgrObjectPtr = 0x00468460,
     GetObjectPtr = 0x464870,
     GetActivePlayer = 0x468550,
+    GetUnitFromName = 0x00515940,
     GetDurationObject = 0x00C0D828,
     GetCastingTimeIndex = 0x2D,
     Language = 0xC0E080,

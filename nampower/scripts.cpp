@@ -126,7 +126,7 @@ namespace Nampower {
                     // already a guid
                     targetGUID = std::stoull(target, nullptr, 16);
                 } else {
-                    auto const getGUIDFromName = reinterpret_cast<Script_GetGUIDFromNameT>(Offsets::GetGUIDFromName);
+                    auto const getGUIDFromName = reinterpret_cast<GetGUIDFromNameT>(Offsets::GetGUIDFromName);
                     targetGUID = getGUIDFromName(target);
                 }
 

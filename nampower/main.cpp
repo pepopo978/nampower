@@ -45,7 +45,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.8.0";
+const char *VERSION = "v2.8.1";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -431,7 +431,13 @@ namespace Nampower {
         // if we have a target that is not the right click target, ignore the right click
         if (gUserSettings.preventRightClickTargetChange && currentTargetGuid &&
             currentTargetGuid != objectGUID) {
-            return 1;
+            auto GetUnitFromName = reinterpret_cast<GetUnitFromNameT>(Offsets::GetUnitFromName);
+            auto const unit = GetUnitFromName("player");
+
+            // combat check from Script_UnitAffectingCombat
+            if (unit && ((*(uint32_t *)(*(int32_t *)(unit + 0x110) + 0xa0) >> 0x13 & 1) != 0)) {
+                return 1;
+            }
         }
 
         return onSpriteRightClick(objectGUID);

@@ -96,7 +96,8 @@ namespace Nampower {
     using FrameScript_CreateEventsT = void (__fastcall *)(int param_1, uint32_t maxEventId);
 
     using LuaScriptT = uint32_t (__fastcall *)(uintptr_t *luaState);
-    using Script_GetGUIDFromNameT = std::uint64_t (__fastcall *)(const char *);
+    using GetGUIDFromNameT = std::uint64_t (__fastcall *)(const char *);
+    using GetUnitFromNameT = uintptr_t (__fastcall *)(const char *);
     using lua_isstringT = bool (__fastcall *)(uintptr_t *, int);
     using lua_isnumberT = bool (__fastcall *)(uintptr_t *, int);
     using lua_tostringT = char *(__fastcall *)(uintptr_t *, int);
