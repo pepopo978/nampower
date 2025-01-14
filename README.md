@@ -76,7 +76,7 @@ SET NP_TargetingQueueWindowMs "1000"
 - `NP_ReplaceMatchingNonGcdCategory` - Whether to replace any queued non gcd spell when a new non gcd spell with the same StartRecoveryCategory is cast (more explanation below).  0 to disable, 1 to enable. Default is 0.
 - `NP_OptimizeBufferUsingPacketTimings` - Whether to attempt to optimize your buffer using your latency and server packet timings (more explanation below).  0 to disable, 1 to enable. Default is 0.
 
-- `NP_PreventRightClickTargetChange` - Whether to prevent right-clicking from changing your current target.  If you don't have a target right click will still change your target even with this on.  This is mainly to prevent accidentally changing targets in combat when trying to adjust your camera.  0 to disable, 1 to enable. Default is 0.
+- `NP_PreventRightClickTargetChange` - Whether to prevent right-clicking from changing your current target when in combat.  If you don't have a target right click will still change your target even with this on.  This is mainly to prevent accidentally changing targets in combat when trying to adjust your camera.  0 to disable, 1 to enable. Default is 0.
 
 - `NP_DoubleCastToEndChannelEarly` - Whether to allow double casting a spell within 350ms to end channeling on the next tick.  Takes into account your ChannelLatencyReductionPercentage.  0 to disable, 1 to enable. Default is 0.
 
