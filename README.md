@@ -13,10 +13,20 @@ If someone rewrites these addons to use guids from superwow that would likely fi
 
 Additionally, if you use pfui mouseover macros there is a timing issue that can occur causing it to target yourself instead of your mouseover target.
 
-If you have superwow HIGHLY recommend replacing pfui/modules/mouseover.lua with this version https://gist.github.com/pepopo978/690f1fa8bafae04abb8ac657a9fd969e
+<b>If you have superwow and use /pfcast macros HIGHLY recommend replacing pfui/modules/mouseover.lua with this version</b> https://gist.github.com/pepopo978/690f1fa8bafae04abb8ac657a9fd969e
 
-If you use healcomm replacing all instances of it with this version https://github.com/MarcelineVQ/LunaUnitFrames/blob/TurtleWoW/libs/HealComm-1.0/HealComm-1.0.lua will work properly with queuing (requires superwow).
+<b>If you have superwow and use /stcast HIGHLY recommend replacing mods/mouseover.lua with this version</b> https://gist.github.com/pepopo978/625e46ae0e09fe6e9554ca0808c117de
 
+<b>If you use healcomm can replace all instances of it with this version to work well with queuing </b> https://github.com/MarcelineVQ/LunaUnitFrames/blob/TurtleWoW/libs/HealComm-1.0/HealComm-1.0.lua will work properly with queuing (requires superwow).
+
+If all else fails can turn off queuing for a specific macro like so depending on the spell being cast:
+```
+/run SetCVar("NP_QueueCastTimeSpells", "0")
+/run SetCVar("NP_QueueInstantSpells", "0")
+/pfcast YOUR_SPELL
+/run SetCVar("NP_QueueCastTimeSpells", "1")
+/run SetCVar("NP_QueueInstantSpells", "1")
+```
 ### Installation
 Grab the latest nampower.dll from https://github.com/pepopo978/nampower/releases and place in the same directory as WoW.exe.  You can also get the helper addon mentioned below and place that in Interface/Addons.
 
