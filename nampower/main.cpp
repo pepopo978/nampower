@@ -304,8 +304,8 @@ namespace Nampower {
             } else if (gCastData.cancelChannelNextTick && currentTime - gCastData.channelStartMs < 60000) {
                 auto nextTickTimeMs = gCastData.channelStartMs;
 
-                // find the next tick time
-                while (nextTickTimeMs < currentTime + gBufferTimeMs) {
+                // find the next tick time but don't choose the next tick until gBufferTimeMs has passed after a tick
+                while (nextTickTimeMs < currentTime - gBufferTimeMs) {
                     nextTickTimeMs += gCastData.channelTickTimeMs;
                 }
 
@@ -314,7 +314,7 @@ namespace Nampower {
                     remainingTickTime = nextTickTimeMs - currentTime;
                 }
 
-                if(remainingTickTime > 0) {
+                if (remainingTickTime > 0) {
                     if (currentLatency > 0 && gUserSettings.channelLatencyReductionPercentage != 0) {
                         if (remainingTickTime > latencyReduction) {
                             remainingTickTime -= latencyReduction;
@@ -322,10 +322,9 @@ namespace Nampower {
                             remainingTickTime = 0;
                         }
                     } else {
-                        auto doubleBufferTime = gBufferTimeMs * 2;
-
-                        if(remainingTickTime > doubleBufferTime) {
-                            remainingTickTime -= doubleBufferTime;
+                        // default to reducing by gBufferTimeMs
+                        if (remainingTickTime > gBufferTimeMs) {
+                            remainingTickTime -= gBufferTimeMs;
                         } else {
                             remainingTickTime = 0;
                         }
@@ -435,7 +434,7 @@ namespace Nampower {
             auto const unit = GetUnitFromName("player");
 
             // combat check from Script_UnitAffectingCombat
-            if (unit && ((*(uint32_t *)(*(int32_t *)(unit + 0x110) + 0xa0) >> 0x13 & 1) != 0)) {
+            if (unit && ((*(uint32_t *) (*(int32_t *) (unit + 0x110) + 0xa0) >> 0x13 & 1) != 0)) {
                 return 1;
             }
         }
