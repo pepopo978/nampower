@@ -45,7 +45,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.8.2";
+const char *VERSION = "v2.8.3";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -301,7 +301,9 @@ namespace Nampower {
                                              << " triggering queued spells");
 
                 ResetChannelingFlags();
-            } else if (gCastData.cancelChannelNextTick && currentTime - gCastData.channelStartMs < 60000) {
+            } else if (gCastData.cancelChannelNextTick &&
+                       gCastData.channelStartMs > 0 &&
+                       currentTime - gCastData.channelStartMs < 60000) {
                 auto nextTickTimeMs = gCastData.channelStartMs;
 
                 // find the next tick time but don't choose the next tick until gBufferTimeMs has passed after a tick

@@ -207,11 +207,17 @@ namespace Nampower {
         auto const spellIsTradeSkillOrEnchant = SpellIsTradeskillOrEnchant(spell);
 
         // check for double press to interrupt channeling early
-        if (gCastData.channeling && !gCastData.cancelChannelNextTick && gCastData.numRetries == 0 && gUserSettings.doubleCastToEndChannelEarly) {
-            // check if same spell is being cast again within 350ms
-            if (gLastCastData.attemptSpellId == spellId && currentTime - gLastCastData.attemptTimeMs < 350) {
-                DEBUG_LOG("Double cast detected for " << spellName << ", ending channel early");
-                gCastData.cancelChannelNextTick = true;
+        if (gCastData.channeling && !gCastData.cancelChannelNextTick &&
+            gCastData.numRetries == 0 &&
+            gUserSettings.doubleCastToEndChannelEarly &&
+            gCastData.channelStartMs > 0) {
+            // wait 500ms after the start of a channel before allowing double cast to end it early
+            if (currentTime - gCastData.channelStartMs > 500) {
+                // check if same spell is being cast again within 350ms
+                if (gLastCastData.attemptSpellId == spellId && currentTime - gLastCastData.attemptTimeMs < 350) {
+                    DEBUG_LOG("Double cast detected for " << spellName << ", ending channel early");
+                    gCastData.cancelChannelNextTick = true;
+                }
             }
         }
 
