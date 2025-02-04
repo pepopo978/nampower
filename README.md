@@ -30,13 +30,13 @@ If all else fails can turn off queuing for a specific macro like so depending on
 ### Installation
 Grab the latest nampower.dll from https://github.com/pepopo978/nampower/releases and place in the same directory as WoW.exe.  You can also get the helper addon mentioned below and place that in Interface/Addons.
 
+<b>You will need launch the game with a launcher like Vanillafixes https://github.com/hannesmann/vanillafixes or Unitxp https://github.com/allfoxwy/UnitXP_SP3</b> to actually have the nampower dll get loaded.
+
 If you would prefer to compile yourself you will need to get:
 - boost 1.80 32 bit from https://www.boost.org/users/history/version_1_80_0.html
 - hadesmem from https://github.com/namreeb/hadesmem
 
 CMakeLists.txt is currently looking for boost at `set(BOOST_INCLUDEDIR "C:/software/boost_1_80_0")` and hadesmem at `set(HADESMEM_ROOT "C:/software/hadesmem-v142-Debug-Win32")`.  Edit as needed.
-
-Recommend launching using VanillaFixes as it will load both nampower and superwow.
 
 ### Configuration
 
