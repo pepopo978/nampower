@@ -208,7 +208,9 @@ The previous version of this `GetSpellSlotAndTypeForName` was removed as it was 
 #### ChannelStopCastingNextTick()
 Will stop channeling early on the next tick.  This is useful for stopping a channel early to cast a different spell.  Uses your ChannelLatencyReductionPercentage to determine when to stop the channel.
 
-### SPELL_QUEUE_EVENT
+### Custom Events
+
+#### SPELL_QUEUE_EVENT
 I've added a new event you can register in game to get updates when spells are added and popped from the queue.
 
 The event is `SPELL_QUEUE_EVENT` and has 2 parameters:
@@ -247,7 +249,7 @@ end
 NampowerSettings:RegisterEvent("SPELL_QUEUE_EVENT", spellQueueEvent)
 ```
 
-### SPELL_CAST_EVENT
+#### SPELL_CAST_EVENT
 New event you can register in game to get updates when spells are cast with some additional information.
 
 The event is `SPELL_CAST_EVENT` and has 5 parameters:
@@ -282,7 +284,7 @@ Cursive:RegisterEvent("SPELL_CAST_EVENT", function(success, spellId, castType, t
 end);
 ```
 
-###  SPELL_DAMAGE_EVENT_SELF and SPELL_DAMAGE_EVENT_OTHER
+####  SPELL_DAMAGE_EVENT_SELF and SPELL_DAMAGE_EVENT_OTHER
 New events you can register in game to get updates whenever spell damage occurs. SPELL_DAMAGE_EVENT_SELF will only trigger for damage you deal, while SPELL_DAMAGE_EVENT_OTHER will only trigger for damage dealt by others.
 
 Both of these events have the following parameters:
@@ -321,7 +323,9 @@ Cursive:RegisterEvent("SPELL_DAMAGE_EVENT_SELF",
 ### Bug Reporting
 If you encounter any bugs please report them in the issues tab.  Please include the nampower_debug.txt file in the same directory as your WoW.exe to help me diagnose the issue.  If you are able to reproduce the bug please include the steps to reproduce it.  In a future version once bugs are ironed out I'll make logging optional.
 
-### How does queuing work?
+### FAQ & Additional Info
+
+#### How does queuing work?
 Trying to cast a spell within the appropriate window before your current spell finishes will queue your new spell.  
 The spell will be cast as soon as possible after the current spell finishes.  
 
@@ -342,7 +346,7 @@ Additionally the queuing system will ignore spells with any of the following att
 - SpellEffects::SPELL_EFFECT_OPEN_LOCK
 - SpellEffects::SPELL_EFFECT_OPEN_LOCK_ITEM
 
-### Why do I need a buffer?
+#### Why do I need a buffer?
 From my own testing it seems that a buffer is required on spells to avoid "This ability isn't ready yet"/"Another action in progress" errors.  
 By that I mean that if you cast a gcd spell every 1.5 seconds without your ping changing you will occasionally get
 errors from the server and your cast will get rejected.  If you have 150ms+ ping this can be very punishing.
