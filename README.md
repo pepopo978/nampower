@@ -333,6 +333,15 @@ There are separate configurable queue windows for:
 
 There are 3 separate queues for the following types of spells: GCD(max size:1), non GCD(max size:6), and on-hit(max size:1).
 
+Additionally the queuing system will ignore spells with any of the following attributes/effects to avoid issues with tradeskills/enchants/other out of combat activities:
+- SpellAttributes::SPELL_ATTR_TRADESPELL
+- SpellEffects::SPELL_EFFECT_TRADE_SKILL
+- SpellEffects::SPELL_EFFECT_ENCHANT_ITEM
+- SpellEffects::SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY
+- SpellEffects::SPELL_EFFECT_CREATE_ITEM
+- SpellEffects::SPELL_EFFECT_OPEN_LOCK
+- SpellEffects::SPELL_EFFECT_OPEN_LOCK_ITEM
+
 ### Why do I need a buffer?
 From my own testing it seems that a buffer is required on spells to avoid "This ability isn't ready yet"/"Another action in progress" errors.  
 By that I mean that if you cast a gcd spell every 1.5 seconds without your ping changing you will occasionally get
