@@ -1,3 +1,5 @@
+<b> Checkout the hamburger menu above this to easily navigate the readme </b>
+
 # Pepo v2.0.0 Changes
 
 Added spell queuing, automatic retry on error, and quickcasting with lots of customization.  
