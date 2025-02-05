@@ -1,4 +1,4 @@
-<b> Checkout the hamburger menu above this to easily navigate the readme </b>
+<b> Checkout the list button above this to easily navigate the readme </b>
 
 # Pepo v2.0.0 Changes
 
