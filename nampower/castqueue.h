@@ -1,27 +1,24 @@
-//
-// Created by pmacc on 9/26/2024.
-//
-
 #pragma once
-
 
 #include "types.h"
 #include "logging.hpp"
+#include <vector>
 
 namespace Nampower {
     class CastQueue {
     private:
-        static const int MAX_SIZE = 6;
-        CastSpellParams queue[MAX_SIZE]{};
+        int maxSize;
+        std::vector<CastSpellParams> queue;
         int front;
         int rear;
         int size;
 
     public:
-        CastQueue() : front(0), rear(-1), size(0) {}
+        explicit CastQueue(int maxSize)
+                : maxSize(maxSize), queue(maxSize), front(0), rear(-1), size(0) {}
 
         bool isFull() const {
-            return size == MAX_SIZE;
+            return size == maxSize;
         }
 
         bool isEmpty() const {
@@ -38,12 +35,11 @@ namespace Nampower {
             if (isFull()) {
                 // Shift all elements one position to the right
                 for (int i = size - 1; i > 0; --i) {
-                    queue[(front + i) % MAX_SIZE] = queue[(front + i - 1) % MAX_SIZE];
+                    queue[(front + i) % maxSize] = queue[(front + i - 1) % maxSize];
                 }
                 queue[front] = params;
-                // rear doesn't change as we're overwriting the last element
             } else {
-                front = (front - 1 + MAX_SIZE) % MAX_SIZE;
+                front = (front - 1 + maxSize) % maxSize;
                 queue[front] = params;
                 if (size == 0) {
                     rear = front;
@@ -53,26 +49,22 @@ namespace Nampower {
         }
 
         void push(const CastSpellParams &params, bool replaceMatchingNonGcdCategory) {
-            // if replaceMatchingNonGcdCategory is on
-            // first check if this is nonGcd, and we already have a nonGcd spell in the queue with the same gcdCategory
             if (replaceMatchingNonGcdCategory && params.castType == CastType::NON_GCD) {
                 auto nonGcdParams = findGcdCategory(params.gcDCategory);
                 if (nonGcdParams) {
                     DEBUG_LOG("Replacing queued nonGcd spell " << game::GetSpellName(nonGcdParams->spellId) << " with "
                                                                << game::GetSpellName(params.spellId)
                                                                << " for gcdCategory " << params.gcDCategory);
-                    *nonGcdParams = params;  // replace the existing nonGcd spell with the new one
+                    *nonGcdParams = params;
                     return;
                 }
             }
             if (isFull()) {
-                // Replace the oldest element
-                front = (front + 1) % MAX_SIZE;
-                // Note: We don't need to decrease size here as it remains MAX_SIZE
+                front = (front + 1) % maxSize;
             } else {
                 size++;
             }
-            rear = (rear + 1) % MAX_SIZE;
+            rear = (rear + 1) % maxSize;
             queue[rear] = params;
         }
 
@@ -81,7 +73,7 @@ namespace Nampower {
                 return CastSpellParams{};
             }
             CastSpellParams result = queue[front];
-            front = (front + 1) % MAX_SIZE;
+            front = (front + 1) % maxSize;
             size--;
             return result;
         }
@@ -93,12 +85,9 @@ namespace Nampower {
             return &queue[front];
         }
 
-        // Find the first spell in the queue with the given spellId
-        // so long as it was cast earlier than maxStartTimeMs
-        // when casting same spell multiple times in a row this is usually the 2nd cast in the history
         CastSpellParams *findSpellIdWithMaxStartTime(uint32_t spellId, uint32_t maxStartTimeMs) {
             for (int i = 0; i < size; i++) {
-                int index = (front + i) % MAX_SIZE;
+                int index = (front + i) % maxSize;
                 if (queue[index].spellId == spellId && queue[index].castStartTimeMs < maxStartTimeMs) {
                     return &queue[index];
                 }
@@ -108,7 +97,7 @@ namespace Nampower {
 
         CastSpellParams *findSpellId(uint32_t spellId) {
             for (int i = 0; i < size; i++) {
-                int index = (front + i) % MAX_SIZE;
+                int index = (front + i) % maxSize;
                 if (queue[index].spellId == spellId) {
                     return &queue[index];
                 }
@@ -117,8 +106,8 @@ namespace Nampower {
         }
 
         CastSpellParams *findOldestWaitingForServerSpellId(uint32_t spellId) {
-            for (int i = size-1; i >= 0; i--) {
-                int index = (front + i) % MAX_SIZE;
+            for (int i = size - 1; i >= 0; i--) {
+                int index = (front + i) % maxSize;
                 if (queue[index].spellId == spellId && queue[index].castResult == CastResult::WAITING_FOR_SERVER) {
                     return &queue[index];
                 }
@@ -128,7 +117,7 @@ namespace Nampower {
 
         CastSpellParams *findNewestWaitingForServerSpellId(uint32_t spellId) {
             for (int i = 0; i < size; i++) {
-                int index = (front + i) % MAX_SIZE;
+                int index = (front + i) % maxSize;
                 if (queue[index].spellId == spellId && queue[index].castResult == CastResult::WAITING_FOR_SERVER) {
                     return &queue[index];
                 }
@@ -136,10 +125,9 @@ namespace Nampower {
             return nullptr;
         }
 
-
-        CastSpellParams *findSuccessfulSpellId(uint32_t spellId) {
+        CastSpellParams *findNewestSuccessfulSpellId(uint32_t spellId) {
             for (int i = 0; i < size; i++) {
-                int index = (front + i) % MAX_SIZE;
+                int index = (front + i) % maxSize;
                 if (queue[index].spellId == spellId && queue[index].castResult == CastResult::SERVER_SUCCESS) {
                     return &queue[index];
                 }
@@ -149,7 +137,7 @@ namespace Nampower {
 
         CastSpellParams *findGcdCategory(uint32_t gcdCategory) {
             for (int i = 0; i < size; i++) {
-                int index = (front + i) % MAX_SIZE;
+                int index = (front + i) % maxSize;
                 if (queue[index].gcDCategory == gcdCategory) {
                     return &queue[index];
                 }
@@ -159,13 +147,17 @@ namespace Nampower {
 
         void logHistory() {
             for (int i = 0; i < size; i++) {
-                int index = (front + i) % MAX_SIZE;
+                int index = (front + i) % maxSize;
                 DEBUG_LOG("Cast history " << i << ": " << game::GetSpellName(queue[index].spellId) << " result " << queue[index].castResult);
             }
         }
 
         int getSize() const {
             return size;
+        }
+
+        int getMaxSize() const {
+            return maxSize;
         }
     };
 }

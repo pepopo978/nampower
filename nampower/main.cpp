@@ -72,9 +72,9 @@ namespace Nampower {
     CastSpellParams gLastNormalCastParams;
     CastSpellParams gLastOnSwingCastParams;
 
-    CastQueue gNonGcdCastQueue = CastQueue();
+    CastQueue gNonGcdCastQueue = CastQueue(6);
 
-    CastQueue gCastHistory = CastQueue();
+    CastQueue gCastHistory = CastQueue(30);
 
     std::unique_ptr<hadesmem::PatchDetour<SpellVisualsInitializeT >> gSpellVisualsInitDetour;
     std::unique_ptr<hadesmem::PatchDetour<LoadScriptFunctionsT >> gLoadScriptFunctionsDetour;

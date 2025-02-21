@@ -134,7 +134,7 @@ namespace Nampower {
                             castParams->castType == CastType::TARGETING_NON_GCD) {
 
                             // see if we have a recent successful cast of this spell
-                            auto successfulCastParams = gCastHistory.findSuccessfulSpellId(spellId);
+                            auto successfulCastParams = gCastHistory.findNewestSuccessfulSpellId(spellId);
                             if (successfulCastParams && successfulCastParams->castStartTimeMs > currentTime - 1000) {
                                 // we found a recent successful cast of this spell, ignore the failure that was the result
                                 // of spamming the cast
