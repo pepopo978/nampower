@@ -66,6 +66,8 @@ enum CastResult {
 
 struct CastSpellParams {
     /* Original cast spell function arguments */
+    uint64_t castId;
+
     uint32_t *playerUnit;
     uint32_t spellId;
     uintptr_t *item;

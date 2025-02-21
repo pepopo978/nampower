@@ -116,6 +116,27 @@ namespace Nampower {
             return nullptr;
         }
 
+        CastSpellParams *findOldestWaitingForServerSpellId(uint32_t spellId) {
+            for (int i = size-1; i >= 0; i--) {
+                int index = (front + i) % MAX_SIZE;
+                if (queue[index].spellId == spellId && queue[index].castResult == CastResult::WAITING_FOR_SERVER) {
+                    return &queue[index];
+                }
+            }
+            return nullptr;
+        }
+
+        CastSpellParams *findNewestWaitingForServerSpellId(uint32_t spellId) {
+            for (int i = 0; i < size; i++) {
+                int index = (front + i) % MAX_SIZE;
+                if (queue[index].spellId == spellId && queue[index].castResult == CastResult::WAITING_FOR_SERVER) {
+                    return &queue[index];
+                }
+            }
+            return nullptr;
+        }
+
+
         CastSpellParams *findSuccessfulSpellId(uint32_t spellId) {
             for (int i = 0; i < size; i++) {
                 int index = (front + i) % MAX_SIZE;

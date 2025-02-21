@@ -45,7 +45,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.8.3";
+const char *VERSION = "v2.8.4";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -56,6 +56,8 @@ namespace Nampower {
 
     bool gForceQueueCast;
     bool gNoQueueCast;
+
+    uint64_t gNextCastId = 1;
 
     uint32_t gRunningAverageLatencyMs;
     uint32_t gLastServerSpellDelayMs;

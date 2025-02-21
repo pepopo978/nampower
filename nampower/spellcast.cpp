@@ -30,9 +30,11 @@ namespace Nampower {
         gLastCastData.wasOnGcd = spellOnGcd;
 
         auto lastCastParams = gCastHistory.peek();
+        uint64_t lastCastId = 0;
         if (lastCastParams != nullptr) {
             gLastCastData.wasItem = lastCastParams->item != nullptr;
             lastCastParams->castResult = CastResult::WAITING_FOR_SERVER;
+            lastCastId = lastCastParams->castId;
         }
 
         auto const bufferMs = GetServerDelayMs();
@@ -50,21 +52,23 @@ namespace Nampower {
             }
 
             gCastData.gcdEndMs = currentTime + gcdTime + bufferMs;
-            DEBUG_LOG("BeginCast " << game::GetSpellName(spell->Id)
-                                   << " cast time: " << castTime
-                                   << " buffer: " << bufferMs
-                                   << " Gcd: " << gcdTime
-                                   << " latency: " << GetLatencyMs()
-                                   << " time since last cast " << currentTime - gLastCastData.startTimeMs);
+            DEBUG_LOG("BeginCast #" << lastCastId
+                                    << " " << game::GetSpellName(spell->Id)
+                                    << " cast time: " << castTime
+                                    << " buffer: " << bufferMs
+                                    << " Gcd: " << gcdTime
+                                    << " latency: " << GetLatencyMs()
+                                    << " time since last cast " << currentTime - gLastCastData.startTimeMs);
         } else {
             gCastData.delayEndMs = currentTime +
                                    gUserSettings.nonGcdBufferTimeMs; // set small "cast time" to avoid attempting next spell too fast
-            DEBUG_LOG("BeginCast " << game::GetSpellName(spell->Id)
-                                   << " cast time: " << castTime
-                                   << " buffer: " << bufferMs
-                                   << " NO Gcd"
-                                   << " latency: " << GetLatencyMs()
-                                   << " time since last cast " << currentTime - gLastCastData.startTimeMs);
+            DEBUG_LOG("BeginCast #" << lastCastId
+                                    << " " << game::GetSpellName(spell->Id)
+                                    << " cast time: " << castTime
+                                    << " buffer: " << bufferMs
+                                    << " NO Gcd"
+                                    << " latency: " << GetLatencyMs()
+                                    << " time since last cast " << currentTime - gLastCastData.startTimeMs);
         }
 
         // check if we can lower buffers
@@ -249,13 +253,14 @@ namespace Nampower {
                            castTime,
                            currentTime, ON_SWING, 0);
 
-            gCastHistory.pushFront({playerUnit, spellId, item, guid,
+            gCastHistory.pushFront({gNextCastId, playerUnit, spellId, item, guid,
                                     spell->StartRecoveryCategory,
                                     castTime,
                                     currentTime,
                                     ON_SWING,
                                     gCastData.numRetries,
                                     CastResult::WAITING_FOR_CAST});
+            gNextCastId++;
 
             // try to cast the spell
             auto const castSpell = detour->GetTrampolineT<CastSpellT>();
@@ -344,7 +349,7 @@ namespace Nampower {
                                                       << " gcd category "
                                                       << spell->StartRecoveryCategory);
 
-                                    gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
+                                    gNonGcdCastQueue.push({0, playerUnit, spellId, item, guid,
                                                            spell->StartRecoveryCategory,
                                                            castTime,
                                                            0,
@@ -376,7 +381,7 @@ namespace Nampower {
                                               << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
                                               << spell->StartRecoveryCategory);
 
-                            gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
+                            gNonGcdCastQueue.push({0, playerUnit, spellId, item, guid,
                                                    spell->StartRecoveryCategory,
                                                    castTime,
                                                    0,
@@ -413,7 +418,7 @@ namespace Nampower {
                                                  << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
                                                  << spell->StartRecoveryCategory);
 
-                            gNonGcdCastQueue.push({playerUnit, spellId, item, guid,
+                            gNonGcdCastQueue.push({0, playerUnit, spellId, item, guid,
                                                    spell->StartRecoveryCategory,
                                                    castTime,
                                                    0,
@@ -446,14 +451,22 @@ namespace Nampower {
             }
         }
 
-        // prevent casting instant cast spells with "Start cooldown after aura fades" aka SPELL_ATTR_DISABLED_WHILE_ACTIVE
-        //  if recently cast and still waiting for server result as it will break the cooldown for it
-        if (spell->Attributes & game::SPELL_ATTR_DISABLED_WHILE_ACTIVE) {
+        // prevent casting instant cast spells and spells with SPELL_ATTR_DISABLED_WHILE_ACTIVE
+        // if cast in the last second and still waiting for server result or succeeded
+        // otherwise can break cooldown in the client and cause unnecessary errors
+        if (castTime == 0 || spell->Attributes & game::SPELL_ATTR_DISABLED_WHILE_ACTIVE) {
             auto castParams = gCastHistory.findSpellId(spellId);
-            if (castParams && castParams->castResult == CastResult::WAITING_FOR_SERVER) {
-                DEBUG_LOG("Ignoring " << spellName
-                                      << " cast due to DISABLED_WHILE_ACTIVE flag, still waiting for server result");
-                return false;
+            if (castParams &&
+                currentTime - castParams->castStartTimeMs < 500) {
+                if (castParams->castResult == CastResult::WAITING_FOR_SERVER) {
+                    DEBUG_LOG("Ignoring " << spellName
+                                          << " cast still waiting for server result for the same spell");
+                    return false;
+                } else if (castParams->castResult == CastResult::SERVER_SUCCESS) {
+                    DEBUG_LOG("Ignoring " << spellName
+                                          << " cast recently succeeded for the same spell");
+                    return false;
+                }
             }
         }
 
@@ -478,13 +491,15 @@ namespace Nampower {
             castType = CastType::NON_GCD;
         }
 
-        gCastHistory.pushFront({playerUnit, spellId, item, guid,
+        gCastHistory.pushFront({gNextCastId, playerUnit, spellId, item, guid,
                                 spell->StartRecoveryCategory,
                                 castTime,
                                 currentTime,
                                 castType,
                                 gCastData.numRetries,
                                 CastResult::WAITING_FOR_CAST});
+        gNextCastId++;
+
         auto ret = castSpell(playerUnit, spellId, item, guid);
 
         // if this is a trade skill or item enchant, do nothing further

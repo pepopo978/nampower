@@ -38,6 +38,8 @@ namespace Nampower {
     extern bool gForceQueueCast;
     extern bool gNoQueueCast;
 
+    extern uint64_t gNextCastId;
+
     extern uint32_t gRunningAverageLatencyMs;
     extern uint32_t gLastServerSpellDelayMs;
 
