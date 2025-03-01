@@ -9,6 +9,8 @@
 #include "helper.hpp"
 
 namespace Nampower {
+    uint32_t lastCastResultTimeMs;
+
     void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId) {
         auto const signalEvent = detour->GetTrampolineT<SignalEventT>();
         signalEvent(eventId);
@@ -45,6 +47,11 @@ namespace Nampower {
                                  game::SpellCastResult spellResult, int unk1, int unk2, char unk3) {
         auto const spellFailed = detour->GetTrampolineT<Spell_C_SpellFailedT>();
         spellFailed(spellId, spellResult, unk1, unk2, unk3);
+
+        // ignore fake failure (used by Unleashed Potential and not sure what else)
+        if (spellResult == game::SpellCastResult::SPELL_FAILED_DONT_REPORT) {
+            return;
+        }
 
         // ignore SPELL_FAILED_CANT_DO_THAT_YET for arcane surge gets sent all the time after success
         if (spellResult == game::SpellCastResult::SPELL_FAILED_CANT_DO_THAT_YET &&
@@ -295,6 +302,7 @@ namespace Nampower {
         packet->m_read = rpos;
 
         auto const currentLatency = GetLatencyMs();
+        auto currentTime = GetTime();
 
         // Reset the server delay in case we aren't able to calculate it
         gLastServerSpellDelayMs = 0;
@@ -302,10 +310,9 @@ namespace Nampower {
         // if the cast was successful and the spell cast result was successful, and we have a latency
         // attempt to calculate the server delay
         if (status == 0 && spellCastResult == 0 && currentLatency > 0) {
-            auto currentTime = GetTime();
             // try to find the cast in the history
             auto maxStartTime = currentTime - currentLatency;
-            auto castParams = gCastHistory.findSpellIdWithMaxStartTime(spellId, maxStartTime);
+            auto castParams = gCastHistory.findOldestWaitingForServerSpellId(spellId);
 
             if (castParams) {
                 // running spellResponseTimeMs average
@@ -314,9 +321,11 @@ namespace Nampower {
 
                 auto const serverDelay = spellResponseTimeMs - int32_t(currentLatency + castParams->castTimeMs);
 
-                // don't trust negative server delays
                 if (serverDelay > 0) {
-                    gLastServerSpellDelayMs = serverDelay;
+                    gLastServerSpellDelayMs = serverDelay + 15;
+                } else {
+                    DEBUG_LOG("Negative server delay using 1 ms " << serverDelay);
+                    gLastServerSpellDelayMs = 1;
                 }
             }
         }
@@ -344,12 +353,16 @@ namespace Nampower {
             DEBUG_LOG("Cast result for #" << matchingCastId << " "
                                           << game::GetSpellName(spellId) << " status " << int(status)
                                           << " result " << int(spellCastResult) << " latency " << currentLatency
-                                          << " server delay " << gLastServerSpellDelayMs);
+                                          << " server delay " << gLastServerSpellDelayMs
+                                          << " since last cast result " << currentTime - lastCastResultTimeMs);
         } else {
             DEBUG_LOG("Cast result for #" << matchingCastId << " "
                                           << game::GetSpellName(spellId) << " status " << int(status)
-                                          << " result " << int(spellCastResult) << " latency " << currentLatency);
+                                          << " result " << int(spellCastResult) << " latency " << currentLatency
+                                          << " since last cast result " << currentTime - lastCastResultTimeMs);
         }
+
+        lastCastResultTimeMs = currentTime;
 
         return castResultHandler(opCode, packet);
     }
@@ -398,24 +411,44 @@ namespace Nampower {
                 uint32_t castTime;
                 packet->Get(castTime);
 
-                // check if cast time differed from what we expected, ignore haste rounding errors
-                if (gLastNormalCastParams.spellId == spellId && gLastNormalCastParams.castTimeMs - castTime > 5) {
-                    if (castTime > gLastNormalCastParams.castTimeMs) {
-                        auto castTimeDifference = castTime - gLastNormalCastParams.castTimeMs;
-                        gCastData.castEndMs += castTimeDifference;
-                        DEBUG_LOG("Server cast time for " << game::GetSpellName(spellId) << " increased by "
-                                                          << castTimeDifference << "ms.  Updated cast end time to "
-                                                          << gCastData.castEndMs);
-                    } else {
-                        auto castTimeDifference = gLastNormalCastParams.castTimeMs - castTime;
+                auto castParams = gCastHistory.findSpellId(spellId);
 
-                        if (gCastData.castEndMs > castTimeDifference) {
-                            gCastData.castEndMs -= castTimeDifference;
+                // check if cast time differed from what we expected, ignore haste rounding errors
+                if (castParams && castParams->spellId == spellId) {
+                    if (castParams->castTimeMs < castTime) {
+                        // server cast time increased
+                        auto castTimeDifference = castTime - castParams->castTimeMs;
+
+                        if (castTimeDifference > 5) {
+                            gCastData.castEndMs = castParams->castStartTimeMs + castTime;
+                            if (castTime > 0) {
+                                gCastData.castEndMs += gBufferTimeMs;
+                            }
+
+                            castParams->castTimeMs = castTime;
+                            DEBUG_LOG("Server cast time for " << game::GetSpellName(spellId) << " increased by "
+                                                              << castTimeDifference << "ms.  Updated cast end time to "
+                                                              << gCastData.castEndMs);
+                        }
+                    } else if (castParams->castTimeMs > castTime) {
+                        // server cast time decreased
+                        auto castTimeDifference = castParams->castTimeMs - castTime;
+
+                        if (castTimeDifference > 5) {
+                            gCastData.castEndMs = castParams->castStartTimeMs + castTime + gBufferTimeMs;
+                            if (castTime > 0) {
+                                gCastData.castEndMs += gBufferTimeMs;
+                            }
+
+                            castParams->castTimeMs = castTime;
                             DEBUG_LOG("Server cast time for " << game::GetSpellName(spellId) << " decreased by "
                                                               << castTimeDifference << "ms.  Updated cast end time to "
                                                               << gCastData.castEndMs);
                         }
                     }
+
+                    // spell start successful, reset castParams->numRetries
+                    castParams->numRetries = 0;
                 }
 
                 // spell start successful, reset gLastNormalCastParams.numRetries

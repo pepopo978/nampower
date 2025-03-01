@@ -38,6 +38,10 @@ namespace Nampower {
         }
 
         auto const bufferMs = GetServerDelayMs();
+        gCastData.bufferMs = bufferMs;
+
+        // Reset the server delay
+        gLastServerSpellDelayMs = 0;
 
         gCastData.castEndMs = castTime ? currentTime + castTime + bufferMs : 0;
 

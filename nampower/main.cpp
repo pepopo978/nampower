@@ -45,7 +45,7 @@
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
-const char *VERSION = "v2.8.4";
+const char *VERSION = "v2.8.5";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -56,6 +56,8 @@ namespace Nampower {
 
     bool gForceQueueCast;
     bool gNoQueueCast;
+
+    bool lastCastUsedServerDelay;
 
     uint64_t gNextCastId = 1;
 
@@ -170,11 +172,14 @@ namespace Nampower {
         // if we have a gLastServerSpellDelayMs that seems reasonable, use it
         // occasionally the server will take a long time to respond to a spell cast, in which case default to gBufferTimeMs
         // if gLastServerSpellDelayMs == 0, then we don't have a valid value for the last cast
-        if (gUserSettings.optimizeBufferUsingPacketTimings &&
-            gLastServerSpellDelayMs > 0 &&
-            gLastServerSpellDelayMs < gBufferTimeMs) {
-            return gLastServerSpellDelayMs;
+        if (gUserSettings.optimizeBufferUsingPacketTimings && !lastCastUsedServerDelay) {
+            if (gLastServerSpellDelayMs > 0 && gLastServerSpellDelayMs < 200) {
+                lastCastUsedServerDelay = true;
+                return gLastServerSpellDelayMs;
+            }
         }
+
+        lastCastUsedServerDelay = false;
 
         return gBufferTimeMs;
     }
@@ -357,7 +362,7 @@ namespace Nampower {
             if (gCastData.nonGcdSpellQueued) {
                 auto currentTime = GetTime();
 
-                if (EffectiveCastEndMs() < currentTime) {
+                if (EffectiveCastEndMs() <= currentTime) {
                     CastQueuedNonGcdSpell();
                     return;
                 }
@@ -508,11 +513,8 @@ namespace Nampower {
 
         } else if (strcmp(cvar, "NP_MinBufferTimeMs") == 0) {
             gUserSettings.minBufferTimeMs = atoi(value);
-            DEBUG_LOG("Set NP_MinBufferTimeMs to " << gUserSettings.minBufferTimeMs);
-            if (gBufferTimeMs < gUserSettings.minBufferTimeMs) {
-                gBufferTimeMs = gUserSettings.minBufferTimeMs;
-                DEBUG_LOG("Raising current buffer time to " << gBufferTimeMs);
-            }
+            DEBUG_LOG("Set NP_MinBufferTimeMs and current buffer to " << gUserSettings.minBufferTimeMs);
+            gBufferTimeMs = gUserSettings.minBufferTimeMs;
         } else if (strcmp(cvar, "NP_NonGcdBufferTimeMs") == 0) {
             gUserSettings.nonGcdBufferTimeMs = atoi(value);
             DEBUG_LOG("Set NP_NonGcdBufferTimeMs to " << gUserSettings.nonGcdBufferTimeMs);

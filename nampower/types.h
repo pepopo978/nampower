@@ -104,6 +104,8 @@ struct CastData {
     uint32_t gcdEndMs;
     uint32_t attemptedCastTimeMs; // this ignoring on swing spells as they are independent
 
+    uint32_t bufferMs;
+
     bool onSwingQueued;
     bool pendingOnSwingCast;
     uint32_t onSwingSpellId;
