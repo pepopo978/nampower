@@ -94,6 +94,8 @@ SET NP_TargetingQueueWindowMs "1000"
 
 - `NP_ChannelLatencyReductionPercentage` - The percentage of your latency to subtract from the end of a channel duration to optimize cast time while hopefully not losing any ticks (more explanation below). Default is 75.
 
+- `NP_NameplateDistance` - The distance in yards to display nameplates.  Defaults to whatever was set by the game or vanilla tweaks.
+
 ### Custom Lua Functions
 
 #### QueueSpellByName(spellName)
@@ -203,6 +205,16 @@ Returns:
 Examples:
 ```
 /run local slot, bookType, spellId=GetSpellSlotTypeIdForName("Frostbolt");print(slot);print(bookType);print(spellId)
+```
+
+#### GetNampowerVersion()
+Returns the current version of Nampower split into major, minor and patch numbers.
+
+So if version was v2.8.6 it would return 2, 8, 6 as integers.
+
+Examples:
+```
+/run local major, minor, patch=GetNampowerVersion();print(major);print(minor);print(patch)
 ```
 
 The previous version of this `GetSpellSlotAndTypeForName` was removed as it was returning a 0 indexed slot number which was confusing to use in lua.
