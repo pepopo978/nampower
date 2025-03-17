@@ -27,4 +27,8 @@ namespace Nampower {
     bool IsSpellOnCooldown(uint32_t spellId);
 
     char *ConvertGuidToString(uint64_t guid);
+
+    float GetNameplateDistance();
+
+    void SetNameplateDistance(float distance);
 }

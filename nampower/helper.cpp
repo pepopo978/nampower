@@ -101,4 +101,13 @@ namespace Nampower {
         std::snprintf(guidStr, 21, "0x%016llX", static_cast<unsigned long long>(guid));
         return guidStr;
     }
+
+    float GetNameplateDistance() {
+        auto const distanceSquared = *reinterpret_cast<float *>(Offsets::NameplateDistance);
+        return sqrtf(distanceSquared);
+    }
+
+    void SetNameplateDistance(float distance) {
+        *reinterpret_cast<float *>(Offsets::NameplateDistance) = distance * distance;
+    }
 }

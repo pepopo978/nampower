@@ -35,6 +35,7 @@
 #include "spellcast.hpp"
 #include "scripts.hpp"
 #include "spellchannel.hpp"
+#include "helper.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -44,8 +45,6 @@
 #include <iostream>
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
-
-const char *VERSION = "v2.8.5";
 
 namespace Nampower {
     uint32_t gLastErrorTimeMs;
@@ -108,6 +107,8 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<OnSpriteRightClickT>> gOnSpriteRightClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_HandleSpriteClickT>> gSpell_C_HandleSpriteClickDetour;
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_TargetSpellT>> gSpell_C_TargetSpellDetour;
+
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetNampowerVersionDetour;
 
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellCooldownDetour;
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellDelayedDetour;
@@ -439,12 +440,20 @@ namespace Nampower {
         // if we have a target that is not the right click target, ignore the right click
         if (gUserSettings.preventRightClickTargetChange && currentTargetGuid &&
             currentTargetGuid != objectGUID) {
-            auto GetUnitFromName = reinterpret_cast<GetUnitFromNameT>(Offsets::GetUnitFromName);
-            auto const unit = GetUnitFromName("player");
 
-            // combat check from Script_UnitAffectingCombat
-            if (unit && ((*(uint32_t *) (*(int32_t *) (unit + 0x110) + 0xa0) >> 0x13 & 1) != 0)) {
-                return 1;
+            auto unitOrPlayer = game::ClntObjMgrObjectPtr(
+                    static_cast<game::TypeMask>(game::TYPEMASK_PLAYER | game::TYPEMASK_UNIT), objectGUID);
+
+            // only prevent right click if guid is a unit/player
+            if (unitOrPlayer) {
+                auto GetUnitFromName = reinterpret_cast<GetUnitFromNameT>(Offsets::GetUnitFromName);
+                auto const unit = GetUnitFromName("player");
+
+                // combat check from Script_UnitAffectingCombat
+                // only prevent right click if in combat
+                if (unit && ((*(uint32_t *) (*(int32_t *) (unit + 0x110) + 0xa0) >> 0x13 & 1) != 0)) {
+                    return 1;
+                }
             }
         }
 
@@ -542,6 +551,12 @@ namespace Nampower {
             gUserSettings.channelLatencyReductionPercentage = atoi(value);
             DEBUG_LOG(
                     "Set NP_ChannelLatencyReductionPercentage to " << gUserSettings.channelLatencyReductionPercentage);
+
+        } else if (strcmp(cvar, "NP_NameplateDistance") == 0) {
+            auto distance = std::stof(value);
+            SetNameplateDistance(distance);
+            DEBUG_LOG(
+                    "Set NP_NameplateDistance to " << distance);
         }
     }
 
@@ -595,7 +610,7 @@ namespace Nampower {
         // open new log file
         debugLogFile.open("nampower_debug.log");
 
-        DEBUG_LOG("Loading nampower " << VERSION);
+        DEBUG_LOG("Loading nampower v" << MAJOR_VERSION << "." << MINOR_VERSION << "." << PATCH_VERSION);
 
         // default values
         gUserSettings.queueCastTimeSpells = true;
@@ -858,6 +873,16 @@ namespace Nampower {
                      0,  // unk2
                      0); // unk3
 
+        char NP_NameplateDistance[] = "NP_NameplateDistance";
+        CVarRegister(NP_NameplateDistance, // name
+                     nullptr, // help
+                     0,  // unk1
+                     std::to_string(GetNameplateDistance()).c_str(), // use the game's DAT value as the default
+                     nullptr, // callback
+                     1, // category
+                     0,  // unk2
+                     0); // unk3
+
         // update from cvars
         loadUserVar("NP_QueueCastTimeSpells");
         loadUserVar("NP_QueueInstantSpells");
@@ -888,6 +913,8 @@ namespace Nampower {
         loadUserVar("NP_CooldownQueueWindowMs");
 
         loadUserVar("NP_ChannelLatencyReductionPercentage");
+
+        loadUserVar("NP_NameplateDistance");
 
         gBufferTimeMs = gUserSettings.minBufferTimeMs;
     }
@@ -1098,6 +1125,13 @@ namespace Nampower {
                                                                                                  Script_ChannelStopCastingNextTick);
         gChannelStopCastingNextTickDetour->Apply();
 
+        auto const gGetNampowerVersionOrig = hadesmem::detail::AliasCast<LuaScriptT>(
+                Offsets::Script_GetNampowerVersion);
+        gGetNampowerVersionDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
+                                                                                         gGetNampowerVersionOrig,
+                                                                                         Script_GetNampowerVersion);
+        gGetNampowerVersionDetour->Apply();
+
 //        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
 //                Offsets::Spell_C_CooldownEventTriggered);
 //        gSpell_C_CooldownEventTriggeredDetour = std::make_unique<hadesmem::PatchDetour<Spell_C_CooldownEventTriggeredT >>(
@@ -1175,6 +1209,9 @@ namespace Nampower {
         char channelStopCastingNextTick[] = "ChannelStopCastingNextTick";
         RegisterLuaFunction(channelStopCastingNextTick,
                             reinterpret_cast<uintptr_t *>(Offsets::Script_ChannelStopCastingNextTick));
+
+        char getNampowerVersion[] = "GetNampowerVersion";
+        RegisterLuaFunction(getNampowerVersion, reinterpret_cast<uintptr_t *>(Offsets::Script_GetNampowerVersion));
     }
 
     std::once_flag loadFlag;

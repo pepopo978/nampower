@@ -29,6 +29,10 @@ namespace Nampower {
     constexpr uint32_t BUFFER_INCREASE_FREQUENCY = 5000; // time in ms between changes to raise buffer
     constexpr uint32_t BUFFER_DECREASE_FREQUENCY = 10000; // time in ms between changes to lower buffer
 
+    constexpr uint32_t MAJOR_VERSION = 2;
+    constexpr uint32_t MINOR_VERSION = 8;
+    constexpr uint32_t PATCH_VERSION = 6;
+
     extern uint32_t gLastErrorTimeMs;
     extern uint32_t gLastBufferIncreaseTimeMs;
     extern uint32_t gLastBufferDecreaseTimeMs;

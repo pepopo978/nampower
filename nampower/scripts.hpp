@@ -28,6 +28,8 @@ namespace Nampower {
 
     uint32_t Script_ChannelStopCastingNextTick(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
 
+    uint32_t Script_GetNampowerVersion(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
+
     bool Script_QueueScript(hadesmem::PatchDetourBase *detour, uintptr_t *luaState);
 
     bool RunQueuedScript(int priority);

@@ -51,6 +51,7 @@ enum class Offsets : std::uint32_t {
     GetSpellSlotAndType = 0X004B3950,
     OsGetAsyncTimeMs = 0X0042B790,
     ChannelTargetGuid = 0xC4D980,
+    NameplateDistance = 0xC4D988,  // float containing the distance squared ready to be pythagorean'd
 
     CGSpellBook_mKnownSpells = 0xB700F0,
     CGSpellBook_mKnownPetSpells = 0XB6F098,
@@ -127,6 +128,7 @@ enum class Offsets : std::uint32_t {
     Script_GetSpellNameAndRankForId = 0X004E7844,
     Script_GetSpellSlotTypeIdForName = 0X004E784A,
     Script_ChannelStopCastingNextTick = 0X004E7858,
+    Script_GetNampowerVersion = 0X004E7874,
 
     lua_isstring = 0x006F3510,
     lua_isnumber = 0X006F34D0,

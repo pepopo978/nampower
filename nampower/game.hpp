@@ -1106,6 +1106,33 @@ namespace game {
         SPELL_DAMAGE_EVENT_OTHER = 550,
     };
 
+    enum TypeMask {
+        TYPEMASK_OBJECT = 0x1,
+        TYPEMASK_ITEM = 0x2,
+        TYPEMASK_CONTAINER = 0x4,
+        TYPEMASK_UNIT = 0x8,
+        TYPEMASK_PLAYER = 0x10,
+        TYPEMASK_GAMEOBJECT = 0x20,
+        TYPEMASK_DYNAMICOBJECT = 0x40,
+        TYPEMASK_CORPSE = 0x80,
+    };
+
+
+    enum OBJECT_TYPE_ID : __int32 {
+        ID_OBJECT = 0x0,
+        ID_ITEM = 0x1,
+        ID_CONTAINER = 0x2,
+        ID_UNIT = 0x3,
+        ID_PLAYER = 0x4,
+        ID_GAMEOBJECT = 0x5,
+        ID_DYNAMICOBJECT = 0x6,
+        ID_CORPSE = 0x7,
+        NUM_CLIENT_OBJECT_TYPES = 0x8,
+        ID_AIGROUP = 0x8,
+        ID_AREATRIGGER = 0x9,
+        NUM_OBJECT_TYPES = 0xA,
+    };
+
     class CDuration {
     public:
         char m_DurationIndex;                //0x0000
@@ -1143,5 +1170,5 @@ namespace game {
 
     std::uint64_t GetCurrentTargetGuid();
 
-    uintptr_t *ClntObjMgrObjectPtr(uint32_t mask, std::uint64_t guid);
+    uintptr_t *ClntObjMgrObjectPtr(TypeMask typeMask, std::uint64_t guid);
 }

@@ -308,8 +308,7 @@ namespace Nampower {
                 lua_pushstring(luaState, unknown);
             }
 
-            if (spellSlot > 0 && spellSlot < 1024)
-            {
+            if (spellSlot > 0 && spellSlot < 1024) {
                 uint32_t spellId = 0;
                 if (bookType == 0) {
                     spellId = *reinterpret_cast<uint32_t *>(uint32_t(Offsets::CGSpellBook_mKnownSpells) +
@@ -333,11 +332,19 @@ namespace Nampower {
 
     uint32_t Script_ChannelStopCastingNextTick(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
         DEBUG_LOG("ChannelStopCastingNextTick called");
-        if(gCastData.channeling) {
+        if (gCastData.channeling) {
             gCastData.cancelChannelNextTick = true;
         }
 
         return 0;
+    }
+
+    uint32_t Script_GetNampowerVersion(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        lua_pushnumber(luaState, MAJOR_VERSION);
+        lua_pushnumber(luaState, MINOR_VERSION);
+        lua_pushnumber(luaState, PATCH_VERSION);
+
+        return 3;
     }
 
     bool Script_QueueScript(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
