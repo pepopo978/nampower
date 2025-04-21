@@ -34,4 +34,6 @@ namespace Nampower {
 
     int SpellNonMeleeDmgLogHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t unk, uint32_t opCode, uint32_t unk2,
                                        CDataStore *packet);
+
+    int PlaySpellVisualHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, CDataStore *packet);
 }

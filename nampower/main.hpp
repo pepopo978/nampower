@@ -31,7 +31,7 @@ namespace Nampower {
 
     constexpr uint32_t MAJOR_VERSION = 2;
     constexpr uint32_t MINOR_VERSION = 9;
-    constexpr uint32_t PATCH_VERSION = 0;
+    constexpr uint32_t PATCH_VERSION = 1;
 
     extern uint32_t gLastErrorTimeMs;
     extern uint32_t gLastBufferIncreaseTimeMs;
@@ -122,6 +122,8 @@ namespace Nampower {
 
     using SpellVisualsInitializeT = void (__stdcall *)(void);
 
+    using PlaySpellVisual = void (__stdcall *)(int **param_1,void *param_2,int param_3,void **param_4);
+
     using CVarLookupT = uintptr_t *(__fastcall *)(const char *);
     using SetCVarT = int (__fastcall *)(uintptr_t *luaPtr);
     using CVarRegisterT = int *(__fastcall *)(char *name, char *help, int unk1, const char *defaultValuePtr,
@@ -149,6 +151,8 @@ namespace Nampower {
     void ResetOnSwingFlags();
 
     void ClearQueuedSpells();
+
+    bool processQueues();
 
     uint32_t EffectiveCastEndMs();
 }

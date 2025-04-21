@@ -76,6 +76,8 @@ enum class Offsets : std::uint32_t {
     CGGameUI_Target = 0X00493540,
 
     SpellVisualsHandleCastStart = 0X006EC220,
+    PlaySpellVisualHandler = 0X006E98D0,
+    PlaySpellVisual = 0X0060EDF0,
 
     SpellChannelStartHandler = 0x006E7550,
     SpellChannelUpdateHandler = 0x006E75F0,

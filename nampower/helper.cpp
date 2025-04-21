@@ -24,10 +24,12 @@ namespace Nampower {
         return spell->Attributes & game::SPELL_ATTR_ON_NEXT_SWING_1;
     }
 
-    bool SpellIsTradeskillOrEnchant(const game::SpellRec *spell) {
+    bool SpellIsAttackTradeskillOrEnchant(const game::SpellRec *spell) {
         return (
+                spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_ATTACK ||
                 spell->Attributes & game::SpellAttributes::SPELL_ATTR_TRADESPELL ||
                 spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_TRADE_SKILL ||
+                spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_TRANS_DOOR ||
                 spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_ENCHANT_ITEM ||
                 spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY ||
                 spell->Effect[0] == game::SpellEffects::SPELL_EFFECT_CREATE_ITEM ||
@@ -96,7 +98,7 @@ namespace Nampower {
         return startTime != 0 && duration > 1.5;
     }
 
-    char *ConvertGuidToString(uint64_t guid){
+    char *ConvertGuidToString(uint64_t guid) {
         char *guidStr = new char[21]; // 2 for 0x prefix, 18 for the number, and 1 for '\0'
         std::snprintf(guidStr, 21, "0x%016llX", static_cast<unsigned long long>(guid));
         return guidStr;

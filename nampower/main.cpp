@@ -116,6 +116,7 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellFailedHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellChannelStartHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellChannelUpdateHandlerDetour;
+    std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gPlaySpellVisualHandlerDetour;
 
     std::unique_ptr<hadesmem::PatchDetour<FastCallPacketHandlerT>> gSpellStartHandlerDetour;
     std::unique_ptr<hadesmem::PatchDetour<FastCallPacketHandlerT>> gPeriodicAuraLogHandlerDetour;
@@ -351,12 +352,12 @@ namespace Nampower {
         }
     }
 
-    void processQueues() {
+    bool processQueues() {
         if (!gCastData.channeling) {
             // check for high priority script
             if (RunQueuedScript(1)) {
                 // script ran, stop processing
-                return;
+                return true;
             }
 
             // check for non gcd spell
@@ -365,7 +366,7 @@ namespace Nampower {
 
                 if (EffectiveCastEndMs() <= currentTime) {
                     CastQueuedNonGcdSpell();
-                    return;
+                    return true;
                 }
             }
 
@@ -379,14 +380,14 @@ namespace Nampower {
                     gCastData.cooldownNonGcdSpellQueued = false;
                     gCastData.nonGcdSpellQueued = true;
                     CastQueuedNonGcdSpell();
-                    return;
+                    return true;
                 }
             }
 
             // check for medium priority script
             if (RunQueuedScript(2)) {
                 // script ran, stop processing
-                return;
+                return true;
             }
 
             // check for normal spell
@@ -401,7 +402,7 @@ namespace Nampower {
                     // if more than MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE seconds have passed since the last cast, ignore
                     if (currentTime - gLastCastData.startTimeMs < MAX_TIME_SINCE_LAST_CAST_FOR_QUEUE) {
                         CastQueuedNormalSpell();
-                        return;
+                        return true;
                     } else {
                         DEBUG_LOG("Ignoring queued cast of " << game::GetSpellName(gLastNormalCastParams.spellId)
                                                              << " due to max time since last cast");
@@ -421,15 +422,17 @@ namespace Nampower {
                     gCastData.cooldownNormalSpellQueued = false;
                     gCastData.normalSpellQueued = true;
                     CastQueuedNormalSpell();
-                    return;
+                    return true;
                 }
             }
 
             if (RunQueuedScript(3)) {
                 // script ran, stop processing
-                return;
+                return true;
             }
         }
+
+        return false;
     }
 
     int OnSpriteRightClickHook(hadesmem::PatchDetourBase *detour, uint64_t objectGUID) {
@@ -1131,6 +1134,13 @@ namespace Nampower {
                                                                                          gGetNampowerVersionOrig,
                                                                                          Script_GetNampowerVersion);
         gGetNampowerVersionDetour->Apply();
+
+//        auto const gPlaySpellVisualHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(
+//                Offsets::PlaySpellVisualHandler);
+//        gPlaySpellVisualHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process,
+//                                                                                                 gPlaySpellVisualHandlerOrig,
+//                                                                                                 &PlaySpellVisualHandlerHook);
+//        gPlaySpellVisualHandlerDetour->Apply();
 
 //        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
 //                Offsets::Spell_C_CooldownEventTriggered);

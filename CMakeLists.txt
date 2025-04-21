@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.12)
 
 foreach(policy
-    CMP0074 # CMake 3.12
-    )
-  if(POLICY ${policy})
-    cmake_policy(SET ${policy} NEW)
-  endif()
+        CMP0074 # CMake 3.12
+)
+    if(POLICY ${policy})
+        cmake_policy(SET ${policy} NEW)
+    endif()
 endforeach()
 
 set(CMAKE_CXX_STANDARD 14)
@@ -19,13 +19,13 @@ project(${PROJECT_NAME})
 
 # build in Release-mode by default if not explicitly set
 if( NOT CMAKE_BUILD_TYPE )
-  set(CMAKE_BUILD_TYPE "RelWithDebInfo")
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 set(BOOST_ROOT "C:/software/boost_1_80_0/boost")
 set(BOOST_INCLUDEDIR "C:/software/boost_1_80_0")
 set(BOOST_LIBRARYDIR "C:/software/boost_1_80_0/lib32-msvc-14.3")
 set (Boost_DETAILED_FAILURE_MSG ON)
-set (Boost_DEBUG ON) 
+set (Boost_DEBUG ON)
 
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
@@ -79,20 +79,27 @@ find_package(Threads REQUIRED)
 
 add_definitions(-DUNICODE -D_UNICODE -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -DASMJIT_STATIC -DASMJIT_BUILD_X86 -DHADESMEM_NO_PUGIXML)
 include_directories(
-    "Include"
-    "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${Boost_INCLUDE_DIR}"
-    "${HADESMEM_ROOT}/include/memory/"
-    "${HADESMEM_ROOT}/deps/udis86/udis86"
-    "${HADESMEM_ROOT}/deps/asmjit/asmjit/src"
+        "Include"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${Boost_INCLUDE_DIR}"
+        "${HADESMEM_ROOT}/include/memory/"
+        "${HADESMEM_ROOT}/deps/udis86/udis86"
+        "${HADESMEM_ROOT}/deps/asmjit/asmjit/src"
 )
 
 link_directories("${HADESMEM_LIB_DIR}")
 
+# Set static runtime library
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /NODEFAULTLIB:MSVCRT /NODEFAULTLIB:MSVCRTD")
+
+# Link static libraries
 add_subdirectory(loader)
 add_subdirectory(nampower)
 
 install(FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt"
-    "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
-    DESTINATION "${CMAKE_INSTALL_PREFIX}")
+        "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt"
+        "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}")

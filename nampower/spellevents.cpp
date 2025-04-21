@@ -664,4 +664,24 @@ namespace Nampower {
         auto const spellNonMeleeDmgLogHandler = detour->GetTrampolineT<FastCallPacketHandlerT>();
         return spellNonMeleeDmgLogHandler(unk, opCode, unk2, packet);
     }
+
+    int PlaySpellVisualHandlerHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, CDataStore *packet) {
+        auto const playSpellVisualHandler = detour->GetTrampolineT<PacketHandlerT>();
+
+        auto const rpos = packet->m_read;
+
+        uint64_t targetGuid;
+        packet->GetPackedGuid(targetGuid);
+
+        uint32_t spellVisualKitIndex;
+        packet->Get(spellVisualKitIndex);
+
+        packet->m_read = rpos;
+
+        DEBUG_LOG("Play spell visual id " << spellVisualKitIndex << " for guid " << targetGuid);
+
+//        return playSpellVisualHandler(opCode, packet);
+
+        return 1;
+    }
 }

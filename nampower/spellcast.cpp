@@ -212,7 +212,7 @@ namespace Nampower {
         auto const spellOnGcd = SpellIsOnGcd(spell);
         auto const spellIsChanneling = SpellIsChanneling(spell);
         auto const spellIsTargeting = SpellIsTargeting(spell);
-        auto const spellIsTradeSkillOrEnchant = SpellIsTradeskillOrEnchant(spell);
+        auto const isSpecialSpell = SpellIsAttackTradeskillOrEnchant(spell);
 
         // check for double press to interrupt channeling early
         if (gCastData.channeling && !gCastData.cancelChannelNextTick &&
@@ -226,6 +226,13 @@ namespace Nampower {
                     DEBUG_LOG("Double cast detected for " << spellName << ", ending channel early");
                     gCastData.cancelChannelNextTick = true;
                 }
+            }
+        }
+
+        if (gCastData.nonGcdSpellQueued && spellOnGcd) {
+            // it is possible when spamming to attempt to cast before non gcd spells are processed, process queue first
+            if (processQueues()) {
+                return false;
             }
         }
 
@@ -303,7 +310,7 @@ namespace Nampower {
         auto inSpellQueueWindow = InSpellQueueWindow(remainingEffectiveCastTime, remainingGcd, spellIsTargeting);
 
         // don't queue trade skills or enchants
-        if (spellIsTradeSkillOrEnchant) {
+        if (isSpecialSpell) {
             inSpellQueueWindow = false;
         }
 
@@ -437,7 +444,7 @@ namespace Nampower {
             }
         }
 
-        if (!spellIsTradeSkillOrEnchant) {
+        if (!isSpecialSpell) {
             // is there a cast? (ignore for on swing spells)
             if (remainingEffectiveCastTime) {
                 DEBUG_LOG("Cast or delay active " << remainingEffectiveCastTime << "ms remaining");
@@ -479,7 +486,7 @@ namespace Nampower {
         // try clearing current casting spell id if
         // not using tradeskill or enchant
         // no on swing spell queued (will interrupt them)
-        if (!spellIsTradeSkillOrEnchant && !gCastData.pendingOnSwingCast) {
+        if (!isSpecialSpell && !gCastData.pendingOnSwingCast) {
             clearCastingSpell();
         }
 
@@ -509,7 +516,7 @@ namespace Nampower {
         auto ret = castSpell(playerUnit, spellId, item, guid);
 
         // if this is a trade skill or item enchant, do nothing further
-        if (spellIsTradeSkillOrEnchant) {
+        if (isSpecialSpell) {
             TriggerSpellCastEvent(ret, spellId, castType, guid, itemId);
             return ret;
         }
@@ -599,7 +606,7 @@ namespace Nampower {
             auto const spellName = game::GetSpellName(*spellId);
             auto const spell = game::GetSpellInfo(*spellId);
 
-            if (spell->Targets == game::SpellTarget::TARGET_LOCATION_UNIT_POSITION) {
+            if (spell->Targets == game::SpellTarget::TARGET_LOCATION_UNIT_POSITION && spell->Effect[0] != game::SPELL_EFFECT_SUMMON_GUARDIAN) {
                 // if quickcast is on instantly trigger all casts
                 // otherwise if this is a queued cast, trigger it instant cast
                 if (gUserSettings.quickcastTargetingSpells ||
