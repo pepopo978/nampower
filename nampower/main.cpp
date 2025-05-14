@@ -109,6 +109,7 @@ namespace Nampower {
     std::unique_ptr<hadesmem::PatchDetour<Spell_C_TargetSpellT>> gSpell_C_TargetSpellDetour;
 
     std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetNampowerVersionDetour;
+    std::unique_ptr<hadesmem::PatchDetour<LuaScriptT>> gGetItemLevelDetour;
 
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellCooldownDetour;
     std::unique_ptr<hadesmem::PatchDetour<PacketHandlerT>> gSpellDelayedDetour;
@@ -1135,6 +1136,13 @@ namespace Nampower {
                                                                                          Script_GetNampowerVersion);
         gGetNampowerVersionDetour->Apply();
 
+        auto const gGetItemLevelOrig = hadesmem::detail::AliasCast<LuaScriptT>(
+                Offsets::Script_GetItemLevel);
+        gGetItemLevelDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
+                                                                                    gGetItemLevelOrig,
+                                                                                    Script_GetItemLevel);
+        gGetItemLevelDetour->Apply();
+
 //        auto const gPlaySpellVisualHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(
 //                Offsets::PlaySpellVisualHandler);
 //        gPlaySpellVisualHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process,
@@ -1222,6 +1230,9 @@ namespace Nampower {
 
         char getNampowerVersion[] = "GetNampowerVersion";
         RegisterLuaFunction(getNampowerVersion, reinterpret_cast<uintptr_t *>(Offsets::Script_GetNampowerVersion));
+
+        char getItemILevel[] = "GetItemLevel";
+        RegisterLuaFunction(getItemILevel, reinterpret_cast<uintptr_t *>(Offsets::Script_GetItemLevel));
     }
 
     std::once_flag loadFlag;

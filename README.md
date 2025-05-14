@@ -219,6 +219,15 @@ Examples:
 
 The previous version of this `GetSpellSlotAndTypeForName` was removed as it was returning a 0 indexed slot number which was confusing to use in lua.
 
+#### GetItemLevel(itemId)
+Returns the item level of an item.  Returns an error if the item id is invalid.
+
+Examples:
+```
+/run local itemLevel=GetItemLevel(22589);print(itemLevel)
+should print 90 for atiesh
+```
+
 #### ChannelStopCastingNextTick()
 Will stop channeling early on the next tick.  This is useful for stopping a channel early to cast a different spell.  Uses your ChannelLatencyReductionPercentage to determine when to stop the channel.
 
@@ -362,7 +371,7 @@ Additionally the queuing system will ignore spells with any of the following att
 
 #### Why do I need a buffer?
 From my own testing it seems that a buffer is required on spells to avoid "This ability isn't ready yet"/"Another action in progress" errors.  
-By that I mean that if you cast a gcd spell every 1.5 seconds without your ping changing you will occasionally get
+By that I mean that if you cast a 1.5 second cast time spell every 1.5 seconds without your ping changing you will occasionally get
 errors from the server and your cast will get rejected.  If you have 150ms+ ping this can be very punishing.
 
 I believe this is related to the server tick during which incoming spells are processed.  There is logic to
@@ -379,6 +388,8 @@ it than this as using the normal buffer of 55ms was still resulting in skipped c
 
 #### GCD Spells
 Only one gcd spell can be queued at a time.  Pressing a new gcd spell will replace any existing queued gcd spell.
+
+As of 5/13/2025 the server tick is now subtracted from the gcd timer so a buffer is no longer required for spells with a cast time at least ~50ms less than their gcd :)
 
 #### Non GCD Spells
 Non gcd spells have special handling.  You can queue up to 6 non gcd spells, 

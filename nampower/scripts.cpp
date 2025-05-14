@@ -347,6 +347,35 @@ namespace Nampower {
         return 3;
     }
 
+    uint32_t Script_GetItemLevel(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
+        if (lua_isnumber(luaState, 1)) {
+            auto const itemId = static_cast<uint32_t>(lua_tonumber(luaState, 1));
+
+            // Pointer to ItemDBCache
+            void *itemDbCache = reinterpret_cast<void *>(Offsets::ItemDBCache);
+
+            // Parameters for the DBCache<>::GetRecord function
+            int **param2 = nullptr;
+            int *param3 = nullptr;
+            int *param4 = nullptr;
+            char param5 = 0;
+
+            // Call the DBCache<>::GetRecord function
+            auto getRecord = reinterpret_cast<uintptr_t *(__thiscall *)(void *, uint32_t, int **, int *, int *, char)>(
+                    Offsets::DBCacheGetRecord
+            );
+            uintptr_t *itemObject = getRecord(itemDbCache, itemId, param2, param3, param4, param5);
+
+            uint32_t itemLevel = *reinterpret_cast<uint32_t *>(itemObject + 14);
+            lua_pushnumber(luaState, itemLevel);
+            return 1;
+        } else {
+            lua_error(luaState, "Usage: GetItemLevel(itemId)");
+        }
+
+        return 0;
+    }
+
     bool Script_QueueScript(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
         DEBUG_LOG("Trying to queue script");
 

@@ -37,13 +37,9 @@ namespace Nampower {
             lastCastId = lastCastParams->castId;
         }
 
-        auto const bufferMs = GetServerDelayMs();
-        gCastData.bufferMs = bufferMs;
-
+        auto bufferMs = GetServerDelayMs();
         // Reset the server delay
         gLastServerSpellDelayMs = 0;
-
-        gCastData.castEndMs = castTime ? currentTime + castTime + bufferMs : 0;
 
         if (spellOnGcd) {
             auto gcdTime = GetGcdOrCooldownForSpell(spell->Id);
@@ -51,8 +47,15 @@ namespace Nampower {
                 gcdTime = 1500; // items with spells on gcd will return their item gcd, make sure not to use that
             }
 
-            if (castTime > 0 && castTime <= gcdTime) {
-                gcdTime += bufferMs; // add additional buffer to gcd time for fast cast spells to reduce errors
+            if (castTime < gcdTime - 50) {
+                bufferMs = 0; // no longer need to buffer spells with cast time 50ms < gcd
+            } else if (castTime < gcdTime) {
+                auto const diff = gcdTime - castTime;
+                if (bufferMs > diff) {
+                    bufferMs -= diff; // subtract the difference from the buffer
+                } else {
+                    bufferMs = 0; // if the buffer is less than the difference, set it to 0
+                }
             }
 
             gCastData.gcdEndMs = currentTime + gcdTime + bufferMs;
@@ -74,6 +77,9 @@ namespace Nampower {
                                     << " latency: " << GetLatencyMs()
                                     << " time since last cast " << currentTime - gLastCastData.startTimeMs);
         }
+
+        gCastData.castEndMs = castTime ? currentTime + castTime + bufferMs : 0;
+        gCastData.bufferMs = bufferMs;
 
         // check if we can lower buffers
         if (currentTime - gLastBufferDecreaseTimeMs > BUFFER_DECREASE_FREQUENCY) {
@@ -606,7 +612,8 @@ namespace Nampower {
             auto const spellName = game::GetSpellName(*spellId);
             auto const spell = game::GetSpellInfo(*spellId);
 
-            if (spell->Targets == game::SpellTarget::TARGET_LOCATION_UNIT_POSITION && spell->Effect[0] != game::SPELL_EFFECT_SUMMON_GUARDIAN) {
+            if (spell->Targets == game::SpellTarget::TARGET_LOCATION_UNIT_POSITION &&
+                spell->Effect[0] != game::SPELL_EFFECT_SUMMON_GUARDIAN) {
                 // if quickcast is on instantly trigger all casts
                 // otherwise if this is a queued cast, trigger it instant cast
                 if (gUserSettings.quickcastTargetingSpells ||
