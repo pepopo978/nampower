@@ -365,6 +365,10 @@ namespace Nampower {
                     Offsets::DBCacheGetRecord
             );
             uintptr_t *itemObject = getRecord(itemDbCache, itemId, param2, param3, param4, param5);
+            if (itemObject == nullptr) {
+                lua_error(luaState, "Item not found in DBCache");
+                return 0;
+            }
 
             uint32_t itemLevel = *reinterpret_cast<uint32_t *>(itemObject + 14);
             lua_pushnumber(luaState, itemLevel);
