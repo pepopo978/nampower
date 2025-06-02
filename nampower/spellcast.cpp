@@ -10,6 +10,10 @@
 namespace Nampower {
     uint32_t GetChannelBaseDuration(const game::SpellRec *spell) {
         auto const duration = game::GetDurationObject(spell->DurationIndex);
+        if( duration == nullptr) {
+            DEBUG_LOG("GetChannelBaseDuration: Duration object is null for spell " << game::GetSpellName(spell->Id));
+            return 0;
+        }
         return duration->m_Duration;
     }
 
