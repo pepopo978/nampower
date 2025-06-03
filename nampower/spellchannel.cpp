@@ -46,11 +46,18 @@ namespace Nampower {
                     DEBUG_LOG("Invalid originalDuration of " << originalDuration << " for " << game::GetSpellName(spellId));
                 }
 
+                uint32_t amplitude = spell->EffectAmplitude[0];
+                if (amplitude <= 0 || amplitude > duration) {
+                    amplitude = spell->EffectAmplitude[1];
+                }
+                if (amplitude <= 0 || amplitude > duration) {
+                    amplitude = spell->EffectAmplitude[2];
+                }
 
-                gCastData.channelTickTimeMs = uint32_t(float(spell->EffectAmplitude[0]) *
-                                                       durationReduction);  // the base tick time should be the first effect, scale it based on the duration reduction due to haste mechanics
+                gCastData.channelTickTimeMs = uint32_t(float(amplitude) *
+                                                       durationReduction);  // the base tick time is usually on the first effect, scale it based on the duration reduction due to haste mechanics
 
-                DEBUG_LOG("Original tick time " << spell->EffectAmplitude[0] << " scaled tick time "
+                DEBUG_LOG("Original tick time " << amplitude << " scaled tick time "
                                                 << gCastData.channelTickTimeMs);
 
                 if (gCastData.channelTickTimeMs <= 0 || gCastData.channelTickTimeMs > duration) {
