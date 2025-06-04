@@ -435,9 +435,18 @@ namespace Nampower {
                         auto castTimeDifference = castParams->castTimeMs - castTime;
 
                         if (castTimeDifference > 5) {
-                            gCastData.castEndMs = castParams->castStartTimeMs + castTime + gBufferTimeMs;
-                            if (castTime > 0) {
-                                gCastData.castEndMs += gBufferTimeMs;
+                            auto gcdTime = GetGcdOrCooldownForSpell(spellId);
+                            if (gcdTime > 1500) {
+                                gcdTime = 1500; // items with spells on gcd will return their item gcd, make sure not to use that
+                            }
+
+                            if (gcdTime > castTime) {
+                                DEBUG_LOG("Server cast time " << castTime << " was reduced below gcd of " << gcdTime << " using gcd instead");
+                                castTime = gcdTime;
+                                gCastData.castEndMs = castParams->castStartTimeMs + gcdTime;
+                            } else {
+                                gCastData.castEndMs = castParams->castStartTimeMs + castTime + gBufferTimeMs;
+
                             }
 
                             castParams->castTimeMs = castTime;
