@@ -31,7 +31,7 @@ namespace Nampower {
 
     constexpr uint32_t MAJOR_VERSION = 2;
     constexpr uint32_t MINOR_VERSION = 10;
-    constexpr uint32_t PATCH_VERSION = 4;
+    constexpr uint32_t PATCH_VERSION = 5;
 
     extern uint32_t gLastErrorTimeMs;
     extern uint32_t gLastBufferIncreaseTimeMs;

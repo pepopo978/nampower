@@ -49,7 +49,7 @@ namespace Nampower {
         }
 
         void push(const CastSpellParams &params, bool replaceMatchingNonGcdCategory) {
-            if (replaceMatchingNonGcdCategory && params.castType == CastType::NON_GCD) {
+            if (replaceMatchingNonGcdCategory && params.castType == CastType::NON_GCD && params.gcDCategory != 0) {
                 auto nonGcdParams = findGcdCategory(params.gcDCategory);
                 if (nonGcdParams) {
                     DEBUG_LOG("Replacing queued nonGcd spell " << game::GetSpellName(nonGcdParams->spellId) << " with "
@@ -148,7 +148,8 @@ namespace Nampower {
         void logHistory() {
             for (int i = 0; i < size; i++) {
                 int index = (front + i) % maxSize;
-                DEBUG_LOG("Cast history " << i << ": " << game::GetSpellName(queue[index].spellId) << " result " << queue[index].castResult);
+                DEBUG_LOG("Cast history " << i << ": " << game::GetSpellName(queue[index].spellId) << " result "
+                                          << queue[index].castResult);
             }
         }
 
