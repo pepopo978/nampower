@@ -395,12 +395,11 @@ and they will execute in the order queued with `NP_NonGcdBufferTimeMs` delay aft
 The non gcd queue always has priority over queued normal spells.  
 You can only queue a given spellId once in the non gcd queue, any subsequent attempts will just replace the existing entry in the queue.
 
-`NP_ReplaceMatchingNonGcdCategory` will cause non gcd spells with the same StartRecoveryCategory to replace each other in the queue.  
-The vast majority of spells not on the gcd have category '0' so enabling this setting will cause them to all replace each other.  
+`NP_ReplaceMatchingNonGcdCategory` will cause non gcd spells with the same non zero StartRecoveryCategory to replace each other in the queue.  
+The vast majority of spells not on the gcd have category '0' so it ignores them to avoid causing issues.  
 One notable exception is shaman totems on TWoW that were changed to have separate categories according to their elements.
 
 This can be useful if you want to change your mind about the non gcd spell you have queued.  For example, if you queue a mana potion and decide you want to use LIP instead last minute.
-However, this will also prevent using certain cooldowns together with trinkets, such as Combustion followed by Mind Quickening Gem.  Decide what works best for you.
 
 #### On hit Spells
 Only one on hit spell can be queued at a time.  Pressing a new on hit spell will replace any existing queued on hit spell.  
