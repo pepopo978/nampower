@@ -134,10 +134,16 @@ namespace Nampower {
     }
 
     void LuaCall(const char *code) {
-        typedef void __fastcall func(const char *code, const char *unused);
-        func *function = (func *) Offsets::lua_call;
+        auto function = (LuaCallT) Offsets::lua_call;
         function(code, "Unused");
     }
+
+    uintptr_t* GetLuaStatePtr() {
+        typedef uintptr_t* (__fastcall* GETCONTEXT)(void);
+        static auto p_GetContext = reinterpret_cast<GETCONTEXT>(0x7040D0);
+        return p_GetContext();
+    }
+
 
     void RegisterLuaFunction(char *name, uintptr_t *func) {
         DEBUG_LOG("Registering " << name << " to " << func);
@@ -622,7 +628,7 @@ namespace Nampower {
         gUserSettings.queueChannelingSpells = true;
         gUserSettings.queueTargetingSpells = true;
         gUserSettings.queueOnSwingSpells = false;
-        gUserSettings.queueSpellsOnCooldown = false;
+        gUserSettings.queueSpellsOnCooldown = true;
 
         gUserSettings.interruptChannelsOutsideQueueWindow = false;
 
@@ -1139,8 +1145,8 @@ namespace Nampower {
         auto const gGetItemLevelOrig = hadesmem::detail::AliasCast<LuaScriptT>(
                 Offsets::Script_GetItemLevel);
         gGetItemLevelDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                    gGetItemLevelOrig,
-                                                                                    Script_GetItemLevel);
+                                                                                   gGetItemLevelOrig,
+                                                                                   Script_GetItemLevel);
         gGetItemLevelDetour->Apply();
 
 //        auto const gPlaySpellVisualHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(

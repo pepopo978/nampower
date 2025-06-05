@@ -33,6 +33,9 @@ namespace Nampower {
     constexpr uint32_t MINOR_VERSION = 10;
     constexpr uint32_t PATCH_VERSION = 5;
 
+    constexpr int32_t LUA_REGISTRYINDEX = -10000;
+    constexpr int32_t LUA_GLOBALSINDEX = -10001;
+
     extern uint32_t gLastErrorTimeMs;
     extern uint32_t gLastBufferIncreaseTimeMs;
     extern uint32_t gLastBufferDecreaseTimeMs;
@@ -101,17 +104,23 @@ namespace Nampower {
     using FrameScript_RegisterFunctionT = void (__fastcall *)(char *name, uintptr_t *func);
     using FrameScript_CreateEventsT = void (__fastcall *)(int param_1, uint32_t maxEventId);
 
+    using LuaGetContextT = uintptr_t *(__fastcall *)(void);
+    using LuaGetTableT = void (__fastcall *)(uintptr_t *luaState, int globalsIndex);
+    using LuaCallT = void (__fastcall *)(const char *code, const char *unused);
     using LuaScriptT = uint32_t (__fastcall *)(uintptr_t *luaState);
     using GetGUIDFromNameT = std::uint64_t (__fastcall *)(const char *);
     using GetUnitFromNameT = uintptr_t (__fastcall *)(const char *);
+    using lua_gettableT = void (__fastcall *)(uintptr_t *luaState, int globalsIndex);
     using lua_isstringT = bool (__fastcall *)(uintptr_t *, int);
     using lua_isnumberT = bool (__fastcall *)(uintptr_t *, int);
     using lua_tostringT = char *(__fastcall *)(uintptr_t *, int);
     using lua_tonumberT = double (__fastcall *)(uintptr_t *, int);
     using lua_pushnumberT = void (__fastcall *)(uintptr_t *, double);
     using lua_pushstringT = void (__fastcall *)(uintptr_t *, char *);
+    using lua_pcallT = int (__fastcall *)(uintptr_t *, int nArgs, int nResults, int errFunction);
     using lua_pushnilT = void (__fastcall *)(uintptr_t *);
     using lua_errorT = void (__cdecl *)(uintptr_t *, const char *);
+    using lua_settopT = void (__fastcall *)(uintptr_t *, int);
 
     using GetSpellSlotAndBookTypeFromSpellNameT = uint32_t (__fastcall *)(const char *, uint32_t *);
 
@@ -122,7 +131,7 @@ namespace Nampower {
 
     using SpellVisualsInitializeT = void (__stdcall *)(void);
 
-    using PlaySpellVisual = void (__stdcall *)(int **param_1,void *param_2,int param_3,void **param_4);
+    using PlaySpellVisual = void (__stdcall *)(int **param_1, void *param_2, int param_3, void **param_4);
 
     using CVarLookupT = uintptr_t *(__fastcall *)(const char *);
     using SetCVarT = int (__fastcall *)(uintptr_t *luaPtr);
@@ -133,6 +142,8 @@ namespace Nampower {
     void RegisterLuaFunction(char *, uintptr_t *func);
 
     void LuaCall(const char *code);
+
+    uintptr_t *GetLuaStatePtr();
 
     uint64_t GetWowTimeMs();
 

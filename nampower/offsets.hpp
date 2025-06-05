@@ -136,16 +136,26 @@ enum class Offsets : std::uint32_t {
     Script_GetNampowerVersion = 0X004E7874,
     Script_GetItemLevel = 0X004E787A,
 
+    lua_state_ptr = 0x7040D0,
+
     lua_isstring = 0x006F3510,
     lua_isnumber = 0X006F34D0,
     lua_tostring = 0x006F3690,
     lua_tonumber = 0X006F3620,
     lua_pushnumber = 0X006F3810,
+    lua_gettable = 0X6F3A40,
     lua_pushstring = 0X006F3890,
     lua_pushnil = 0X006F37F0,
     lua_call = 0x00704CD0,
     lua_pcall = 0x006F41A0,
     lua_error = 0X006F4940,
+    lua_settop = 0X006F3080,
+
+
+    CGInputControlGetActive = 0XBE1148,
+    LastHardwareAction = 0X00CF0BC8,
+    CGInputControlSetReleaseAction = 0x514810,
+    CGInputControlSetControlBit = 0x515090,
 
     RangeCheckSelected = 0x6E4440,
 

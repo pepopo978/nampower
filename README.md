@@ -65,7 +65,7 @@ SET NP_TargetingQueueWindowMs "1000"
 - `NP_QueueChannelingSpells` - Whether to enable channeling spell queuing as well as whether to allow any queuing during channels.  0 to disable, 1 to enable. Default is 1.
 - `NP_QueueTargetingSpells` - Whether to enable terrain targeting spell queuing.  0 to disable, 1 to enable. Default is 1.
 - `NP_QueueOnSwingSpells` - Whether to enable on swing spell queuing.  0 to disable, 1 to enable. Default is 0 (changed with 1.17.2 due to changes to on swing spells).
-- `NP_QueueSpellsOnCooldown` - Whether to enable queuing for spells coming off cooldown.  0 to disable, 1 to enable. Default is 0.
+- `NP_QueueSpellsOnCooldown` - Whether to enable queuing for spells coming off cooldown.  0 to disable, 1 to enable. Default is 1.
 
 - `NP_InterruptChannelsOutsideQueueWindow` - Whether to allow interrupting channels (the original client behavior) when trying to cast a spell outside the channeling queue window. Default is 0.
 

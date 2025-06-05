@@ -10,7 +10,7 @@
 namespace Nampower {
     uint32_t GetChannelBaseDuration(const game::SpellRec *spell) {
         auto const duration = game::GetDurationObject(spell->DurationIndex);
-        if( duration == nullptr) {
+        if (duration == nullptr) {
             DEBUG_LOG("GetChannelBaseDuration: Duration object is null for spell " << game::GetSpellName(spell->Id));
             return 0;
         }
@@ -604,6 +604,33 @@ namespace Nampower {
         }
     }
 
+    void SetReleaseAction(uint32_t input) {
+        uint32_t activeControl = *reinterpret_cast<uint32_t *>(Offsets::CGInputControlGetActive);
+
+        typedef void(__thiscall *SetReleaseActionT)(uint32_t, uint32_t);
+        auto SetReleaseAction = reinterpret_cast<SetReleaseActionT>(Offsets::CGInputControlSetReleaseAction);
+        SetReleaseAction(activeControl, input);
+    }
+
+    void SetControlBit(uint32_t input) {
+        uint32_t activeControl = *reinterpret_cast<uint32_t *>(Offsets::CGInputControlGetActive);
+        auto *LastHardwareAction = reinterpret_cast<uintptr_t *>(Offsets::LastHardwareAction);
+
+        typedef void(__thiscall *SetControlBitT)(uint32_t, uint32_t, uint32_t, uintptr_t *, int);
+        auto SetControlBit = reinterpret_cast<SetControlBitT>(Offsets::CGInputControlSetControlBit);
+        SetControlBit(activeControl, 2, input, LastHardwareAction, 0);
+    }
+
+
+    void CameraOrSelectOrMoveStart() {
+        SetReleaseAction(1);
+        SetControlBit(1);
+    }
+
+    void CameraOrSelectOrMoveStop() {
+        SetControlBit(0);
+    }
+
     bool Spell_C_TargetSpellHook(hadesmem::PatchDetourBase *detour,
                                  uint32_t *player,
                                  uint32_t *spellId,
@@ -630,9 +657,8 @@ namespace Nampower {
                     // store the current target
                     auto const targetGuid = game::GetCurrentTargetGuid();
 
-                    LuaCall("CameraOrSelectOrMoveStart()");
-                    LuaCall("CameraOrSelectOrMoveStop()");
-
+                    CameraOrSelectOrMoveStart();
+                    CameraOrSelectOrMoveStop();
 
                     // check if target changed
                     if (targetGuid != game::GetCurrentTargetGuid()) {
@@ -640,7 +666,6 @@ namespace Nampower {
                         auto const targetUnit = reinterpret_cast<CGGameUI_TargetT>(Offsets::CGGameUI_Target);
                         targetUnit(targetGuid);
                     }
-
                 }
             }
         }
