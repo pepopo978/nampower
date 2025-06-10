@@ -8,6 +8,11 @@
 
 namespace Nampower {
     bool SpellIsOnGcd(const game::SpellRec *spell) {
+        if (spell->Id == 51714) {
+            // power overwhelming gcd removed but client not updated
+            return false;
+        }
+
         return spell->StartRecoveryCategory == 133;
     }
 
@@ -45,6 +50,11 @@ namespace Nampower {
 
         auto const getSpellCooldown = reinterpret_cast<Spell_C_GetSpellCooldownT>(Offsets::Spell_C_GetSpellCooldown);
         getSpellCooldown(spellId, 0, &duration, &startTime, &enable);
+
+        if (spellId == 51714 && duration == 1500) {
+            // power overwhelming gcd removed but client not updated
+            return 0;
+        }
 
         return duration;
     }
