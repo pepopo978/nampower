@@ -478,16 +478,17 @@ namespace Nampower {
         if (castTime == 0 || spell->Attributes & game::SPELL_ATTR_DISABLED_WHILE_ACTIVE) {
             auto castParams = gCastHistory.findNewestWaitingForServerSpellId(spellId);
             if (castParams &&
-                currentTime - castParams->castStartTimeMs < 750) {
+                currentTime - castParams->castStartTimeMs < 500) {
                 DEBUG_LOG("Ignoring " << spellName
                                       << " cast still waiting for server result for the same spell");
                 return false;
             } else {
                 castParams = gCastHistory.findNewestSuccessfulSpellId(spellId);
                 if (castParams &&
-                    currentTime - castParams->castStartTimeMs < 750) {
+                    castParams->guid == guid &&
+                    currentTime - castParams->castStartTimeMs < 500) {
                     DEBUG_LOG("Ignoring " << spellName
-                                          << " cast recently succeeded for the same spell");
+                                          << " cast recently succeeded for the same spell and target");
                     return false;
                 }
             }

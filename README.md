@@ -227,7 +227,7 @@ should print 90 for atiesh
 ```
 
 #### ChannelStopCastingNextTick()
-Will stop channeling early on the next tick.  This is useful for stopping a channel early to cast a different spell.  Uses your ChannelLatencyReductionPercentage to determine when to stop the channel.
+Will stop channeling early on the next tick if you have queue channeling spells enabled and try to cast a spell before the next tick (didn't know how to cancel channels without casting another spell).  Uses your ChannelLatencyReductionPercentage to determine when to stop the channel.
 
 ### Custom Events
 
