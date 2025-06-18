@@ -333,9 +333,9 @@ Cursive:RegisterEvent("SPELL_DAMAGE_EVENT_SELF",
              casterGuidStr,
              spellId,
              amount,
-             spellSchool,
              mitigationStr,
              hitInfo,
+             spellSchool,
              effectAuraStr)
         print(targetGuidStr .. " " .. casterGuidStr .. " " .. tostring(spellId) .. " " .. tostring(amount) .. " " .. tostring(spellSchool) .. " " .. mitigationStr .. " " .. hitInfo .. " " .. effectAuraStr)
     end);
