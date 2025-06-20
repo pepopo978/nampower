@@ -8,6 +8,8 @@
 #include "logging.hpp"
 
 namespace Nampower {
+    auto const APPLY_BUFFER_TO_GCD = true;  // only necessary until turtle fixes the gcd issue again
+
     uint32_t GetChannelBaseDuration(const game::SpellRec *spell) {
         auto const duration = game::GetDurationObject(spell->DurationIndex);
         if (duration == nullptr) {
@@ -51,14 +53,16 @@ namespace Nampower {
                 gcdTime = 1500; // items with spells on gcd will return their item gcd, make sure not to use that
             }
 
-            if (castTime < gcdTime - 50) {
-                bufferMs = 0; // no longer need to buffer spells with cast time 50ms < gcd
-            } else if (castTime < gcdTime) {
-                auto const diff = gcdTime - castTime;
-                if (bufferMs > diff) {
-                    bufferMs -= diff; // subtract the difference from the buffer
-                } else {
-                    bufferMs = 0; // if the buffer is less than the difference, set it to 0
+            if(!APPLY_BUFFER_TO_GCD) {
+                if (castTime < gcdTime - 50) {
+                    bufferMs = 0; // no longer need to buffer spells with cast time 50ms < gcd
+                } else if (castTime < gcdTime) {
+                    auto const diff = gcdTime - castTime;
+                    if (bufferMs > diff) {
+                        bufferMs -= diff; // subtract the difference from the buffer
+                    } else {
+                        bufferMs = 0; // if the buffer is less than the difference, set it to 0
+                    }
                 }
             }
 
