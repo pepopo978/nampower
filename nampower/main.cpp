@@ -43,6 +43,8 @@
 
 #include <chrono>
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 
 BOOL WINAPI DllMain(HINSTANCE, uint32_t, void *);
 
@@ -126,6 +128,20 @@ namespace Nampower {
     uint32_t GetTime() {
         return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::high_resolution_clock::now().time_since_epoch()).count()) - gStartTime;
+    }
+
+    std::string GetHumanReadableTime() {
+        auto now = std::chrono::system_clock::now();
+        auto in_time_t = std::chrono::system_clock::to_time_t(now);
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+
+        std::tm buf;
+        localtime_s(&buf, &in_time_t);
+
+        std::stringstream ss;
+        ss << std::put_time(&buf, "%Y-%m-%d %X");
+        ss << '.' << std::setfill('0') << std::setw(3) << ms.count();
+        return ss.str();
     }
 
     uint64_t GetWowTimeMs() {
