@@ -79,6 +79,7 @@ namespace Nampower {
 
     CastQueue gCastHistory = CastQueue(30);
 
+
     std::unique_ptr<hadesmem::PatchDetour<SpellVisualsInitializeT >> gSpellVisualsInitDetour;
     std::unique_ptr<hadesmem::PatchDetour<LoadScriptFunctionsT >> gLoadScriptFunctionsDetour;
     std::unique_ptr<hadesmem::PatchDetour<FrameScript_CreateEventsT >> gCreateEventsDetour;
@@ -967,228 +968,50 @@ namespace Nampower {
         *strPtr = reinterpret_cast<uintptr_t>(SPELL_DAMAGE_EVENT_OTHER);
     }
 
+    // Template function to simplify hook initialization with specific storage
+    template<typename FuncT, typename HookT>
+    std::unique_ptr<hadesmem::PatchDetour<FuncT>> createHook(const hadesmem::Process& process, Offsets offset, HookT hookFunc) {
+        auto const originalFunc = hadesmem::detail::AliasCast<FuncT>(offset);
+        auto detour = std::make_unique<hadesmem::PatchDetour<FuncT>>(process, originalFunc, hookFunc);
+        detour->Apply();
+        return detour;
+    }
 
     void initHooks() {
         const hadesmem::Process process(::GetCurrentProcessId());
 
         initCustomEvents();
 
-        auto const setCVarOrig = hadesmem::detail::AliasCast<SetCVarT>(Offsets::Script_SetCVar);
-        gSetCVarDetour = std::make_unique<hadesmem::PatchDetour<SetCVarT >>(process, setCVarOrig, &Script_SetCVarHook);
-        gSetCVarDetour->Apply();
-
-        // activate spellbar and our own internal cooldown on a successful cast attempt (result from server not available yet)
-        auto const spell_C_CastSpellOrig = hadesmem::detail::AliasCast<CastSpellT>(Offsets::Spell_C_CastSpell);
-        gCastDetour = std::make_unique<hadesmem::PatchDetour<CastSpellT >>(process, spell_C_CastSpellOrig,
-                                                                           &Spell_C_CastSpellHook);
-        gCastDetour->Apply();
-
-        auto const sendCastOrig = hadesmem::detail::AliasCast<SendCastT>(Offsets::SendCast);
-        gSendCastDetour = std::make_unique<hadesmem::PatchDetour<SendCastT >>(process, sendCastOrig, &SendCastHook);
-        gSendCastDetour->Apply();
-
-        // monitor for client-based spell interruptions to stop the castbar
-        auto const cancelSpellOrig = hadesmem::detail::AliasCast<CancelSpellT>(Offsets::CancelSpell);
-        gCancelSpellDetour = std::make_unique<hadesmem::PatchDetour<CancelSpellT >>(process, cancelSpellOrig,
-                                                                                    &CancelSpellHook);
-        gCancelSpellDetour->Apply();
-
-        auto const castResultHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::CastResultHandler);
-        gCastResultHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process,
-                                                                                            castResultHandlerOrig,
-                                                                                            &CastResultHandlerHook);
-        gCastResultHandlerDetour->Apply();
-
-//        auto const spellFailedHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::SpellFailedHandler);
-//        gSpellFailedHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT>>(process,
-//                                                                                             spellFailedHandlerOrig,
-//                                                                                             &SpellFailedHandlerHook);
-//        gSpellFailedHandlerDetour->Apply();
-//
-        auto const spellStartHandlerOrig = hadesmem::detail::AliasCast<FastCallPacketHandlerT>(
-                Offsets::SpellStartHandler);
-        gSpellStartHandlerDetour = std::make_unique<hadesmem::PatchDetour<FastCallPacketHandlerT>>(process,
-                                                                                                   spellStartHandlerOrig,
-                                                                                                   &SpellStartHandlerHook);
-        gSpellStartHandlerDetour->Apply();
-
-        auto const periodicAuraLogHandlerOrig = hadesmem::detail::AliasCast<FastCallPacketHandlerT>(
-                Offsets::PeriodicAuraLogHandler);
-        gPeriodicAuraLogHandlerDetour = std::make_unique<hadesmem::PatchDetour<FastCallPacketHandlerT>>(process,
-                                                                                                        periodicAuraLogHandlerOrig,
-                                                                                                        &PeriodicAuraLogHandlerHook);
-        gPeriodicAuraLogHandlerDetour->Apply();
-
-        auto const spellNonMeleeDmgLogHandlerOrig = hadesmem::detail::AliasCast<FastCallPacketHandlerT>(
-                Offsets::SpellNonMeleeDmgLogHandler);
-        gSpellNonMeleeDmgLogHandlerDetour = std::make_unique<hadesmem::PatchDetour<FastCallPacketHandlerT>>(process,
-                                                                                                            spellNonMeleeDmgLogHandlerOrig,
-                                                                                                            &SpellNonMeleeDmgLogHandlerHook);
-        gSpellNonMeleeDmgLogHandlerDetour->Apply();
-
-
-        auto const spellChannelStartHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(
-                Offsets::SpellChannelStartHandler);
-        gSpellChannelStartHandlerDetour =
-                std::make_unique<hadesmem::PatchDetour<PacketHandlerT>>(process,
-                                                                        spellChannelStartHandlerOrig,
-                                                                        &SpellChannelStartHandlerHook);
-        gSpellChannelStartHandlerDetour->Apply();
-
-        auto const spellChannelUpdateHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(
-                Offsets::SpellChannelUpdateHandler);
-        gSpellChannelUpdateHandlerDetour =
-                std::make_unique<hadesmem::PatchDetour<PacketHandlerT>>(process,
-                                                                        spellChannelUpdateHandlerOrig,
-                                                                        &SpellChannelUpdateHandlerHook);
-        gSpellChannelUpdateHandlerDetour->Apply();
-
-        auto const spellFailedOrig = hadesmem::detail::AliasCast<Spell_C_SpellFailedT>(Offsets::Spell_C_SpellFailed);
-        gSpellFailedDetour =
-                std::make_unique<hadesmem::PatchDetour<Spell_C_SpellFailedT >>(process, spellFailedOrig,
-                                                                               &Spell_C_SpellFailedHook);
-        gSpellFailedDetour->Apply();
-
-        auto const spellGoOrig = hadesmem::detail::AliasCast<SpellGoT>(Offsets::SpellGo);
-        gSpellGoDetour = std::make_unique<hadesmem::PatchDetour<SpellGoT >>(process, spellGoOrig, &SpellGoHook);
-        gSpellGoDetour->Apply();
-
-        // watch for pushback notifications from the server
-        auto const spellDelayedOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::SpellDelayed);
-        gSpellDelayedDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process, spellDelayedOrig,
-                                                                                       &SpellDelayedHook);
-        gSpellDelayedDetour->Apply();
-
-        auto const spellTargetUnitOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_SpellTargetUnit);
-        gSpellTargetUnitDetour = std::make_unique<hadesmem::PatchDetour<
-                LuaScriptT >>(process, spellTargetUnitOrig, &Script_SpellTargetUnitHook);
-        gSpellTargetUnitDetour->Apply();
-
-        auto const spellStopCastingOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_SpellStopCasting);
-        gSpellStopCastingDetour = std::make_unique<hadesmem::PatchDetour<
-                LuaScriptT >>(process, spellStopCastingOrig, &Script_SpellStopCastingHook);
-        gSpellStopCastingDetour->Apply();
-
-        auto const spell_C_TargetSpellOrig = hadesmem::detail::AliasCast<Spell_C_TargetSpellT>(
-                Offsets::Spell_C_TargetSpell);
-        gSpell_C_TargetSpellDetour = std::make_unique<hadesmem::PatchDetour<Spell_C_TargetSpellT >>(process,
-                                                                                                    spell_C_TargetSpellOrig,
-                                                                                                    &Spell_C_TargetSpellHook);
-        gSpell_C_TargetSpellDetour->Apply();
-
-//        auto const signalEventOrig = hadesmem::detail::AliasCast<SignalEventT>(Offsets::SignalEvent);
-//        gSignalEventDetour = std::make_unique<hadesmem::PatchDetour<SignalEventT >>(process, signalEventOrig,
-//                                                                                    &SignalEventHook);
-//        gSignalEventDetour->Apply();
-
-        auto const castSpellByNameNoQueueOrig = hadesmem::detail::AliasCast<LuaScriptT>(
-                Offsets::Script_CastSpellByNameNoQueue);
-        gCastSpellByNameNoQueueDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                             castSpellByNameNoQueueOrig,
-                                                                                             Script_CastSpellByNameNoQueue);
-        gCastSpellByNameNoQueueDetour->Apply();
-
-        auto const queueSpellByNameOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_QueueSpellByName);
-        gQueueSpellByNameDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process, queueSpellByNameOrig,
-                                                                                       Script_QueueSpellByName);
-        gQueueSpellByNameDetour->Apply();
-
-        auto const queueScriptOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_QueueScript);
-        qQueueScriptDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process, queueScriptOrig,
-                                                                                  Script_QueueScript);
-        qQueueScriptDetour->Apply();
-
-        auto const isSpellInRangeOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_IsSpellInRange);
-        gIsSpellInRangeDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process, isSpellInRangeOrig,
-                                                                                     Script_IsSpellInRange);
-        gIsSpellInRangeDetour->Apply();
-
-        auto const isSpellUsableOrig = hadesmem::detail::AliasCast<LuaScriptT>(Offsets::Script_IsSpellUsable);
-        gIsSpellUsableDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                    isSpellUsableOrig,
-                                                                                    Script_IsSpellUsable);
-        gIsSpellUsableDetour->Apply();
-
-        auto const gGetCurrentCastingInfoOrig = hadesmem::detail::AliasCast<LuaScriptT>(
-                Offsets::Script_GetCurrentCastingInfo);
-        gGetCurrentCastingInfoDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                            gGetCurrentCastingInfoOrig,
-                                                                                            Script_GetCurrentCastingInfo);
-        gGetCurrentCastingInfoDetour->Apply();
-
-        auto const gGetSpellIdForNameOrig = hadesmem::detail::AliasCast<LuaScriptT>(
-                Offsets::Script_GetSpellIdForName);
-        gGetSpellIdForNameDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                        gGetSpellIdForNameOrig,
-                                                                                        Script_GetSpellIdForName);
-        gGetSpellIdForNameDetour->Apply();
-
-        auto const gGetSpellNameAndRankForIdOrig = hadesmem::detail::AliasCast<LuaScriptT>(
-                Offsets::Script_GetSpellNameAndRankForId);
-        gGetSpellNameAndRankForIdDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                               gGetSpellNameAndRankForIdOrig,
-                                                                                               Script_GetSpellNameAndRankForId);
-        gGetSpellNameAndRankForIdDetour->Apply();
-
-        auto const gGetSpellSlotAndTypeForNameOrig = hadesmem::detail::AliasCast<LuaScriptT>(
-                Offsets::Script_GetSpellSlotTypeIdForName);
-        gGetSpellSlotAndTypeForNameDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                                 gGetSpellSlotAndTypeForNameOrig,
-                                                                                                 Script_GetSpellSlotTypeIdForName);
-        gGetSpellSlotAndTypeForNameDetour->Apply();
-
-        auto const gOnSpriteRightClickOrig = hadesmem::detail::AliasCast<OnSpriteRightClickT>(
-                Offsets::OnSpriteRightClick);
-        gOnSpriteRightClickDetour = std::make_unique<hadesmem::PatchDetour<OnSpriteRightClickT >>(process,
-                                                                                                  gOnSpriteRightClickOrig,
-                                                                                                  OnSpriteRightClickHook);
-        gOnSpriteRightClickDetour->Apply();
-
-        auto const gChannelStopCastingNextTickOrig = hadesmem::detail::AliasCast<LuaScriptT>(
-                Offsets::Script_ChannelStopCastingNextTick);
-        gChannelStopCastingNextTickDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                                 gChannelStopCastingNextTickOrig,
-                                                                                                 Script_ChannelStopCastingNextTick);
-        gChannelStopCastingNextTickDetour->Apply();
-
-        auto const gGetNampowerVersionOrig = hadesmem::detail::AliasCast<LuaScriptT>(
-                Offsets::Script_GetNampowerVersion);
-        gGetNampowerVersionDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                         gGetNampowerVersionOrig,
-                                                                                         Script_GetNampowerVersion);
-        gGetNampowerVersionDetour->Apply();
-
-        auto const gGetItemLevelOrig = hadesmem::detail::AliasCast<LuaScriptT>(
-                Offsets::Script_GetItemLevel);
-        gGetItemLevelDetour = std::make_unique<hadesmem::PatchDetour<LuaScriptT >>(process,
-                                                                                   gGetItemLevelOrig,
-                                                                                   Script_GetItemLevel);
-        gGetItemLevelDetour->Apply();
-
-//        auto const gPlaySpellVisualHandlerOrig = hadesmem::detail::AliasCast<PacketHandlerT>(
-//                Offsets::PlaySpellVisualHandler);
-//        gPlaySpellVisualHandlerDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process,
-//                                                                                                 gPlaySpellVisualHandlerOrig,
-//                                                                                                 &PlaySpellVisualHandlerHook);
-//        gPlaySpellVisualHandlerDetour->Apply();
-
-//        auto const spell_C_CoolDownEventTriggeredOrig = hadesmem::detail::AliasCast<Spell_C_CooldownEventTriggeredT>(
-//                Offsets::Spell_C_CooldownEventTriggered);
-//        gSpell_C_CooldownEventTriggeredDetour = std::make_unique<hadesmem::PatchDetour<Spell_C_CooldownEventTriggeredT >>(
-//                process, spell_C_CoolDownEventTriggeredOrig, &Spell_C_CooldownEventTriggeredHook);
-//        gSpell_C_CooldownEventTriggeredDetour->Apply();
-//
-//        auto const spellCooldownOrig = hadesmem::detail::AliasCast<PacketHandlerT>(Offsets::SpellCooldownHandler);
-//        gSpellCooldownDetour = std::make_unique<hadesmem::PatchDetour<PacketHandlerT >>(process, spellCooldownOrig,
-//                                                                                       &SpellCooldownHandlerHook);
-//        gSpellCooldownDetour->Apply();
-
-
-        // Hook the ISceneEnd function to trigger queued spells at the appropriate time
-        auto const iEndSceneOrig = hadesmem::detail::AliasCast<ISceneEndT>(Offsets::ISceneEndPtr);
-        gIEndSceneDetour = std::make_unique<hadesmem::PatchDetour<ISceneEndT >>(
-                process, iEndSceneOrig, &ISceneEndHook);
-        gIEndSceneDetour->Apply();
+        gSetCVarDetour = createHook<SetCVarT>(process, Offsets::Script_SetCVar, &Script_SetCVarHook);
+        gCastDetour = createHook<CastSpellT>(process, Offsets::Spell_C_CastSpell, &Spell_C_CastSpellHook);
+        gSendCastDetour = createHook<SendCastT>(process, Offsets::SendCast, &SendCastHook);
+        gCancelSpellDetour = createHook<CancelSpellT>(process, Offsets::CancelSpell, &CancelSpellHook);
+        gCastResultHandlerDetour = createHook<PacketHandlerT>(process, Offsets::CastResultHandler, &CastResultHandlerHook);
+        gSpellStartHandlerDetour = createHook<FastCallPacketHandlerT>(process, Offsets::SpellStartHandler, &SpellStartHandlerHook);
+        gPeriodicAuraLogHandlerDetour = createHook<FastCallPacketHandlerT>(process, Offsets::PeriodicAuraLogHandler, &PeriodicAuraLogHandlerHook);
+        gSpellNonMeleeDmgLogHandlerDetour = createHook<FastCallPacketHandlerT>(process, Offsets::SpellNonMeleeDmgLogHandler, &SpellNonMeleeDmgLogHandlerHook);
+        gSpellChannelStartHandlerDetour = createHook<PacketHandlerT>(process, Offsets::SpellChannelStartHandler, &SpellChannelStartHandlerHook);
+        gSpellChannelUpdateHandlerDetour = createHook<PacketHandlerT>(process, Offsets::SpellChannelUpdateHandler, &SpellChannelUpdateHandlerHook);
+        gSpellFailedDetour = createHook<Spell_C_SpellFailedT>(process, Offsets::Spell_C_SpellFailed, &Spell_C_SpellFailedHook);
+        gSpellGoDetour = createHook<SpellGoT>(process, Offsets::SpellGo, &SpellGoHook);
+        gSpellDelayedDetour = createHook<PacketHandlerT>(process, Offsets::SpellDelayed, &SpellDelayedHook);
+        gSpellTargetUnitDetour = createHook<LuaScriptT>(process, Offsets::Script_SpellTargetUnit, &Script_SpellTargetUnitHook);
+        gSpellStopCastingDetour = createHook<LuaScriptT>(process, Offsets::Script_SpellStopCasting, &Script_SpellStopCastingHook);
+        gSpell_C_TargetSpellDetour = createHook<Spell_C_TargetSpellT>(process, Offsets::Spell_C_TargetSpell, &Spell_C_TargetSpellHook);
+        gCastSpellByNameNoQueueDetour = createHook<LuaScriptT>(process, Offsets::Script_CastSpellByNameNoQueue, Script_CastSpellByNameNoQueue);
+        gQueueSpellByNameDetour = createHook<LuaScriptT>(process, Offsets::Script_QueueSpellByName, Script_QueueSpellByName);
+        qQueueScriptDetour = createHook<LuaScriptT>(process, Offsets::Script_QueueScript, Script_QueueScript);
+        gIsSpellInRangeDetour = createHook<LuaScriptT>(process, Offsets::Script_IsSpellInRange, Script_IsSpellInRange);
+        gIsSpellUsableDetour = createHook<LuaScriptT>(process, Offsets::Script_IsSpellUsable, Script_IsSpellUsable);
+        gGetCurrentCastingInfoDetour = createHook<LuaScriptT>(process, Offsets::Script_GetCurrentCastingInfo, Script_GetCurrentCastingInfo);
+        gGetSpellIdForNameDetour = createHook<LuaScriptT>(process, Offsets::Script_GetSpellIdForName, Script_GetSpellIdForName);
+        gGetSpellNameAndRankForIdDetour = createHook<LuaScriptT>(process, Offsets::Script_GetSpellNameAndRankForId, Script_GetSpellNameAndRankForId);
+        gGetSpellSlotAndTypeForNameDetour = createHook<LuaScriptT>(process, Offsets::Script_GetSpellSlotTypeIdForName, Script_GetSpellSlotTypeIdForName);
+        gOnSpriteRightClickDetour = createHook<OnSpriteRightClickT>(process, Offsets::OnSpriteRightClick, OnSpriteRightClickHook);
+        gChannelStopCastingNextTickDetour = createHook<LuaScriptT>(process, Offsets::Script_ChannelStopCastingNextTick, Script_ChannelStopCastingNextTick);
+        gGetNampowerVersionDetour = createHook<LuaScriptT>(process, Offsets::Script_GetNampowerVersion, Script_GetNampowerVersion);
+        gGetItemLevelDetour = createHook<LuaScriptT>(process, Offsets::Script_GetItemLevel, Script_GetItemLevel);
+        gIEndSceneDetour = createHook<ISceneEndT>(process, Offsets::ISceneEndPtr, &ISceneEndHook);
     }
 
     void SpellVisualsInitializeHook(hadesmem::PatchDetourBase *detour) {

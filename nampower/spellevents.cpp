@@ -411,11 +411,18 @@ namespace Nampower {
                 uint32_t castTime;
                 packet->Get(castTime);
 
+                bool isAutoRepeat = false;
+
+                auto spellInfo = game::GetSpellInfo(spellId);
+                if (spellInfo) {
+                    isAutoRepeat = spellInfo->AttributesEx2 & game::SpellAttributesEx2::SPELL_ATTR_EX2_AUTO_REPEAT;
+                }
+
                 auto castParams = gCastHistory.findSpellId(spellId);
 
                 // check if cast time differed from what we expected, ignore haste rounding errors
                 if (castParams && castParams->spellId == spellId) {
-                    if (castParams->castTimeMs < castTime) {
+                    if (!isAutoRepeat && castParams->castTimeMs < castTime) {
                         // server cast time increased
                         auto castTimeDifference = castTime - castParams->castTimeMs;
 
@@ -430,7 +437,7 @@ namespace Nampower {
                                                               << castTimeDifference << "ms.  Updated cast end time to "
                                                               << gCastData.castEndMs);
                         }
-                    } else if (castParams->castTimeMs > castTime) {
+                    } else if (!isAutoRepeat && castParams->castTimeMs > castTime) {
                         // server cast time decreased
                         auto castTimeDifference = castParams->castTimeMs - castTime;
 
@@ -441,7 +448,8 @@ namespace Nampower {
                             }
 
                             if (gcdTime > castTime) {
-                                DEBUG_LOG("Server cast time " << castTime << " was reduced below gcd of " << gcdTime << " using gcd instead");
+                                DEBUG_LOG("Server cast time " << castTime << " was reduced below gcd of " << gcdTime
+                                                              << " using gcd instead");
                                 castTime = gcdTime;
                                 gCastData.castEndMs = castParams->castStartTimeMs + gcdTime;
                             } else {
