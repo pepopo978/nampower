@@ -17,6 +17,8 @@ Additionally, if you use pfui mouseover macros there is a timing issue that can 
 
 <b>If you have superwow and use /stcast HIGHLY recommend replacing mods/mouseover.lua with this version</b> https://gist.github.com/pepopo978/625e46ae0e09fe6e9554ca0808c117de
 
+<b>Notgrid</b> mouseover needs to be updated to take advantage of superwow the default version won't work well with queuing.
+
 <b>If you use healcomm can replace all instances of it in your addons with this version to work well with queuing </b> https://github.com/MarcelineVQ/LunaUnitFrames/blob/TurtleWoW/libs/HealComm-1.0/HealComm-1.0.lua (requires superwow).
 
 If all else fails can turn off queuing for a specific macro like so depending on the spell being cast:
