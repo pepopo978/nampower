@@ -71,6 +71,28 @@ namespace game {
         return nullptr;
     }
 
+    int GetSpellDuration(const SpellRec *spellRec, bool ignoreModifiers) {
+        using Spell_C_GetDurationT = int (__fastcall *)(const SpellRec *spellRec, int unknownFlag, char ignoreModifiers);
+
+        auto const getDuration = reinterpret_cast<Spell_C_GetDurationT>(Offsets::Spell_C_GetDuration);
+        if (ignoreModifiers){
+            return getDuration(spellRec, 1, 1);
+        } else {
+            return getDuration(spellRec, 1, 0);
+        }
+    }
+
+    int GetSpellModifier(const SpellRec *spellRec, SpellModOp spellMod) {
+        using Spell_C_GetSpellModifiersT = void (__fastcall *)(const SpellRec *spellRec, int *returnVal, SpellModOp modOp);
+
+        auto const getModifiers = reinterpret_cast<Spell_C_GetSpellModifiersT>(Offsets::Spell_C_GetSpellModifiers);
+        auto modificationPercentage = 0;
+
+        getModifiers(spellRec, &modificationPercentage, spellMod);
+
+        return modificationPercentage;
+    }
+
     const SpellRec *GetSpellInfo(uint32_t spellId) {
         auto const spellDb = reinterpret_cast<WowClientDB<SpellRec> *>(Offsets::SpellDb);
 

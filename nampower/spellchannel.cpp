@@ -40,10 +40,28 @@ namespace Nampower {
 
                 float durationReduction = 1.0f;
 
+                // if this was an Arcane Missiles cast, we need to check if we have the +1 aura
+                if (spellId == 5143 ||
+                        spellId == 5144 ||
+                        spellId == 5145 ||
+                        spellId == 8416 ||
+                        spellId == 8417 ||
+                        spellId == 10211 ||
+                        spellId == 10212 ||
+                        spellId == 25345) {
+                    // check if we have duration mod > 0
+                    auto durationModifier = game::GetSpellModifier(spell, game::SPELLMOD_DURATION);
+                    if (durationModifier > 0) {
+                        DEBUG_LOG("Adding 1 second to Arcane Missiles duration due to duration mod " << durationModifier);
+                        originalDuration += 1000;
+                    }
+                }
+
                 if (originalDuration > 0 && originalDuration < 1000000) {
                     durationReduction = float(duration) / float(originalDuration);
                 } else {
-                    DEBUG_LOG("Invalid originalDuration of " << originalDuration << " for " << game::GetSpellName(spellId));
+                    DEBUG_LOG("Invalid originalDuration of " << originalDuration << " for "
+                                                             << game::GetSpellName(spellId));
                 }
 
                 uint32_t amplitude = spell->EffectAmplitude[0];

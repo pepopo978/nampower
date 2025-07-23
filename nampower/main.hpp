@@ -31,7 +31,7 @@ namespace Nampower {
 
     constexpr uint32_t MAJOR_VERSION = 2;
     constexpr uint32_t MINOR_VERSION = 10;
-    constexpr uint32_t PATCH_VERSION = 10;
+    constexpr uint32_t PATCH_VERSION = 11;
 
     constexpr int32_t LUA_REGISTRYINDEX = -10000;
     constexpr int32_t LUA_GLOBALSINDEX = -10001;
@@ -89,7 +89,7 @@ namespace Nampower {
             uint32_t *spellId,
             uint32_t unk3,
             float unk4);
-    using Spell_C_GetCastTimeT = uint32_t (__fastcall *)(uint32_t spellId, uint32_t isPetSpell, int unk);
+    using Spell_C_GetCastTimeT = uint32_t (__fastcall *)(uint32_t spellId, uint64_t *casterGuid, int avoidRounding);
     using Spell_C_GetSpellCooldownT = int (__fastcall *)(uint32_t spellId, uint32_t isPetSpell,
                                                          uint32_t *duration, uint64_t *startTime, uint32_t *enable);
     using Spell_C_IsSpellUsableT = int (__fastcall *)(const game::SpellRec *spellRec, uint32_t *usesManaReturn);
@@ -132,6 +132,8 @@ namespace Nampower {
     using SpellVisualsInitializeT = void (__stdcall *)(void);
 
     using PlaySpellVisual = void (__stdcall *)(int **param_1, void *param_2, int param_3, void **param_4);
+
+    using GetBuffByIndexT = uintptr_t *(__fastcall *)(int index);
 
     using CVarLookupT = uintptr_t *(__fastcall *)(const char *);
     using SetCVarT = int (__fastcall *)(uintptr_t *luaPtr);

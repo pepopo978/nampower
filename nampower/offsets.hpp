@@ -102,6 +102,8 @@ enum class Offsets : std::uint32_t {
     Spell_C_TargetSpell = 0x006E5250,
     Spell_C_GetSpellCooldown = 0X006E2EA0,
     Spell_C_IsSpellUsable = 0X006E3D60,
+    Spell_C_GetDuration = 0X006EA000,
+    Spell_C_GetSpellModifiers = 0x006e6af0,
 
     CVarLookup = 0x0063DEC0,
     RegisterCVar = 0X0063DB90,
@@ -170,4 +172,6 @@ enum class Offsets : std::uint32_t {
     CastEventStringPtr = 0X00BE1A08, // unused event 540 0x21C
     SpellDamageEventSelfStringPtr = 0X00BE1A2C, // unused event 549 0x225
     SpellDamageEventOtherStringPtr = 0X00BE1A30, // unused event 550 0x226
+
+    GetBuffByIndex = 0X004E4430,
 };
