@@ -351,13 +351,17 @@ namespace Nampower {
 
         if (gLastServerSpellDelayMs > 0) {
             DEBUG_LOG("Cast result for #" << matchingCastId << " "
-                                          << game::GetSpellName(spellId) << " status " << int(status)
+                                          << game::GetSpellName(spellId)
+                                          << "(" << spellId << ")"
+                                          << " status " << int(status)
                                           << " result " << int(spellCastResult) << " latency " << currentLatency
                                           << " server delay " << gLastServerSpellDelayMs
                                           << " since last cast result " << currentTime - lastCastResultTimeMs);
         } else {
             DEBUG_LOG("Cast result for #" << matchingCastId << " "
-                                          << game::GetSpellName(spellId) << " status " << int(status)
+                                          << game::GetSpellName(spellId)
+                                          << "(" << spellId << ")"
+                                          << " status " << int(status)
                                           << " result " << int(spellCastResult) << " latency " << currentLatency
                                           << " since last cast result " << currentTime - lastCastResultTimeMs);
         }

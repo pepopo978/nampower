@@ -20,6 +20,10 @@ namespace Nampower {
     }
 
     void BeginCast(uint32_t castTime, const game::SpellRec *spell, const game::SpellCast *cast) {
+        if (cast != nullptr && cast->casterUnit != game::ClntObjMgrGetActivePlayerGuid()) {
+            DEBUG_LOG("Ignoring non active player begin cast of spell " << game::GetSpellName(cast->spellId) << " " << cast->spellId);
+        }
+
         auto currentTime = GetTime();
 
         gLastCastData.castTimeMs = castTime;
@@ -53,7 +57,7 @@ namespace Nampower {
                 gcdTime = 1500; // items with spells on gcd will return their item gcd, make sure not to use that
             }
 
-            if(!APPLY_BUFFER_TO_GCD) {
+            if (!APPLY_BUFFER_TO_GCD) {
                 if (castTime < gcdTime - 50) {
                     bufferMs = 0; // no longer need to buffer spells with cast time 50ms < gcd
                 } else if (castTime < gcdTime) {
@@ -69,6 +73,7 @@ namespace Nampower {
             gCastData.gcdEndMs = currentTime + gcdTime + bufferMs;
             DEBUG_LOG("BeginCast #" << lastCastId
                                     << " " << game::GetSpellName(spell->Id)
+                                    << "(" << spell->Id << ")"
                                     << " cast time: " << castTime
                                     << " buffer: " << bufferMs
                                     << " Gcd: " << gcdTime
@@ -79,6 +84,7 @@ namespace Nampower {
                                    gUserSettings.nonGcdBufferTimeMs; // set small "cast time" to avoid attempting next spell too fast
             DEBUG_LOG("BeginCast #" << lastCastId
                                     << " " << game::GetSpellName(spell->Id)
+                                    << "(" << spell->Id << ")"
                                     << " cast time: " << castTime
                                     << " buffer: " << bufferMs
                                     << " NO Gcd"
@@ -211,16 +217,24 @@ namespace Nampower {
     }
 
     bool
-    Spell_C_CastSpellHook(hadesmem::PatchDetourBase *detour, uint32_t *playerUnit, uint32_t spellId, uintptr_t *item,
+    Spell_C_CastSpellHook(hadesmem::PatchDetourBase *detour, uint32_t *casterUnit, uint32_t spellId, uintptr_t *item,
                           std::uint64_t guid) {
         // save the detour to allow quickly calling this hook
         castSpellDetour = detour;
+
+        if (casterUnit != game::GetObjectPtr(game::ClntObjMgrGetActivePlayerGuid())){
+            DEBUG_LOG("Ignoring non active player cast of spell " << game::GetSpellName(spellId) << " " << spellId);
+            // just call original function if caster is not the active player
+            // happens with Doomguard rain of fire
+            auto const castSpell = detour->GetTrampolineT<CastSpellT>();
+            return castSpell(casterUnit, spellId, item, guid);
+        }
 
         auto const spell = game::GetSpellInfo(spellId);
         auto const spellIsOnSwing = SpellIsOnSwing(spell);
         auto const spellName = game::GetSpellName(spellId);
         auto currentTime = GetTime();
-        auto const castTime = game::GetCastTime(playerUnit, spellId);
+        auto const castTime = game::GetCastTime(casterUnit, spellId);
         gCastData.attemptedCastTimeMs = castTime;
 
         auto const spellOnGcd = SpellIsOnGcd(spell);
@@ -274,11 +288,11 @@ namespace Nampower {
 
         // on swing spells are independent of cast bar / gcd, handle them separately
         if (spellIsOnSwing) {
-            SaveCastParams(&gLastOnSwingCastParams, playerUnit, spellId, item, guid, spell->StartRecoveryCategory,
+            SaveCastParams(&gLastOnSwingCastParams, casterUnit, spellId, item, guid, spell->StartRecoveryCategory,
                            castTime,
                            currentTime, ON_SWING, 0);
 
-            gCastHistory.pushFront({gNextCastId, playerUnit, spellId, item, guid,
+            gCastHistory.pushFront({gNextCastId, casterUnit, spellId, item, guid,
                                     spell->StartRecoveryCategory,
                                     castTime,
                                     currentTime,
@@ -289,7 +303,7 @@ namespace Nampower {
 
             // try to cast the spell
             auto const castSpell = detour->GetTrampolineT<CastSpellT>();
-            auto ret = castSpell(playerUnit, spellId, item, guid);
+            auto ret = castSpell(casterUnit, spellId, item, guid);
 
             TriggerSpellCastEvent(ret, spellId, ON_SWING, guid, itemId);
 
@@ -336,7 +350,7 @@ namespace Nampower {
                 castType = CHANNEL;
             }
 
-            SaveCastParams(&gLastNormalCastParams, playerUnit, spellId, item, guid,
+            SaveCastParams(&gLastNormalCastParams, casterUnit, spellId, item, guid,
                            spell->StartRecoveryCategory,
                            castTime,
                            currentTime, castType, 0);
@@ -374,7 +388,7 @@ namespace Nampower {
                                                       << " gcd category "
                                                       << spell->StartRecoveryCategory);
 
-                                    gNonGcdCastQueue.push({0, playerUnit, spellId, item, guid,
+                                    gNonGcdCastQueue.push({0, casterUnit, spellId, item, guid,
                                                            spell->StartRecoveryCategory,
                                                            castTime,
                                                            0,
@@ -406,7 +420,7 @@ namespace Nampower {
                                               << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
                                               << spell->StartRecoveryCategory);
 
-                            gNonGcdCastQueue.push({0, playerUnit, spellId, item, guid,
+                            gNonGcdCastQueue.push({0, casterUnit, spellId, item, guid,
                                                    spell->StartRecoveryCategory,
                                                    castTime,
                                                    0,
@@ -443,7 +457,7 @@ namespace Nampower {
                                                  << remainingEffectiveCastTime << "ms " << spellName << " gcd category "
                                                  << spell->StartRecoveryCategory);
 
-                            gNonGcdCastQueue.push({0, playerUnit, spellId, item, guid,
+                            gNonGcdCastQueue.push({0, casterUnit, spellId, item, guid,
                                                    spell->StartRecoveryCategory,
                                                    castTime,
                                                    0,
@@ -519,7 +533,7 @@ namespace Nampower {
             castType = CastType::NON_GCD;
         }
 
-        gCastHistory.pushFront({gNextCastId, playerUnit, spellId, item, guid,
+        gCastHistory.pushFront({gNextCastId, casterUnit, spellId, item, guid,
                                 spell->StartRecoveryCategory,
                                 castTime,
                                 currentTime,
@@ -528,7 +542,7 @@ namespace Nampower {
                                 CastResult::WAITING_FOR_CAST});
         gNextCastId++;
 
-        auto ret = castSpell(playerUnit, spellId, item, guid);
+        auto ret = castSpell(casterUnit, spellId, item, guid);
 
         // if this is a trade skill or item enchant, do nothing further
         if (isSpecialSpell) {
@@ -557,7 +571,7 @@ namespace Nampower {
                 clearCastingSpell();
 
                 // try again now that cast bar is gone
-                ret = castSpell(playerUnit, spellId, item, guid);
+                ret = castSpell(casterUnit, spellId, item, guid);
 
                 auto const cursorMode = *reinterpret_cast<int *>(Offsets::CursorMode);
                 if (!ret && !(spell->Attributes & game::SPELL_ATTR_RANGED) && cursorMode != 2) {
