@@ -22,6 +22,7 @@ namespace Nampower {
     void BeginCast(uint32_t castTime, const game::SpellRec *spell, const game::SpellCast *cast) {
         if (cast != nullptr && cast->casterUnit != game::ClntObjMgrGetActivePlayerGuid()) {
             DEBUG_LOG("Ignoring non active player begin cast of spell " << game::GetSpellName(cast->spellId) << " " << cast->spellId);
+            return;
         }
 
         auto currentTime = GetTime();
