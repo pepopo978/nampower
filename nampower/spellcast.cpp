@@ -20,8 +20,9 @@ namespace Nampower {
     }
 
     void BeginCast(uint32_t castTime, const game::SpellRec *spell, const game::SpellCast *cast) {
-        if (cast != nullptr && cast->casterUnit != game::ClntObjMgrGetActivePlayerGuid()) {
-            DEBUG_LOG("Ignoring non active player begin cast of spell " << game::GetSpellName(cast->spellId) << " " << cast->spellId);
+        if (cast != nullptr && cast->itemTarget == 0 && cast->caster != game::ClntObjMgrGetActivePlayerGuid()) {
+            DEBUG_LOG("Ignoring non active player begin cast of spell " << game::GetSpellName(cast->spellId) << " "
+                                                                        << cast->spellId);
             return;
         }
 
@@ -223,7 +224,7 @@ namespace Nampower {
         // save the detour to allow quickly calling this hook
         castSpellDetour = detour;
 
-        if (casterUnit != game::GetObjectPtr(game::ClntObjMgrGetActivePlayerGuid())){
+        if (item == nullptr && casterUnit != game::GetObjectPtr(game::ClntObjMgrGetActivePlayerGuid())) {
             DEBUG_LOG("Ignoring non active player cast of spell " << game::GetSpellName(spellId) << " " << spellId);
             // just call original function if caster is not the active player
             // happens with Doomguard rain of fire
