@@ -128,12 +128,13 @@ namespace game {
     };
 
     template<typename T>
-    struct WowClientDB {
+    struct WowClientDB
+    {
+        T *m_records;
+        int m_numRecords;
         T **m_recordsById;
-        uint32_t m_maxID;
-        int Unk3;
-        int Unk4;
-        int Unk5;
+        int m_maxId;
+        int m_loaded;
     };
 
     struct SpellCast {

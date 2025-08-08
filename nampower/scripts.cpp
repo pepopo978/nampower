@@ -28,9 +28,8 @@ namespace Nampower {
 
 
     uint32_t GetSpellIdFromSpellName(const char *spellName) {
-        auto const GetSpellSlotAndBookTypeFromSpellName = reinterpret_cast<GetSpellSlotAndBookTypeFromSpellNameT>(Offsets::GetSpellIdFromSpellName);
         uint32_t bookType;
-        uint32_t spellSlot = GetSpellSlotAndBookTypeFromSpellName(spellName, &bookType);
+        uint32_t spellSlot = GetSpellSlotAndTypeForName(spellName, &bookType);
 
         uint32_t spellId = 0;
         if (spellSlot < 1024) {

@@ -41,7 +41,7 @@ enum class Offsets : std::uint32_t {
     GetDurationObject = 0x00C0D828,
     GetCastingTimeIndex = 0x2D,
     Language = 0xC0E080,
-    SpellDb = 0xC0D788,
+    SpellDb = 0xC0D780,
     CursorMode = 0xBE2C4C,
     SpellIsTargeting = 0xCECAC0,
     CastingItemIdPtr = 0X00CECAB0,
@@ -58,7 +58,6 @@ enum class Offsets : std::uint32_t {
 
     CGSpellBook_mKnownSpells = 0xB700F0,
     CGSpellBook_mKnownPetSpells = 0XB6F098,
-    CGSpellBook_mKnownAbilities = 0XB712A8,
 
     IsSpellInRangeOfUnit = 0X004E56F0,
     CancelSpell = 0x6E4940,
@@ -160,8 +159,6 @@ enum class Offsets : std::uint32_t {
     CGInputControlSetControlBit = 0x515090,
 
     RangeCheckSelected = 0x6E4440,
-
-    GetSpellIdFromSpellName = 0X004B3950,
 
     SpellVisualsInitialize = 0x006ec0e0,
 

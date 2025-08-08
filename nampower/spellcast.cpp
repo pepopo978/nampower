@@ -232,6 +232,8 @@ namespace Nampower {
             return castSpell(casterUnit, spellId, item, guid);
         }
 
+        auto const currentTargetGuid = game::GetCurrentTargetGuid();
+
         auto const spell = game::GetSpellInfo(spellId);
         auto const spellIsOnSwing = SpellIsOnSwing(spell);
         auto const spellName = game::GetSpellName(spellId);
@@ -274,7 +276,7 @@ namespace Nampower {
             itemId = game::GetItemId((game::CGItem_C *) item);
         }
 
-        DEBUG_LOG("Attempt cast " << spellName << " item " << item << " on guid " << guid
+        DEBUG_LOG("Attempt cast " << spellName << " item " << item << " on guid " << guid << " target " << currentTargetGuid
                                   << ", time since last cast " << currentTime - gLastCastData.startTimeMs);
 
         // clear cooldown queue if we are casting a spell

@@ -31,7 +31,7 @@ namespace Nampower {
 
     constexpr uint32_t MAJOR_VERSION = 2;
     constexpr uint32_t MINOR_VERSION = 10;
-    constexpr uint32_t PATCH_VERSION = 14;
+    constexpr uint32_t PATCH_VERSION = 15;
 
     constexpr int32_t LUA_REGISTRYINDEX = -10000;
     constexpr int32_t LUA_GLOBALSINDEX = -10001;
@@ -121,8 +121,6 @@ namespace Nampower {
     using lua_pushnilT = void (__fastcall *)(uintptr_t *);
     using lua_errorT = void (__cdecl *)(uintptr_t *, const char *);
     using lua_settopT = void (__fastcall *)(uintptr_t *, int);
-
-    using GetSpellSlotAndBookTypeFromSpellNameT = uint32_t (__fastcall *)(const char *, uint32_t *);
 
     using Spell_C_CooldownEventTriggeredT = void (__fastcall *)(uint32_t spellId,
                                                                 uint64_t *targetGUID,
