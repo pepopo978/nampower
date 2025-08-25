@@ -270,7 +270,8 @@ namespace Nampower {
                 lua_pushstring(luaState, (char *) spell->Rank[language]);
                 return 2;
             } else {
-                lua_error(luaState, "Spell not found");
+                DEBUG_LOG("Spell not found for id: " << spellId);
+                lua_error(luaState,  "Spell not found");
             }
         } else {
             lua_error(luaState, "Usage: GetSpellNameAndRankForId(spellId)");
@@ -330,8 +331,8 @@ namespace Nampower {
     }
 
     uint32_t Script_ChannelStopCastingNextTick(hadesmem::PatchDetourBase *detour, uintptr_t *luaState) {
-        DEBUG_LOG("ChannelStopCastingNextTick called");
         if (gCastData.channeling) {
+            DEBUG_LOG("ChannelStopCastingNextTick activated, canceling next tick");
             gCastData.cancelChannelNextTick = true;
         }
 

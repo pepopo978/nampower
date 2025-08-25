@@ -628,11 +628,16 @@ namespace Nampower {
         gStartTime = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::high_resolution_clock::now().time_since_epoch()).count());
 
-        // remove/rename previous logs
-        remove("nampower_debug.log.3");
-        rename("nampower_debug.log.2", "nampower_debug.log.3");
-        rename("nampower_debug.log.1", "nampower_debug.log.2");
-        rename("nampower_debug.log", "nampower_debug.log.1");
+        try {
+            // remove/rename previous logs
+            remove("nampower_debug.log.3");
+            rename("nampower_debug.log.2", "nampower_debug.log.3");
+            rename("nampower_debug.log.1", "nampower_debug.log.2");
+            rename("nampower_debug.log", "nampower_debug.log.1");
+        } catch (...) {
+            // ignore any exceptions during log rotation
+        }
+
 
         // open new log file
         debugLogFile.open("nampower_debug.log");

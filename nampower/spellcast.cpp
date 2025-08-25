@@ -218,6 +218,18 @@ namespace Nampower {
         }
     }
 
+    void setSelectionTarget(uint64_t target) {
+        auto dataStore = CDataStore();
+        uint32_t opcode = 317; // CMSG_SET_SELECTION
+        dataStore.Put(opcode);
+        dataStore.Put(target);
+
+        dataStore.Finalize();
+
+        auto const clientServicesSend = reinterpret_cast<ClientServices_SendT>(Offsets::ClientServices_Send);
+        clientServicesSend(&dataStore);
+    }
+
     bool
     Spell_C_CastSpellHook(hadesmem::PatchDetourBase *detour, uint32_t *casterUnit, uint32_t spellId, uintptr_t *item,
                           std::uint64_t guid) {
@@ -232,8 +244,6 @@ namespace Nampower {
             return castSpell(casterUnit, spellId, item, guid);
         }
 
-        auto const currentTargetGuid = game::GetCurrentTargetGuid();
-
         auto const spell = game::GetSpellInfo(spellId);
         auto const spellIsOnSwing = SpellIsOnSwing(spell);
         auto const spellName = game::GetSpellName(spellId);
@@ -245,6 +255,19 @@ namespace Nampower {
         auto const spellIsChanneling = SpellIsChanneling(spell);
         auto const spellIsTargeting = SpellIsTargeting(spell);
         auto const isSpecialSpell = SpellIsAttackTradeskillOrEnchant(spell);
+        auto const currentTargetGuid = game::GetCurrentTargetGuid();
+
+        if(spellIsChanneling) {
+            auto casterGuid = game::UnitGetGuid(casterUnit);
+            if (casterGuid == game::ClntObjMgrGetActivePlayerGuid()) {
+                // check that locked target guid matches our unit target guid
+                auto unitTargetGuid = game::UnitGetTargetGuid(casterUnit);
+                if (unitTargetGuid != currentTargetGuid) {
+                    DEBUG_LOG("Updating selection target to " << currentTargetGuid << " from " << unitTargetGuid);
+                    setSelectionTarget(currentTargetGuid);
+                }
+            }
+        }
 
         // check for double press to interrupt channeling early
         if (gCastData.channeling && !gCastData.cancelChannelNextTick &&

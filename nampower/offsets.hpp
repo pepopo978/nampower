@@ -109,7 +109,7 @@ enum class Offsets : std::uint32_t {
 
     GetClientConnection = 0X005AB490,
     GetNetStats = 0X00537F20,
-    ClientServicesSendMessagePtr = 0X00C28128,
+    ClientServices_Send = 0X005AB630,
 
     LoadScriptFunctions = 0x00490250,
     FrameScript_RegisterFunction = 0x00704120,
@@ -171,4 +171,7 @@ enum class Offsets : std::uint32_t {
     SpellDamageEventOtherStringPtr = 0X00BE1A30, // unused event 550 0x226
 
     GetBuffByIndex = 0X004E4430,
+
+    CGUnit_C_ClearCastingSpell = 0x0060d040,
+    CGUnit_C_ClearSpellEffect = 0x00614150,
 };

@@ -31,7 +31,7 @@ namespace Nampower {
 
     constexpr uint32_t MAJOR_VERSION = 2;
     constexpr uint32_t MINOR_VERSION = 10;
-    constexpr uint32_t PATCH_VERSION = 15;
+    constexpr uint32_t PATCH_VERSION = 16;
 
     constexpr int32_t LUA_REGISTRYINDEX = -10000;
     constexpr int32_t LUA_GLOBALSINDEX = -10001;
@@ -99,6 +99,7 @@ namespace Nampower {
 
     using GetClientConnectionT = uintptr_t *(__stdcall *)();
     using GetNetStatsT = void (__thiscall *)(uintptr_t *connection, float *param_1, float *param_2, uint32_t *param_3);
+    using ClientServices_SendT = void (__fastcall *)(CDataStore *param_1);
 
     using LoadScriptFunctionsT = void (__stdcall *)();
     using FrameScript_RegisterFunctionT = void (__fastcall *)(char *name, uintptr_t *func);
@@ -130,6 +131,8 @@ namespace Nampower {
     using SpellVisualsInitializeT = void (__stdcall *)(void);
 
     using PlaySpellVisual = void (__stdcall *)(int **param_1, void *param_2, int param_3, void **param_4);
+    using CGUnit_C_ClearCastingSpellT = void (__thiscall *)(uintptr_t *unit, uint32_t param_1, int param_2, int param_3);
+    using CGUnit_C_ClearSpellEffectT = void (__thiscall *)(uintptr_t *unit, uint32_t param_1, int param_2);
 
     using GetBuffByIndexT = uintptr_t *(__fastcall *)(int index);
 

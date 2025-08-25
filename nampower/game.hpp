@@ -128,12 +128,11 @@ namespace game {
     };
 
     template<typename T>
-    struct WowClientDB
-    {
+    struct WowClientDB {
         T *m_records;
-        int m_numRecords;
+        uint32_t m_numRecords;
         T **m_recordsById;
-        int m_maxId;
+        uint32_t m_maxId;
         int m_loaded;
     };
 
@@ -1191,6 +1190,83 @@ namespace game {
 
     };//Size=0x0010
 
+    typedef struct UnitFields {
+        uint64_t charm;                          // Size:2
+        uint64_t summon;                         // Size:2
+        uint64_t charmedBy;                      // Size:2
+        uint64_t summonedBy;                     // Size:2
+        uint64_t createdBy;                      // Size:2
+        uint64_t target;                         // Size:2
+        uint64_t persuaded;                      // Size:2
+        uint64_t channelObject;                  // Size:2
+        uint32_t health;                         // Size:1
+        uint32_t power1;                         // Size:1
+        uint32_t power2;                         // Size:1
+        uint32_t power3;                         // Size:1
+        uint32_t power4;                         // Size:1
+        uint32_t power5;                         // Size:1
+        uint32_t maxHealth;                      // Size:1
+        uint32_t maxPower1;                      // Size:1
+        uint32_t maxPower2;                      // Size:1
+        uint32_t maxPower3;                      // Size:1
+        uint32_t maxPower4;                      // Size:1
+        uint32_t maxPower5;                      // Size:1
+        uint32_t level;                          // Size:1
+        uint32_t factionTemplate;                // Size:1
+        uint32_t bytes0;                         // Size:1
+        uint32_t virtualItemDisplay[3];          // Size:3
+        uint32_t virtualItemInfo[6];             // Size:6
+        uint32_t flags;                          // Size:1
+        uint32_t aura[48];                       // Size:48
+        uint32_t auraFlags[6];                   // Size:6
+        uint32_t auraLevels[12];                 // Size:12
+        uint32_t auraApplications[12];           // Size:12
+        uint32_t auraState;                      // Size:1
+        uint32_t baseAttackTime;                 // Size:1
+        uint32_t offhandAttackTime;              // Size:1
+        uint32_t rangedAttackTime;               // Size:1
+        float boundingRadius;                    // Size:1
+        float combatReach;                       // Size:1
+        uint32_t displayId;                      // Size:1
+        uint32_t nativeDisplayId;                // Size:1
+        uint32_t mountDisplayId;                 // Size:1
+        float minDamage;                         // Size:1
+        float maxDamage;                         // Size:1
+        float minOffhandDamage;                  // Size:1
+        float maxOffhandDamage;                  // Size:1
+        uint32_t bytes1;                         // Size:1
+        uint32_t petNumber;                      // Size:1
+        uint32_t petNameTimestamp;               // Size:1
+        uint32_t petExperience;                  // Size:1
+        uint32_t petNextLevelExp;                // Size:1
+        uint32_t dynamicFlags;                   // Size:1
+        uint32_t channelSpell;                   // Size:1
+        float modCastSpeed;                      // Size:1 (Float in 1.12+)
+        uint32_t createdBySpell;                 // Size:1
+        uint32_t npcFlags;                       // Size:1
+        uint32_t npcEmoteState;                  // Size:1
+        uint32_t trainingPoints;                 // Size:1
+        uint32_t stat0;                          // Size:1
+        uint32_t stat1;                          // Size:1
+        uint32_t stat2;                          // Size:1
+        uint32_t stat3;                          // Size:1
+        uint32_t stat4;                          // Size:1
+        uint32_t resistances[7];                 // Size:7
+        uint32_t baseMana;                       // Size:1
+        uint32_t baseHealth;                     // Size:1
+        uint32_t bytes2;                         // Size:1
+        uint32_t attackPower;                    // Size:1
+        uint32_t attackPowerMods;                // Size:1
+        float attackPowerMultiplier;             // Size:1
+        uint32_t rangedAttackPower;              // Size:1
+        uint32_t rangedAttackPowerMods;          // Size:1
+        float rangedAttackPowerMultiplier;       // Size:1
+        float minRangedDamage;                   // Size:1
+        float maxRangedDamage;                   // Size:1
+        float powerCostModifier[7];              // Size:7
+        float powerCostMultiplier[7];            // Size:7
+    } UnitFields;
+
     uintptr_t *GetObjectPtr(std::uint64_t guid);
 
     std::uint32_t GetCastTime(void *unit, uint32_t spellId);
@@ -1212,4 +1288,9 @@ namespace game {
     std::uint64_t GetCurrentTargetGuid();
 
     uintptr_t *ClntObjMgrObjectPtr(TypeMask typeMask, std::uint64_t guid);
+
+    uint64_t UnitGetGuid(uintptr_t *unit);
+
+    uint64_t UnitGetTargetGuid(uintptr_t *unit);
+
 }

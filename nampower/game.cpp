@@ -129,4 +129,27 @@ namespace game {
     std::uint64_t GetCurrentTargetGuid() {
         return *reinterpret_cast<uint64_t *>(Offsets::LockedTargetGuid);
     }
+
+    uint64_t UnitGetGuid(uintptr_t *unit) {
+        if (!unit) {
+            return 0;
+        }
+
+        uint64_t guid = *reinterpret_cast<uint64_t *>(unit + 12);
+        return guid;
+    }
+
+    uint64_t UnitGetTargetGuid(uintptr_t *unit) {
+        if (!unit) {
+            return 0;
+        }
+
+        auto *unitFields = *reinterpret_cast<UnitFields **>(unit + 68);
+
+        if (unitFields == nullptr) {
+            return 0;
+        }
+
+        return unitFields->target;
+    }
 }

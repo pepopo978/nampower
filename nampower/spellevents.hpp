@@ -7,7 +7,6 @@
 #include "main.hpp"
 
 namespace Nampower {
-
     void SignalEventHook(hadesmem::PatchDetourBase *detour, game::Events eventId);
 
     int SpellDelayedHook(hadesmem::PatchDetourBase *detour, uint32_t *opCode, CDataStore *packet);
