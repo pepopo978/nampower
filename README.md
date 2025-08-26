@@ -29,10 +29,15 @@ If all else fails can turn off queuing for a specific macro like so depending on
 /run SetCVar("NP_QueueCastTimeSpells", "1")
 /run SetCVar("NP_QueueInstantSpells", "1")
 ```
-### Installation
+### Twow Launcher Installation
+Enable Nampower in the mods tabs.
+
+Enable NampowerSettings in the addons tab.
+
+### Manual Installation
 Grab the latest nampower.dll from https://github.com/pepopo978/nampower/releases and place in the same directory as WoW.exe.  You can also get the helper addon mentioned below and place that in Interface/Addons.
 
-<b>You will need launch the game with a launcher like Vanillafixes https://github.com/hannesmann/vanillafixes or Unitxp https://github.com/allfoxwy/UnitXP_SP3</b> to actually have the nampower dll get loaded.
+Add nampower.dll to your dlls.txt file if it isn't already there.
 
 If you would prefer to compile yourself you will need to get:
 - boost 1.80 32 bit from https://www.boost.org/users/history/version_1_80_0.html
